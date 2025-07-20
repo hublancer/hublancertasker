@@ -18,6 +18,7 @@ export type Task = {
   price: number;
   offers: number;
   type: 'physical' | 'online';
+  status: 'open' | 'assigned' | 'completed';
 };
 
 interface TaskCardProps {

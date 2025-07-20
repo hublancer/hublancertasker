@@ -41,7 +41,7 @@ export default function TaskListItem({
               </div>
             </div>
             <div className="mt-2 text-sm">
-              <span className="text-primary font-semibold">Open</span>
+              <span className="text-primary font-semibold capitalize">{task.status}</span>
               <span className="text-muted-foreground">
                 {' '}
                 &middot; {task.offers} {task.offers === 1 ? 'offer' : 'offers'}

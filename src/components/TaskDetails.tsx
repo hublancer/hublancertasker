@@ -4,14 +4,17 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, Calendar, CircleDollarSign, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Link from 'next/link';
 import { Separator } from './ui/separator';
 
 interface TaskDetailsProps {
-  task: Task & { description: string; postedBy: string };
+  task: Task & {
+    description: string;
+    postedBy: string;
+    status: 'open' | 'assigned' | 'completed';
+  };
   onBack: () => void;
 }
 
@@ -55,21 +58,44 @@ const questions = [
 export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
   const userRole = 'tasker'; // This would come from auth context
 
+  const getStatusPill = (status: Task['status']) => {
+    switch (status) {
+      case 'open':
+        return (
+          <span className="inline-flex items-center rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800 ring-1 ring-inset ring-green-600/20">
+            OPEN
+          </span>
+        );
+      case 'assigned':
+        return (
+          <span className="inline-flex items-center rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 ring-1 ring-inset ring-blue-600/20">
+            ASSIGNED
+          </span>
+        );
+      case 'completed':
+        return (
+          <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 ring-1 ring-inset ring-gray-600/20">
+            COMPLETED
+          </span>
+        );
+    }
+  };
+
   return (
     <ScrollArea className="h-full">
       <div className="p-6 space-y-6 bg-card text-card-foreground h-full">
-        <Button variant="ghost" onClick={onBack} className="mb-4 hidden md:flex">
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          className="mb-4 hidden md:flex"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Return to map
         </Button>
 
         <div className="space-y-2">
           <div className="flex items-center gap-4">
-            <span className="inline-flex items-center rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800 ring-1 ring-inset ring-green-600/20">
-              OPEN
-            </span>
-            <span className="text-sm text-muted-foreground">ASSIGNED</span>
-            <span className="text-sm text-muted-foreground">COMPLETED</span>
+            {getStatusPill(task.status)}
           </div>
           <h1 className="text-3xl font-bold font-headline">{task.title}</h1>
         </div>
@@ -79,7 +105,10 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
             <div className="space-y-4 text-sm text-foreground">
               <div className="flex items-start">
                 <Avatar className="h-10 w-10 mr-4">
-                  <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="person face" />
+                  <AvatarImage
+                    src="https://placehold.co/40x40.png"
+                    data-ai-hint="person face"
+                  />
                   <AvatarFallback>{task.postedBy.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div>
@@ -151,7 +180,10 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   <CardContent className="p-4 flex flex-col md:flex-row gap-4">
                     <div className="flex-shrink-0 flex flex-col items-center md:border-r md:pr-4">
                       <Avatar className="h-12 w-12">
-                        <AvatarImage src={offer.avatar} data-ai-hint="person face" />
+                        <AvatarImage
+                          src={offer.avatar}
+                          data-ai-hint="person face"
+                        />
                         <AvatarFallback>
                           {offer.name.charAt(0)}
                         </AvatarFallback>
@@ -186,7 +218,10 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={q.avatar} data-ai-hint="person face" />
+                        <AvatarImage
+                          src={q.avatar}
+                          data-ai-hint="person face"
+                        />
                         <AvatarFallback>{q.name.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <p className="font-semibold text-sm">{q.name}</p>
@@ -212,11 +247,14 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
         <Separator />
 
         <div className="p-4 border rounded-lg text-center text-sm bg-muted/50">
-            <h4 className="font-semibold mb-2">Cancellation policy</h4>
-            <p className="text-muted-foreground">
-                If you are responsible for cancelling this task, a Cancellation Fee will be deducted from your next payment payout(s).
-            </p>
-            <Button variant="link" className="p-0 h-auto mt-1">Learn more</Button>
+          <h4 className="font-semibold mb-2">Cancellation policy</h4>
+          <p className="text-muted-foreground">
+            If you are responsible for cancelling this task, a Cancellation Fee
+            will be deducted from your next payment payout(s).
+          </p>
+          <Button variant="link" className="p-0 h-auto mt-1">
+            Learn more
+          </Button>
         </div>
       </div>
     </ScrollArea>

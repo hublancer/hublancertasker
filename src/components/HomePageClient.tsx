@@ -27,12 +27,14 @@ import TaskDetails from './TaskDetails';
 import { Label } from './ui/label';
 import { Slider } from './ui/slider';
 import { cn } from '@/lib/utils';
+import { Switch } from './ui/switch';
 
 interface HomePageClientProps {
   tasks: (Task & {
     coordinates: [number, number];
     description: string;
     postedBy: string;
+    status: 'open' | 'assigned' | 'completed';
   })[];
 }
 
@@ -40,12 +42,11 @@ type TaskTypeFilter = 'all' | 'physical' | 'online';
 
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [location, setLocation] = useState('');
   const [price, setPrice] = useState('any');
   const [category, setCategory] = useState('all');
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(
-    tasks.length > 0 ? tasks[0] : null
+    null
   );
 
   // Applied filters
@@ -53,13 +54,22 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     useState<TaskTypeFilter>('all');
   const [appliedLocation, setAppliedLocation] = useState('');
   const [appliedDistance, setAppliedDistance] = useState(50);
+  const [appliedAvailableOnly, setAppliedAvailableOnly] = useState(false);
+  const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
 
-  // Temporary state for the popover
+  // Temporary state for the popovers
   const [popoverTaskType, setPopoverTaskType] =
     useState<TaskTypeFilter>(appliedTaskType);
   const [popoverLocation, setPopoverLocation] = useState(appliedLocation);
   const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [popoverAvailableOnly, setPopoverAvailableOnly] =
+    useState(appliedAvailableOnly);
+  const [popoverNoOffersOnly, setPopoverNoOffersOnly] =
+    useState(appliedNoOffersOnly);
+
+  const [isLocationPopoverOpen, setIsLocationPopoverOpen] = useState(false);
+  const [isOtherFiltersPopoverOpen, setIsOtherFiltersPopoverOpen] =
+    useState(false);
 
   const Map = useMemo(
     () =>
@@ -78,15 +88,26 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     setAppliedTaskType(popoverTaskType);
     setAppliedLocation(popoverLocation);
     setAppliedDistance(popoverDistance);
-    setIsPopoverOpen(false);
+    setIsLocationPopoverOpen(false);
   };
 
   const handleLocationFilterCancel = () => {
-    // Reset popover state to match applied state
     setPopoverTaskType(appliedTaskType);
     setPopoverLocation(appliedLocation);
     setPopoverDistance(appliedDistance);
-    setIsPopoverOpen(false);
+    setIsLocationPopoverOpen(false);
+  };
+
+  const handleOtherFiltersApply = () => {
+    setAppliedAvailableOnly(popoverAvailableOnly);
+    setAppliedNoOffersOnly(popoverNoOffersOnly);
+    setIsOtherFiltersPopoverOpen(false);
+  };
+
+  const handleOtherFiltersCancel = () => {
+    setPopoverAvailableOnly(appliedAvailableOnly);
+    setPopoverNoOffersOnly(appliedNoOffersOnly);
+    setIsOtherFiltersPopoverOpen(false);
   };
 
   const getLocationButtonLabel = () => {
@@ -111,30 +132,22 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      // Search term filter
       if (
         searchTerm &&
         !task.title.toLowerCase().includes(searchTerm.toLowerCase())
       ) {
         return false;
       }
-
-      // Task type filter
       if (appliedTaskType !== 'all' && task.type !== appliedTaskType) {
         return false;
       }
-
-      // Location filter (simple text match)
       if (
         appliedLocation &&
         task.type === 'physical' &&
         !task.location.toLowerCase().includes(appliedLocation.toLowerCase())
       ) {
-        // This is a simplified location filter. A real implementation would use geocoding.
         return false;
       }
-
-      // Price filter
       if (price !== 'any') {
         const priceValue = task.price;
         if (price === '<100' && priceValue >= 100) return false;
@@ -142,12 +155,23 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           return false;
         if (price === '>500' && priceValue <= 500) return false;
       }
-
-      // Category filter is not implemented as there's no category data in tasks
-
+      if (appliedAvailableOnly && task.status !== 'open') {
+        return false;
+      }
+      if (appliedNoOffersOnly && task.offers > 0) {
+        return false;
+      }
       return true;
     });
-  }, [tasks, searchTerm, appliedTaskType, appliedLocation, price]);
+  }, [
+    tasks,
+    searchTerm,
+    appliedTaskType,
+    appliedLocation,
+    price,
+    appliedAvailableOnly,
+    appliedNoOffersOnly,
+  ]);
 
   const rightPanelContent = () => {
     if (selectedTask) {
@@ -185,7 +209,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
               </SelectContent>
             </Select>
 
-            <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+            <Popover
+              open={isLocationPopoverOpen}
+              onOpenChange={setIsLocationPopoverOpen}
+            >
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -285,9 +312,66 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <SelectItem value=">500">&gt; $500</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="ghost" className="hidden md:inline-flex">
-              Other filters <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
+
+            <Popover
+              open={isOtherFiltersPopoverOpen}
+              onOpenChange={setIsOtherFiltersPopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="hidden md:inline-flex">
+                  Other filters <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="start">
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Other Filters</h4>
+                  </div>
+                  <div className="grid gap-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="available-only">
+                          Available tasks only
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Hide tasks that are already assigned
+                        </p>
+                      </div>
+                      <Switch
+                        id="available-only"
+                        checked={popoverAvailableOnly}
+                        onCheckedChange={setPopoverAvailableOnly}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="no-offers-only">
+                          Tasks with no offers only
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Hide tasks that have offers
+                        </p>
+                      </div>
+                      <Switch
+                        id="no-offers-only"
+                        checked={popoverNoOffersOnly}
+                        onCheckedChange={setPopoverNoOffersOnly}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-2">
+                    <Button
+                      variant="ghost"
+                      onClick={handleOtherFiltersCancel}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleOtherFiltersApply}>Apply</Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <Select defaultValue="newest">
               <SelectTrigger className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[120px]">
                 <SelectValue />
@@ -329,9 +413,11 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
         {/* Task List */}
         <ScrollArea
-          className={`h-[calc(100vh-185px)] md:h-[calc(100vh-129px)] ${
-            mobileView !== 'list' && 'hidden'
-          } md:block`}
+          className={cn(
+            'h-[calc(100vh-185px)] md:h-[calc(100vh-129px)]',
+            mobileView === 'map' && 'hidden',
+            'md:block'
+          )}
         >
           <div className="p-4 md:p-6 space-y-4">
             {filteredTasks.length > 0 ? (
@@ -339,7 +425,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <TaskListItem
                   key={task.id}
                   task={task}
-                  onSelect={handleTaskSelect}
+                  onSelect={() => handleTaskSelect(task)}
                   isSelected={selectedTask?.id === task.id}
                 />
               ))
@@ -352,9 +438,11 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         </ScrollArea>
         {/* Map or Task Details */}
         <div
-          className={`relative h-[calc(100vh-185px)] md:h-[calc(100vh-129px)] ${
-            mobileView !== 'map' && 'hidden'
-          } md:block`}
+          className={cn(
+            'relative h-[calc(100vh-185px)] md:h-[calc(100vh-129px)]',
+            mobileView === 'list' && 'hidden',
+            'md:block'
+          )}
         >
           {rightPanelContent()}
         </div>
@@ -362,5 +450,3 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     </div>
   );
 }
-
-    
