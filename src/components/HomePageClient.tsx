@@ -13,17 +13,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, ChevronDown } from 'lucide-react';
-import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MapContainer, TileLayer } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { useMemo } from 'react';
+import dynamic from 'next/dynamic';
+
 
 interface HomePageClientProps {
   tasks: (Task & { coordinates: [number, number] })[];
 }
 
 export default function HomePageClient({ tasks }: HomePageClientProps) {
-  const Map = useMemo(
+    const Map = useMemo(
     () =>
       dynamic(() => import('@/components/Map'), {
         loading: () => <Skeleton className="h-full w-full" />,
@@ -31,6 +34,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }),
     []
   );
+
+  const physicalTasks = tasks.filter(task => task.type === 'physical');
+  const center: [number, number] = physicalTasks.length > 0 ? physicalTasks[0].coordinates : [51.505, -0.09];
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -97,7 +103,13 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           </div>
         </ScrollArea>
         <div className="hidden lg:block relative h-[calc(100vh-129px)]">
-          <Map tasks={tasks} />
+           <MapContainer center={center} zoom={10} scrollWheelZoom={false} className="h-full w-full">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <Map tasks={tasks} />
+          </MapContainer>
         </div>
       </main>
     </div>

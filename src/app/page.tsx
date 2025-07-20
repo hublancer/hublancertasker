@@ -1,6 +1,6 @@
 
-import HomePageClient from '@/components/HomePageClient';
 import { type Task } from '@/components/TaskCard';
+import HomePageClient from '@/components/HomePageClient';
 
 const mockTasks: (Task & { coordinates: [number, number] })[] = [
   {
@@ -64,6 +64,7 @@ const mockTasks: (Task & { coordinates: [number, number] })[] = [
     coordinates: [51.5072, -0.1276], // e.g. London
   },
 ];
+
 
 export default function Home() {
   return <HomePageClient tasks={mockTasks} />;

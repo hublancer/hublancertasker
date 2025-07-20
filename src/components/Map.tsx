@@ -1,7 +1,6 @@
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { Marker, Popup } from 'react-leaflet';
 import { Task } from './TaskCard';
 import L from 'leaflet';
 import Link from 'next/link';
@@ -29,14 +28,9 @@ interface MapProps {
 
 const Map = ({ tasks }: MapProps) => {
   const physicalTasks = tasks.filter(task => task.type === 'physical');
-  const center: [number, number] = physicalTasks.length > 0 ? physicalTasks[0].coordinates : [51.505, -0.09];
 
   return (
-    <MapContainer center={center} zoom={10} scrollWheelZoom={false} className="h-full w-full">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <>
       {physicalTasks.map(task => (
         <Marker key={task.id} position={task.coordinates}>
           <Popup>
@@ -50,7 +44,7 @@ const Map = ({ tasks }: MapProps) => {
           </Popup>
         </Marker>
       ))}
-    </MapContainer>
+    </>
   );
 };
 
