@@ -1,124 +1,152 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+
 import AppHeader from '@/components/AppHeader';
-import { ArrowRight, Search } from 'lucide-react';
+import { type Task } from '@/components/TaskCard';
+import TaskListItem from '@/components/TaskListItem';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Search, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+const mockTasks: Task[] = [
+  {
+    id: '1',
+    title: 'Garden Cleanup and Mowing',
+    location: 'Greenwich, London',
+    date: 'Today',
+    price: 75,
+    offers: 3,
+    type: 'physical',
+  },
+  {
+    id: '2',
+    title: 'Build a responsive React website',
+    location: 'Remote',
+    date: 'Flexible',
+    price: 500,
+    offers: 8,
+    type: 'online',
+  },
+  {
+    id: '3',
+    title: 'Help moving apartments',
+    location: 'SoHo, New York',
+    date: 'August 2, 2024',
+    price: 150,
+    offers: 1,
+    type: 'physical',
+  },
+  {
+    id: '4',
+    title: 'Design a company logo',
+    location: 'Remote',
+    date: '1-week deadline',
+    price: 250,
+    offers: 12,
+    type: 'online',
+  },
+  {
+    id: '5',
+    title: 'Assemble a new bookshelf',
+    location: 'Paris, France',
+    date: 'July 30, 2024',
+    price: 60,
+    offers: 5,
+    type: 'physical',
+  },
+  {
+    id: '6',
+    title: 'Write 5 blog posts on tech',
+    location: 'Remote',
+    date: 'Flexible',
+    price: 300,
+    offers: 6,
+    type: 'online',
+  },
+];
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
-      <main className="flex-1">
-        <section className="w-full py-20 md:py-32 lg:py-40">
-          <div className="container px-4 md:px-6">
-            <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-              <div className="flex flex-col justify-center space-y-4">
-                <div className="space-y-2">
-                  <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none font-headline">
-                    Find help. Get it done.
-                  </h1>
-                  <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    Hublancer connects you with talented taskers to handle your
-                    to-do list, or with clients who need your skills.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                  <Button
-                    asChild
-                    size="lg"
-                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    <Link href="/post-task">
-                      Post a Task
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline">
-                    <Link href="/tasks">
-                      Browse Tasks
-                      <Search className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-              <Image
-                src="https://placehold.co/600x600.png"
-                width="600"
-                height="600"
-                alt="Hero"
-                data-ai-hint="collaboration team work"
-                className="mx-auto aspect-square overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
-              />
+      <div className="border-b">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex flex-wrap items-center gap-4 py-4">
+            <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search for a task" className="pl-9" />
+            </div>
+            <Select>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="gardening">Gardening</SelectItem>
+                <SelectItem value="web-dev">Web Development</SelectItem>
+                <SelectItem value="moving">Moving</SelectItem>
+                <SelectItem value="design">Design</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Location"
+              className="flex-grow sm:flex-grow-0 sm:w-64"
+            />
+            <Select>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Any price" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any Price</SelectItem>
+                <SelectItem value="<100">&lt; $100</SelectItem>
+                <SelectItem value="100-500">$100 - $500</SelectItem>
+                <SelectItem value=">500">&gt; $500</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="ghost">
+              Other filters <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Sort</span>
+              <Select defaultValue="newest">
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest</SelectItem>
+                  <SelectItem value="price-asc">Price low-high</SelectItem>
+                  <SelectItem value="price-desc">Price high-low</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </section>
-
-        <section className="w-full py-12 md:py-24 lg:py-32 bg-card">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center">
-              <div className="space-y-2">
-                <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">
-                  Key Features
-                </div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl font-headline">
-                  How Hublancer Works
-                </h2>
-                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  A simple, streamlined process for clients and taskers.
-                </p>
-              </div>
-            </div>
-            <div className="mx-auto grid max-w-5xl items-start gap-12 py-12 lg:grid-cols-3 lg:gap-8">
-              <div className="grid gap-1 text-center">
-                <h3 className="text-lg font-bold font-headline">
-                  1. Post Your Task
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Clients describe what they need, set a budget, and post it for
-                  our community of taskers.
-                </p>
-              </div>
-              <div className="grid gap-1 text-center">
-                <h3 className="text-lg font-bold font-headline">
-                  2. Find Your Match
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Taskers browse and apply for tasks that fit their skills.
-                  Clients review offers and choose the best fit.
-                </p>
-              </div>
-              <div className="grid gap-1 text-center">
-                <h3 className="text-lg font-bold font-headline">
-                  3. Get It Done
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Collaborate through in-app messaging, complete the task, and
-                  handle payments securely.
-                </p>
-              </div>
-            </div>
+        </div>
+      </div>
+      <main className="flex-1 grid grid-cols-1 lg:grid-cols-2">
+        <ScrollArea className="h-[calc(100vh-129px)]">
+          <div className="p-4 md:p-6 space-y-4">
+            {mockTasks.map(task => (
+              <TaskListItem key={task.id} task={task} />
+            ))}
           </div>
-        </section>
+        </ScrollArea>
+        <div className="hidden lg:block relative h-[calc(100vh-129px)]">
+          <Image
+            src="https://placehold.co/1200x1200.png"
+            alt="Map of task locations"
+            layout="fill"
+            data-ai-hint="world map"
+            className="object-cover"
+          />
+        </div>
       </main>
-      <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-muted-foreground">
-          &copy; 2024 Hublancer. All rights reserved.
-        </p>
-        <nav className="sm:ml-auto flex gap-4 sm:gap-6">
-          <Link
-            href="#"
-            className="text-xs hover:underline underline-offset-4"
-          >
-            Terms of Service
-          </Link>
-          <Link
-            href="#"
-            className="text-xs hover:underline underline-offset-4"
-          >
-            Privacy
-          </Link>
-        </nav>
-      </footer>
     </div>
   );
 }
