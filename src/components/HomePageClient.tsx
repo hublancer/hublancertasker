@@ -13,14 +13,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, Map as MapIcon, List, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
+import { Skeleton } from './ui/skeleton';
+import TaskDetails from './TaskDetails';
 
 interface HomePageClientProps {
-  tasks: (Task & { coordinates: [number, number] })[];
+  tasks: (Task & {
+    coordinates: [number, number];
+    description: string;
+    postedBy: string;
+  })[];
 }
 
 export default function HomePageClient({ tasks }: HomePageClientProps) {
@@ -29,6 +34,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [location, setLocation] = useState('');
   const [price, setPrice] = useState('any');
   const [category, setCategory] = useState('all');
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const Map = useMemo(
     () =>
@@ -38,6 +45,13 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }),
     []
   );
+  const handleTaskSelect = (task: Task) => {
+    setSelectedTask(task);
+  };
+
+  const handleReturnToMap = () => {
+    setSelectedTask(null);
+  };
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
@@ -70,15 +84,22 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           return false;
         if (price === '>500' && priceValue <= 500) return false;
       }
-      
+
       // Category filter is not implemented as there's no category data in tasks
 
       return true;
     });
   }, [tasks, searchTerm, taskType, location, price]);
 
+  const rightPanelContent = () => {
+    if (selectedTask) {
+      return <TaskDetails task={selectedTask as any} onBack={handleReturnToMap} />;
+    }
+    return <Map tasks={filteredTasks} onTaskSelect={handleTaskSelect} />;
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background">
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4 md:px-6">
@@ -150,20 +171,51 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           </div>
         </div>
       </div>
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-2">
-        <ScrollArea className="h-[calc(100vh-129px)]">
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[40%_60%] overflow-hidden">
+        {/* Mobile view toggle */}
+        <div className="md:hidden p-2 bg-card border-b flex justify-center">
+            <div className="inline-flex rounded-md shadow-sm">
+                <Button
+                    onClick={() => setMobileView('list')}
+                    variant={mobileView === 'list' ? 'secondary' : 'ghost'}
+                    className="rounded-r-none"
+                >
+                    <List className="mr-2 h-4 w-4" />
+                    List
+                </Button>
+                <Button
+                    onClick={() => setMobileView('map')}
+                    variant={mobileView === 'map' ? 'secondary' : 'ghost'}
+                    className="rounded-l-none"
+                >
+                    <MapIcon className="mr-2 h-4 w-4" />
+                    Map
+                </Button>
+            </div>
+        </div>
+
+        {/* Task List */}
+        <ScrollArea className={`h-[calc(100vh-185px)] md:h-[calc(100vh-129px)] ${mobileView !== 'list' && 'hidden'} md:block`}>
           <div className="p-4 md:p-6 space-y-4">
             {filteredTasks.length > 0 ? (
               filteredTasks.map(task => (
-                <TaskListItem key={task.id} task={task} />
+                <TaskListItem
+                  key={task.id}
+                  task={task}
+                  onSelect={handleTaskSelect}
+                  isSelected={selectedTask?.id === task.id}
+                />
               ))
             ) : (
-              <p className="text-center text-muted-foreground py-10">No tasks found matching your criteria.</p>
+              <p className="text-center text-muted-foreground py-10">
+                No tasks found matching your criteria.
+              </p>
             )}
           </div>
         </ScrollArea>
-        <div className="hidden lg:block relative h-[calc(100vh-129px)]">
-          <Map tasks={filteredTasks} />
+        {/* Map or Task Details */}
+        <div className={`relative h-[calc(100vh-185px)] md:h-[calc(100vh-129px)] ${mobileView !== 'map' && 'hidden'} md:block`}>
+           {rightPanelContent()}
         </div>
       </main>
     </div>

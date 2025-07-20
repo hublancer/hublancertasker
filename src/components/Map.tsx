@@ -3,30 +3,26 @@
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import type { Task } from './TaskCard';
 import L from 'leaflet';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 
 // This is to fix the missing marker icon issue with react-leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconRetinaUrl:
+    'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-
 interface MapProps {
   tasks: (Task & { coordinates: [number, number] })[];
+  onTaskSelect: (task: Task) => void;
 }
 
 const INITIAL_ZOOM = 10;
 
-function MapControls({
-  center,
-}: {
-  center: [number, number];
-}) {
+function MapControls({ center }: { center: [number, number] }) {
   const map = useMap();
 
   return (
@@ -64,8 +60,7 @@ function MapControls({
   );
 }
 
-
-const Map = ({ tasks }: MapProps) => {
+const Map = ({ tasks, onTaskSelect }: MapProps) => {
   const physicalTasks = tasks.filter(task => task.type === 'physical');
   const center: [number, number] =
     physicalTasks.length > 0 ? physicalTasks[0].coordinates : [51.505, -0.09];
@@ -88,12 +83,13 @@ const Map = ({ tasks }: MapProps) => {
             <div className="space-y-1">
               <h3 className="font-bold">{task.title}</h3>
               <p>${task.price}</p>
-              <Link
-                href={`/tasks/${task.id}`}
-                className="text-primary hover:underline text-sm"
+              <Button
+                variant="link"
+                className="p-0 h-auto"
+                onClick={() => onTaskSelect(task)}
               >
                 View Task
-              </Link>
+              </Button>
             </div>
           </Popup>
         </Marker>
