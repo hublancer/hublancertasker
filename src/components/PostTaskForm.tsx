@@ -47,7 +47,9 @@ export default function PostTaskForm() {
     defaultValues: {
       title: '',
       description: '',
+      budget: undefined,
       taskType: 'physical',
+      preferredDateTime: undefined,
     },
   });
 
@@ -131,7 +133,7 @@ export default function PostTaskForm() {
               <FormItem>
                 <FormLabel>Budget ($)</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="100" {...field} />
+                  <Input type="number" placeholder="100" {...field} value={field.value ?? ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
