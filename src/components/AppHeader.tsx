@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Menu, Briefcase, MessageSquare, User, LogIn } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -15,16 +22,16 @@ const AppHeader = () => {
   // In a real app, this would come from an auth context/hook
   useEffect(() => {
     // This is a mock authentication check
-    setIsAuthenticated(true); 
-    setIsClient(true); 
+    setIsAuthenticated(true);
+    setIsClient(true);
   }, []);
 
   const pathname = usePathname();
 
   const navLinks = [
-    { href: "/tasks", label: "Browse Tasks" },
-    { href: "/my-tasks", label: "My Tasks", auth: true },
-    { href: "/messages", label: "Messages", auth: true },
+    { href: '/tasks', label: 'Browse Tasks' },
+    { href: '/my-tasks', label: 'My Tasks', auth: true },
+    { href: '/messages', label: 'Messages', auth: true },
   ];
 
   return (
@@ -36,21 +43,28 @@ const AppHeader = () => {
             <span className="font-bold font-headline text-lg">Hublancer</span>
           </Link>
           <nav className="flex items-center gap-6 text-sm">
-            {navLinks.map(link => (
-                (!link.auth || isAuthenticated) &&
-                <Link
+            {navLinks.map(
+              link =>
+                (!link.auth || isAuthenticated) && (
+                  <Link
                     key={link.href}
                     href={link.href}
-                    className={cn("transition-colors hover:text-foreground/80", pathname === link.href ? "text-foreground" : "text-foreground/60")}
-                >
+                    className={cn(
+                      'transition-colors hover:text-foreground/80',
+                      pathname === link.href
+                        ? 'text-foreground'
+                        : 'text-foreground/60'
+                    )}
+                  >
                     {link.label}
-                </Link>
-            ))}
+                  </Link>
+                )
+            )}
           </nav>
         </div>
 
         <div className="md:hidden">
-           <Sheet>
+          <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="h-5 w-5" />
@@ -58,25 +72,45 @@ const AppHeader = () => {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="pr-0">
+              <SheetHeader className="p-6 pt-0 pb-2">
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <SheetDescription className="sr-only">
+                  Main navigation menu
+                </SheetDescription>
+              </SheetHeader>
               <Link href="/" className="flex items-center space-x-2 px-6">
                 <Briefcase className="h-6 w-6 text-primary" />
-                <span className="font-bold font-headline text-lg">Hublancer</span>
+                <span className="font-bold font-headline text-lg">
+                  Hublancer
+                </span>
               </Link>
               <div className="my-4 h-[calc(100vh-8rem)] pb-10 pl-6">
                 <div className="flex flex-col gap-4">
-                 {navLinks.map(link => (
-                    (!link.auth || isAuthenticated) &&
+                  {navLinks.map(
+                    link =>
+                      (!link.auth || isAuthenticated) && (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          className={cn(
+                            'text-lg font-medium transition-colors hover:text-foreground/80',
+                            pathname === link.href
+                              ? 'text-foreground'
+                              : 'text-foreground/60'
+                          )}
+                        >
+                          {link.label}
+                        </Link>
+                      )
+                  )}
+                  {isAuthenticated && isClient && (
                     <Link
-                        key={link.href}
-                        href={link.href}
-                        className={cn("text-lg font-medium transition-colors hover:text-foreground/80", pathname === link.href ? "text-foreground" : "text-foreground/60")}
+                      href="/post-task"
+                      className="text-lg font-medium transition-colors text-accent hover:text-accent/80"
                     >
-                        {link.label}
+                      Post a Task
                     </Link>
-                  ))}
-                  {isAuthenticated && isClient &&
-                    <Link href="/post-task" className="text-lg font-medium transition-colors text-accent hover:text-accent/80">Post a Task</Link>
-                  }
+                  )}
                 </div>
               </div>
             </SheetContent>
@@ -87,8 +121,11 @@ const AppHeader = () => {
           {isAuthenticated ? (
             <>
               {isClient && (
-                 <Button asChild className="hidden sm:inline-flex bg-accent hover:bg-accent/90 text-accent-foreground">
-                    <Link href="/post-task">Post a Task</Link>
+                <Button
+                  asChild
+                  className="hidden sm:inline-flex bg-accent hover:bg-accent/90 text-accent-foreground"
+                >
+                  <Link href="/post-task">Post a Task</Link>
                 </Button>
               )}
               <Button variant="ghost" size="icon">
