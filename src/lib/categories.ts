@@ -1,0 +1,33 @@
+export const categories = [
+  // Physical Services
+  { name: 'AC Service & Repair', type: 'physical' },
+  { name: 'Electrician', type: 'physical' },
+  { name: 'Plumber', type: 'physical' },
+  { name: 'Carpenter', type: 'physical' },
+  { name: 'Painter', type: 'physical' },
+  { name: 'Home Cleaning', type: 'physical' },
+  { name: 'Moving & Delivery', type: 'physical' },
+  { name: 'Handyman Services', type: 'physical' },
+  { name: 'Gardening', type: 'physical' },
+  { name: 'Pest Control', type: 'physical' },
+  { name: 'Car Wash & Repair', type: 'physical' },
+  { name: 'Event Planner', type: 'physical' },
+  { name: 'Photographer', type: 'physical' },
+  { name: 'Salon at Home', type: 'physical' },
+  { name: 'Makeup Artist', type: 'physical' },
+  { name: 'Home Tutor', type: 'physical' },
+
+  // Online Services
+  { name: 'Graphic Design & Video', type: 'online' },
+  { name: 'Web & App Development', type: 'online' },
+  { name: 'Digital Marketing', type: 'online' },
+  { name: 'Writing & Translation', type: 'online' },
+  { name: 'Virtual Assistant', type: 'online' },
+  { name: 'Data Entry & Admin', type: 'online' },
+  { name: 'Online Tutoring', type: 'online' },
+  { name: 'Accounting & Finance', type: 'online' },
+  { name: 'Legal Services', type: 'online' },
+  { name: 'Video Editing', type: 'online' },
+  { name: 'Social Media Management', type: 'online' },
+  { name: 'Consultancy', type: 'online' },
+];

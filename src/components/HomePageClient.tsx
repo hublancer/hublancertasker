@@ -28,6 +28,7 @@ import { Label } from './ui/label';
 import { Slider } from './ui/slider';
 import { cn } from '@/lib/utils';
 import { Switch } from './ui/switch';
+import { CategoryFilter } from './CategoryFilter';
 
 interface HomePageClientProps {
   tasks: (Task & {
@@ -42,13 +43,13 @@ type TaskTypeFilter = 'all' | 'physical' | 'online';
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [price, setPrice] = useState('any');
-  const [category, setCategory] = useState('all');
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(
     null
   );
 
   // Applied filters
+  const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
   const [appliedTaskType, setAppliedTaskType] =
     useState<TaskTypeFilter>('all');
   const [appliedLocation, setAppliedLocation] = useState('');
@@ -137,6 +138,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       ) {
         return false;
       }
+      if (
+        appliedCategories.length > 0 &&
+        !appliedCategories.includes(task.category)
+      ) {
+        return false;
+      }
       if (appliedTaskType !== 'all' && task.type !== appliedTaskType) {
         return false;
       }
@@ -167,6 +174,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   }, [
     tasks,
     searchTerm,
+    appliedCategories,
     appliedTaskType,
     appliedLocation,
     // appliedDistance, // Not used in filtering yet
@@ -202,14 +210,11 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <Select value={category} onValueChange={setCategory} disabled>
-              <SelectTrigger className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[120px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-              </SelectContent>
-            </Select>
+            
+            <CategoryFilter 
+              selectedCategories={appliedCategories}
+              onApply={setAppliedCategories}
+            />
 
             <Popover
               open={isLocationPopoverOpen}

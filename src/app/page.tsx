@@ -14,6 +14,7 @@ const mockTasks: (Task & {
     price: 75,
     offers: 3,
     type: 'physical',
+    category: 'Gardening',
     coordinates: [51.4826, -0.0077],
     description:
       "I need help getting my garden ready for a summer party. The main tasks include mowing the front and back lawn (approx 100 sq meters total), weeding the flower beds, trimming the hedges, and taking away all the garden waste. All tools will be provided, but you're welcome to bring your own if you prefer. This should take about 3-4 hours.",
@@ -28,6 +29,7 @@ const mockTasks: (Task & {
     price: 500,
     offers: 8,
     type: 'online',
+    category: 'Web & App Development',
     coordinates: [34.0522, -118.2437], // Remote tasks can still have a general location, e.g. LA
     description:
       'Looking for a skilled developer to build a responsive 5-page website for a new startup. Tech stack should be Next.js and Tailwind CSS. Figma designs will be provided. Need to be able to work independently and meet deadlines.',
@@ -42,6 +44,7 @@ const mockTasks: (Task & {
     price: 150,
     offers: 1,
     type: 'physical',
+    category: 'Moving & Delivery',
     coordinates: [40.7233, -74.0016],
     description:
       'Need a hand moving some furniture and boxes from a 2nd floor apartment to a moving van. No heavy lifting required, just need an extra pair of hands. Should take about 2-3 hours.',
@@ -56,6 +59,7 @@ const mockTasks: (Task & {
     price: 250,
     offers: 12,
     type: 'online',
+    category: 'Graphic Design & Video',
     coordinates: [48.8566, 2.3522], // e.g. Paris
     description:
       'We are a new coffee brand and need a modern, minimalist logo. We will provide a brief with our brand values and some inspiration. Looking for a creative designer with a strong portfolio.',
@@ -70,6 +74,7 @@ const mockTasks: (Task & {
     price: 60,
     offers: 0,
     type: 'physical',
+    category: 'Handyman Services',
     coordinates: [48.8596, 2.3552],
     description:
       'I have a new IKEA bookshelf that needs assembling. The instructions and all parts are here. Should be a quick job for someone who knows what they are doing!',
@@ -84,6 +89,7 @@ const mockTasks: (Task & {
     price: 300,
     offers: 6,
     type: 'online',
+    category: 'Writing & Translation',
     coordinates: [51.5072, -0.1276], // e.g. London
     description:
       'Seeking a writer to create 5 blog posts (around 1000 words each) on the topic of AI and machine learning. Must have some knowledge in the area and be able to write in an engaging, accessible style.',
