@@ -29,7 +29,7 @@ const AppHeader = () => {
   const pathname = usePathname();
 
   const navLinks = [
-    { href: '/tasks', label: 'Browse Tasks' },
+    { href: '/', label: 'Browse Tasks' },
     { href: '/my-tasks', label: 'My Tasks', auth: true },
     { href: '/messages', label: 'Messages', auth: true },
   ];
@@ -73,7 +73,7 @@ const AppHeader = () => {
             </SheetTrigger>
             <SheetContent side="left" className="pr-0">
               <SheetHeader className="p-6 pt-0 pb-2">
-                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <SheetTitle>Menu</SheetTitle>
                 <SheetDescription className="sr-only">
                   Main navigation menu
                 </SheetDescription>
@@ -106,7 +106,7 @@ const AppHeader = () => {
                   {isAuthenticated && isClient && (
                     <Link
                       href="/post-task"
-                      className="text-lg font-medium transition-colors text-accent hover:text-accent/80"
+                      className="text-lg font-medium transition-colors text-primary hover:text-primary/80"
                     >
                       Post a Task
                     </Link>
@@ -123,7 +123,7 @@ const AppHeader = () => {
               {isClient && (
                 <Button
                   asChild
-                  className="hidden sm:inline-flex bg-accent hover:bg-accent/90 text-accent-foreground"
+                  className="hidden sm:inline-flex bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   <Link href="/post-task">Post a Task</Link>
                 </Button>
