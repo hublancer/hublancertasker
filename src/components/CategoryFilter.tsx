@@ -67,7 +67,7 @@ export function CategoryFilter({
           <span className="truncate">{getButtonLabel()}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="start">
+      <PopoverContent className="w-80 md:w-[500px] p-0" align="start">
         <div className="p-4">
           <h4 className="font-medium leading-none mb-4">All Categories</h4>
           <div className="relative">
@@ -82,7 +82,7 @@ export function CategoryFilter({
         </div>
         <Separator />
         <ScrollArea className="h-64">
-          <div className="p-4 space-y-4">
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredCategories.map(category => (
               <div key={category.name} className="flex items-center space-x-2">
                 <Checkbox
