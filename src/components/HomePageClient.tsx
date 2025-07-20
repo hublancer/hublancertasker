@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import AppHeader from '@/components/AppHeader';
 import { type Task } from '@/components/TaskCard';
 import TaskListItem from '@/components/TaskListItem';
@@ -16,16 +17,20 @@ import { Search, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import 'leaflet/dist/leaflet.css';
-import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
-
 
 interface HomePageClientProps {
   tasks: (Task & { coordinates: [number, number] })[];
 }
 
 export default function HomePageClient({ tasks }: HomePageClientProps) {
-    const Map = useMemo(
+  const [searchTerm, setSearchTerm] = useState('');
+  const [taskType, setTaskType] = useState('all');
+  const [location, setLocation] = useState('');
+  const [price, setPrice] = useState('any');
+  const [category, setCategory] = useState('all');
+
+  const Map = useMemo(
     () =>
       dynamic(() => import('@/components/Map'), {
         loading: () => <Skeleton className="h-full w-full" />,
@@ -33,6 +38,44 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }),
     []
   );
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      // Search term filter
+      if (
+        searchTerm &&
+        !task.title.toLowerCase().includes(searchTerm.toLowerCase())
+      ) {
+        return false;
+      }
+
+      // Task type filter
+      if (taskType !== 'all' && task.type !== taskType) {
+        return false;
+      }
+
+      // Location filter
+      if (
+        location &&
+        !task.location.toLowerCase().includes(location.toLowerCase())
+      ) {
+        return false;
+      }
+
+      // Price filter
+      if (price !== 'any') {
+        const priceValue = task.price;
+        if (price === '<100' && priceValue >= 100) return false;
+        if (price === '100-500' && (priceValue < 100 || priceValue > 500))
+          return false;
+        if (price === '>500' && priceValue <= 500) return false;
+      }
+      
+      // Category filter is not implemented as there's no category data in tasks
+
+      return true;
+    });
+  }, [tasks, searchTerm, taskType, location, price]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -42,9 +85,41 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           <div className="flex flex-wrap items-center gap-4 py-4">
             <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search for a task" className="pl-9" />
+              <Input
+                placeholder="Search for a task"
+                className="pl-9"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Select>
+            <Select value={taskType} onValueChange={setTaskType}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Task Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="physical">Physical</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Location"
+              className="flex-grow sm:flex-grow-0 sm:w-64"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+            />
+            <Select value={price} onValueChange={setPrice}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Any price" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any Price</SelectItem>
+                <SelectItem value="<100">&lt; $100</SelectItem>
+                <SelectItem value="100-500">$100 - $500</SelectItem>
+                <SelectItem value=">500">&gt; $500</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={category} onValueChange={setCategory} disabled>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
@@ -54,21 +129,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <SelectItem value="web-dev">Web Development</SelectItem>
                 <SelectItem value="moving">Moving</SelectItem>
                 <SelectItem value="design">Design</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="Location"
-              className="flex-grow sm:flex-grow-0 sm:w-64"
-            />
-            <Select>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Any price" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any Price</SelectItem>
-                <SelectItem value="<100">&lt; $100</SelectItem>
-                <SelectItem value="100-500">$100 - $500</SelectItem>
-                <SelectItem value=">500">&gt; $500</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="ghost">
@@ -93,13 +153,17 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-2">
         <ScrollArea className="h-[calc(100vh-129px)]">
           <div className="p-4 md:p-6 space-y-4">
-            {tasks.map(task => (
-              <TaskListItem key={task.id} task={task} />
-            ))}
+            {filteredTasks.length > 0 ? (
+              filteredTasks.map(task => (
+                <TaskListItem key={task.id} task={task} />
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-10">No tasks found matching your criteria.</p>
+            )}
           </div>
         </ScrollArea>
         <div className="hidden lg:block relative h-[calc(100vh-129px)]">
-           <Map tasks={tasks} />
+          <Map tasks={filteredTasks} />
         </div>
       </main>
     </div>
