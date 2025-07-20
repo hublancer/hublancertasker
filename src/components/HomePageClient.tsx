@@ -15,7 +15,6 @@ import {
 import { Search, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MapContainer, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -34,9 +33,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }),
     []
   );
-
-  const physicalTasks = tasks.filter(task => task.type === 'physical');
-  const center: [number, number] = physicalTasks.length > 0 ? physicalTasks[0].coordinates : [51.505, -0.09];
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -103,13 +99,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           </div>
         </ScrollArea>
         <div className="hidden lg:block relative h-[calc(100vh-129px)]">
-           <MapContainer center={center} zoom={10} scrollWheelZoom={false} className="h-full w-full">
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <Map tasks={tasks} />
-          </MapContainer>
+           <Map tasks={tasks} />
         </div>
       </main>
     </div>
