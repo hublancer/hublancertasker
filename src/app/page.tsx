@@ -12,10 +12,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, ChevronDown } from 'lucide-react';
-import Image from 'next/image';
+import dynamic from 'next/dynamic';
+import { useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const mockTasks: Task[] = [
+const mockTasks: (Task & { coordinates: [number, number] })[] = [
   {
     id: '1',
     title: 'Garden Cleanup and Mowing',
@@ -24,6 +26,7 @@ const mockTasks: Task[] = [
     price: 75,
     offers: 3,
     type: 'physical',
+    coordinates: [51.4826, -0.0077],
   },
   {
     id: '2',
@@ -33,6 +36,7 @@ const mockTasks: Task[] = [
     price: 500,
     offers: 8,
     type: 'online',
+    coordinates: [34.0522, -118.2437], // Remote tasks can still have a general location, e.g. LA
   },
   {
     id: '3',
@@ -42,6 +46,7 @@ const mockTasks: Task[] = [
     price: 150,
     offers: 1,
     type: 'physical',
+    coordinates: [40.7233, -74.0016],
   },
   {
     id: '4',
@@ -51,6 +56,7 @@ const mockTasks: Task[] = [
     price: 250,
     offers: 12,
     type: 'online',
+    coordinates: [48.8566, 2.3522], // e.g. Paris
   },
   {
     id: '5',
@@ -60,6 +66,7 @@ const mockTasks: Task[] = [
     price: 60,
     offers: 5,
     type: 'physical',
+    coordinates: [48.8596, 2.3552],
   },
   {
     id: '6',
@@ -69,10 +76,20 @@ const mockTasks: Task[] = [
     price: 300,
     offers: 6,
     type: 'online',
+    coordinates: [51.5072, -0.1276], // e.g. London
   },
 ];
 
 export default function Home() {
+  const Map = useMemo(
+    () =>
+      dynamic(() => import('@/components/Map'), {
+        loading: () => <Skeleton className="h-full w-full" />,
+        ssr: false,
+      }),
+    []
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
@@ -138,13 +155,7 @@ export default function Home() {
           </div>
         </ScrollArea>
         <div className="hidden lg:block relative h-[calc(100vh-129px)]">
-          <Image
-            src="https://placehold.co/1200x1200.png"
-            alt="Map of task locations"
-            layout="fill"
-            data-ai-hint="world map"
-            className="object-cover"
-          />
+          <Map tasks={mockTasks} />
         </div>
       </main>
     </div>
