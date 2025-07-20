@@ -7,23 +7,14 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 
-const iconUrl = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png';
-const iconRetinaUrl =
-  'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png';
-const shadowUrl =
-  'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png';
-
-const DefaultIcon = L.icon({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+// This is to fix the missing marker icon issue with react-leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-L.Marker.prototype.options.icon = DefaultIcon;
 
 interface MapProps {
   tasks: (Task & { coordinates: [number, number] })[];
@@ -40,7 +31,7 @@ function MapControls({
 
   return (
     <div className="leaflet-top leaflet-right">
-      <div className="leaflet-control leaflet-bar flex flex-col gap-px">
+      <div className="leaflet-control leaflet-bar flex flex-col gap-px mt-2 mr-2">
         <Button
           variant="outline"
           size="icon"
