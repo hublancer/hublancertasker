@@ -34,7 +34,6 @@ interface HomePageClientProps {
     coordinates: [number, number];
     description: string;
     postedBy: string;
-    status: 'open' | 'assigned' | 'completed';
   })[];
 }
 
@@ -146,6 +145,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         task.type === 'physical' &&
         !task.location.toLowerCase().includes(appliedLocation.toLowerCase())
       ) {
+        // This is a naive implementation. A real app would use a geocoding API
+        // to filter by distance from the entered location.
         return false;
       }
       if (price !== 'any') {
@@ -168,6 +169,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     searchTerm,
     appliedTaskType,
     appliedLocation,
+    // appliedDistance, // Not used in filtering yet
     price,
     appliedAvailableOnly,
     appliedNoOffersOnly,
@@ -230,7 +232,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     </p>
                   </div>
                   <div className="grid gap-2">
-                    <Label>TO BE DONE</Label>
+                    <Label>Task Type</Label>
                     <div className="flex items-center gap-2">
                       <Button
                         variant={
@@ -264,18 +266,17 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="suburb">SUBURB</Label>
+                    <Label htmlFor="suburb">Location</Label>
                     <Input
                       id="suburb"
                       placeholder="e.g. Sydney NSW, Australia"
                       value={popoverLocation}
                       onChange={e => setPopoverLocation(e.target.value)}
-                      disabled={popoverTaskType === 'online'}
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label>
-                      DISTANCE -{' '}
+                      Distance -{' '}
                       <span className="font-bold text-primary">
                         {popoverDistance}km
                       </span>

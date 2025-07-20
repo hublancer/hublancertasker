@@ -5,7 +5,6 @@ const mockTasks: (Task & {
   coordinates: [number, number];
   description: string;
   postedBy: string;
-  status: 'open' | 'assigned' | 'completed';
 })[] = [
   {
     id: '1',

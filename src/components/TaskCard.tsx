@@ -23,9 +23,16 @@ export type Task = {
 
 interface TaskCardProps {
   task: Task;
+  onSelect?: (task: Task) => void;
 }
 
-export default function TaskCard({ task }: TaskCardProps) {
+export default function TaskCard({ task, onSelect }: TaskCardProps) {
+  const handleViewTask = () => {
+    if (onSelect) {
+      onSelect(task);
+    }
+  };
+
   return (
     <Card className="flex flex-col h-full hover:shadow-md transition-shadow duration-300">
       <CardHeader>
@@ -56,9 +63,13 @@ export default function TaskCard({ task }: TaskCardProps) {
       </CardContent>
       <CardFooter className="flex justify-between items-center">
         <div className="text-xl font-bold text-primary">${task.price}</div>
-        <Button asChild>
-          <Link href={`/tasks/${task.id}`}>View Task</Link>
-        </Button>
+        {onSelect ? (
+          <Button onClick={handleViewTask}>View Task</Button>
+        ) : (
+          <Button asChild>
+            <Link href={`/`}>View Task</Link>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

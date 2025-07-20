@@ -13,7 +13,6 @@ interface TaskDetailsProps {
   task: Task & {
     description: string;
     postedBy: string;
-    status: 'open' | 'assigned' | 'completed';
   };
   onBack: () => void;
 }
