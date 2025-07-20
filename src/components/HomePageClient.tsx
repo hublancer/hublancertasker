@@ -7,6 +7,11 @@ import TaskListItem from '@/components/TaskListItem';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -19,6 +24,9 @@ import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
 import TaskDetails from './TaskDetails';
+import { Label } from './ui/label';
+import { Slider } from './ui/slider';
+import { cn } from '@/lib/utils';
 
 interface HomePageClientProps {
   tasks: (Task & {
@@ -28,9 +36,10 @@ interface HomePageClientProps {
   })[];
 }
 
+type TaskTypeFilter = 'all' | 'physical' | 'online';
+
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [taskType, setTaskType] = useState('all');
   const [location, setLocation] = useState('');
   const [price, setPrice] = useState('any');
   const [category, setCategory] = useState('all');
@@ -38,6 +47,19 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(
     tasks.length > 0 ? tasks[0] : null
   );
+
+  // Applied filters
+  const [appliedTaskType, setAppliedTaskType] =
+    useState<TaskTypeFilter>('all');
+  const [appliedLocation, setAppliedLocation] = useState('');
+  const [appliedDistance, setAppliedDistance] = useState(50);
+
+  // Temporary state for the popover
+  const [popoverTaskType, setPopoverTaskType] =
+    useState<TaskTypeFilter>(appliedTaskType);
+  const [popoverLocation, setPopoverLocation] = useState(appliedLocation);
+  const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   const Map = useMemo(
     () =>
@@ -47,12 +69,44 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }),
     []
   );
+
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
   };
 
-  const handleReturnToMap = () => {
-    setSelectedTask(null);
+  const handleLocationFilterApply = () => {
+    setAppliedTaskType(popoverTaskType);
+    setAppliedLocation(popoverLocation);
+    setAppliedDistance(popoverDistance);
+    setIsPopoverOpen(false);
+  };
+
+  const handleLocationFilterCancel = () => {
+    // Reset popover state to match applied state
+    setPopoverTaskType(appliedTaskType);
+    setPopoverLocation(appliedLocation);
+    setPopoverDistance(appliedDistance);
+    setIsPopoverOpen(false);
+  };
+
+  const getLocationButtonLabel = () => {
+    if (appliedTaskType === 'online' && !appliedLocation) return 'Remotely';
+    if (appliedTaskType === 'physical' && !appliedLocation) return 'In-person';
+
+    let label = '';
+    if (appliedLocation) {
+      if (appliedTaskType === 'physical') {
+        label += `${appliedDistance}km from ${appliedLocation}`;
+      } else {
+        label += appliedLocation;
+      }
+    }
+
+    if (appliedTaskType === 'online') {
+      label += label ? ' & remotely' : 'Remotely';
+    }
+
+    return label || 'Any location';
   };
 
   const filteredTasks = useMemo(() => {
@@ -66,15 +120,17 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }
 
       // Task type filter
-      if (taskType !== 'all' && task.type !== taskType) {
+      if (appliedTaskType !== 'all' && task.type !== appliedTaskType) {
         return false;
       }
 
-      // Location filter
+      // Location filter (simple text match)
       if (
-        location &&
-        !task.location.toLowerCase().includes(location.toLowerCase())
+        appliedLocation &&
+        task.type === 'physical' &&
+        !task.location.toLowerCase().includes(appliedLocation.toLowerCase())
       ) {
+        // This is a simplified location filter. A real implementation would use geocoding.
         return false;
       }
 
@@ -91,7 +147,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
       return true;
     });
-  }, [tasks, searchTerm, taskType, location, price]);
+  }, [tasks, searchTerm, appliedTaskType, appliedLocation, price]);
 
   const rightPanelContent = () => {
     if (selectedTask) {
@@ -128,12 +184,96 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <SelectItem value="all">All Categories</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              placeholder="Location"
-              className="flex-grow sm:flex-grow-0 sm:w-auto min-w-[150px]"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-            />
+
+            <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[150px] justify-start text-left font-normal"
+                >
+                  <span className="truncate">{getLocationButtonLabel()}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="start">
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Location</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Filter tasks by location and type.
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>TO BE DONE</Label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={
+                          popoverTaskType === 'physical'
+                            ? 'primary'
+                            : 'outline'
+                        }
+                        onClick={() => setPopoverTaskType('physical')}
+                        className="flex-1"
+                      >
+                        In-person
+                      </Button>
+                      <Button
+                        variant={
+                          popoverTaskType === 'online' ? 'primary' : 'outline'
+                        }
+                        onClick={() => setPopoverTaskType('online')}
+                        className="flex-1"
+                      >
+                        Remotely
+                      </Button>
+                      <Button
+                        variant={
+                          popoverTaskType === 'all' ? 'primary' : 'outline'
+                        }
+                        onClick={() => setPopoverTaskType('all')}
+                        className="flex-1"
+                      >
+                        All
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="suburb">SUBURB</Label>
+                    <Input
+                      id="suburb"
+                      placeholder="e.g. Sydney NSW, Australia"
+                      value={popoverLocation}
+                      onChange={e => setPopoverLocation(e.target.value)}
+                      disabled={popoverTaskType === 'online'}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>
+                      DISTANCE -{' '}
+                      <span className="font-bold text-primary">
+                        {popoverDistance}km
+                      </span>
+                    </Label>
+                    <Slider
+                      value={[popoverDistance]}
+                      onValueChange={value => setPopoverDistance(value[0])}
+                      max={100}
+                      step={1}
+                      disabled={popoverTaskType === 'online'}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 mt-2">
+                    <Button
+                      variant="ghost"
+                      onClick={handleLocationFilterCancel}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleLocationFilterApply}>Apply</Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <Select value={price} onValueChange={setPrice}>
               <SelectTrigger className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[120px]">
                 <SelectValue placeholder="Any price" />
@@ -222,3 +362,5 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     </div>
   );
 }
+
+    
