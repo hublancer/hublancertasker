@@ -4,7 +4,7 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar, MessageSquare } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2 } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
@@ -24,7 +24,6 @@ interface TaskDetailsProps {
     postedBy: string;
   };
   onBack: () => void;
-  onLocationClick?: (task: Task) => void;
   onTaskUpdate?: () => void;
 }
 
@@ -49,7 +48,7 @@ interface Question {
 }
 
 
-export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdate }: TaskDetailsProps) {
+export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -61,13 +60,15 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
   const [loadingQuestions, setLoadingQuestions] = useState(true);
 
   const [offerComment, setOfferComment] = useState('');
-  const [offerPrice, setOfferPrice] = useState<number | ''>('');
+  const [offerPrice, setOfferPrice] = useState<number | ''>(task.price);
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
 
   const [questionText, setQuestionText] = useState('');
   const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false);
   const [isAccepting, setIsAccepting] = useState<string | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
 
   useEffect(() => {
     if (!task?.id) return;
@@ -103,30 +104,48 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
   }, [task.id]);
 
  const handleMakeOffer = async () => {
-    if (!user || !userProfile || offerPrice === '' || !offerComment) {
+    if (!user || !userProfile) {
+        setIsLoginOpen(true);
+        return;
+    }
+    if (offerPrice === '' || !offerComment) {
         toast({ variant: 'destructive', title: "Please fill all offer fields." });
         return;
     }
     setIsSubmittingOffer(true);
     try {
-        await addDoc(collection(db, 'tasks', task.id, 'offers'), {
-            taskerId: user.uid,
-            taskerName: userProfile.name,
-            taskerAvatar: user.photoURL || '',
-            offerPrice: Number(offerPrice),
-            comment: offerComment,
-            createdAt: serverTimestamp(),
-        });
-        
-        // Update offer count on the task
-        const taskRef = doc(db, 'tasks', task.id);
-        const newOfferCount = (task.offers || 0) + 1;
-        await updateDoc(taskRef, { offerCount: newOfferCount });
-        onTaskUpdate?.();
+        if(editingOffer) {
+            // Update existing offer
+            const offerRef = doc(db, 'tasks', task.id, 'offers', editingOffer.id);
+            await updateDoc(offerRef, {
+                offerPrice: Number(offerPrice),
+                comment: offerComment,
+            });
+            setEditingOffer(null);
+            toast({ title: "Offer updated successfully!" });
+
+        } else {
+             // Add new offer
+            await addDoc(collection(db, 'tasks', task.id, 'offers'), {
+                taskerId: user.uid,
+                taskerName: userProfile.name,
+                taskerAvatar: user.photoURL || '',
+                offerPrice: Number(offerPrice),
+                comment: offerComment,
+                createdAt: serverTimestamp(),
+            });
+            
+            // Update offer count on the task
+            const taskRef = doc(db, 'tasks', task.id);
+            const newOfferCount = (task.offers || 0) + 1;
+            await updateDoc(taskRef, { offerCount: newOfferCount });
+            onTaskUpdate?.();
+            toast({ title: "Offer submitted successfully!" });
+        }
 
         setOfferComment('');
-        setOfferPrice('');
-        toast({ title: "Offer submitted successfully!" });
+        setOfferPrice(task.price);
+       
     } catch (error) {
         toast({ variant: 'destructive', title: "Failed to submit offer." });
         console.error("Error submitting offer:", error);
@@ -221,6 +240,26 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
       }
   };
 
+  const handleCancelOffer = async (offerId: string) => {
+    try {
+        await deleteDoc(doc(db, 'tasks', task.id, 'offers', offerId));
+        const taskRef = doc(db, 'tasks', task.id);
+        const newOfferCount = Math.max(0, (task.offers || 0) - 1);
+        await updateDoc(taskRef, { offerCount: newOfferCount });
+        onTaskUpdate?.();
+        toast({ title: 'Offer cancelled.' });
+    } catch (error) {
+        console.error("Error cancelling offer: ", error);
+        toast({ variant: 'destructive', title: 'Could not cancel offer.' });
+    }
+  };
+
+  const handleEditOffer = (offer: Offer) => {
+    setEditingOffer(offer);
+    setOfferPrice(offer.offerPrice);
+    setOfferComment(offer.comment);
+  };
+
 
   const getStatusPill = (status: Task['status']) => {
     switch (status) {
@@ -277,14 +316,14 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
 
     // Tasker view
     if (userProfile?.accountType === 'tasker' && task.status === 'open') {
-        const hasMadeOffer = offers.some(o => o.taskerId === user.uid);
+        const hasMadeOffer = offers.some(o => o.taskerId === user.uid) && !editingOffer;
         if (hasMadeOffer) {
             return <Button className="w-full mt-4" disabled>Offer Already Made</Button>
         }
         return (
             <Card className="mt-4">
                 <CardContent className="p-4 space-y-2">
-                    <p className="font-semibold text-center">Make an Offer</p>
+                    <p className="font-semibold text-center">{editingOffer ? "Edit Your Offer" : "Make an Offer"}</p>
                     <Input 
                         type="number" 
                         placeholder="Your price (Rs)" 
@@ -299,8 +338,13 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
                         disabled={isSubmittingOffer}
                     />
                     <Button onClick={handleMakeOffer} disabled={isSubmittingOffer} className="w-full">
-                        {isSubmittingOffer ? "Submitting..." : "Submit Offer"}
+                        {isSubmittingOffer ? "Submitting..." : (editingOffer ? "Update Offer" : "Submit Offer")}
                     </Button>
+                    {editingOffer && (
+                        <Button variant="ghost" onClick={() => setEditingOffer(null)} className="w-full">
+                            Cancel Edit
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
         )
@@ -333,7 +377,7 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-foreground mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 gap-4 text-sm text-foreground mb-6">
                 <div className="flex items-start p-3 rounded-lg bg-muted/50">
                     <Avatar className="h-10 w-10 mr-3">
                     <AvatarImage
@@ -394,8 +438,8 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
             </Button>
           </div>
         </div>
-
-        <Separator />
+        
+        <Separator className="my-6" />
         
         <div className="space-y-8">
             <div>
@@ -428,6 +472,16 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
                           <p className="text-sm text-muted-foreground mt-2">
                             {offer.comment}
                           </p>
+                           {user?.uid === offer.taskerId && task.status === 'open' && (
+                                <div className="flex gap-2 mt-2">
+                                    <Button size="sm" variant="outline" onClick={() => handleEditOffer(offer)}>
+                                        <Edit className="mr-2 h-4 w-4" /> Edit
+                                    </Button>
+                                    <Button size="sm" variant="destructive" onClick={() => handleCancelOffer(offer.id)}>
+                                        <Trash2 className="mr-2 h-4 w-4" /> Cancel
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                       </CardContent>
                     </Card>
@@ -486,7 +540,7 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
             </div>
         </div>
 
-        <Separator />
+        <Separator className="my-6" />
 
         <div className="p-4 border rounded-lg text-center text-sm bg-muted/50">
           <h4 className="font-semibold mb-2">Cancellation policy</h4>
