@@ -5,7 +5,7 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, User } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from './ui/separator';
@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { LoginDialog } from './LoginDialog';
 
 
 interface TaskDetailsProps {
@@ -65,13 +66,22 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
   const [questionText, setQuestionText] = useState('');
   const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false);
   const [isAccepting, setIsAccepting] = useState<string | null>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
     if (!task?.id) return;
+    setOffers([]);
+    setQuestions([]);
+    setLoadingOffers(true);
+    setLoadingQuestions(true);
+
     const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
     const unsubscribeOffers = onSnapshot(offersQuery, (snapshot) => {
         const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
         setOffers(offersData);
+        setLoadingOffers(false);
+    }, (error) => {
+        console.error("Error fetching offers:", error);
         setLoadingOffers(false);
     });
 
@@ -79,6 +89,9 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
     const unsubscribeQuestions = onSnapshot(questionsQuery, (snapshot) => {
         const questionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
         setQuestions(questionsData);
+        setLoadingQuestions(false);
+    }, (error) => {
+        console.error("Error fetching questions:", error);
         setLoadingQuestions(false);
     });
 
@@ -197,7 +210,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
   const renderActionButtons = () => {
     if (!user) {
       return (
-         <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90" disabled>
+         <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => setIsLoginOpen(true)}>
             Login to Apply
         </Button>
       )
@@ -248,62 +261,66 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
   }
 
   return (
+    <>
     <ScrollArea className="h-full">
       <div className="p-4 md:p-6 space-y-6 bg-card text-card-foreground h-full">
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Return to tasks
-        </Button>
+        <div className="flex justify-between items-center mb-4">
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="pl-0"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Return to tasks
+            </Button>
+            {getStatusPill(task.status)}
+        </div>
+
 
         <div className="space-y-2">
-          <div className="flex items-center gap-4">
-            {getStatusPill(task.status)}
-          </div>
           <h1 className="text-2xl md:text-3xl font-bold font-headline">{task.title}</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <div className="space-y-4 text-sm text-foreground">
-              <div className="flex items-start">
-                <Avatar className="h-10 w-10 mr-4">
-                  <AvatarImage
-                    src="https://placehold.co/40x40.png"
-                    data-ai-hint="person face"
-                  />
-                  <AvatarFallback>{task.postedBy.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
-                  <p>{task.postedBy}</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-foreground mb-6">
+                <div className="flex items-start p-3 rounded-lg bg-muted/50">
+                    <Avatar className="h-10 w-10 mr-3">
+                    <AvatarImage
+                        src="https://placehold.co/40x40.png"
+                        data-ai-hint="person face"
+                    />
+                    <AvatarFallback>{task.postedBy.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                    <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
+                    <p className="truncate">{task.postedBy}</p>
+                    </div>
                 </div>
-              </div>
-              <div className="flex items-start">
-                <MapPin className="h-5 w-5 mr-4 mt-0.5 text-muted-foreground" />
-                <div>
-                  <p className="font-semibold uppercase text-xs text-muted-foreground">LOCATION</p>
-                  <p>{task.location}</p>
-                  {task.type === 'physical' && task.coordinates && (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${task.coordinates[0]},${task.coordinates[1]}`} target="_blank" rel="noopener noreferrer">
-                      <Button variant="link" size="sm" className="p-0 h-auto">
-                        View on map
-                      </Button>
-                    </a>
-                  )}
+                <div className="flex items-start p-3 rounded-lg bg-muted/50">
+                    <MapPin className="h-5 w-5 mr-3 mt-0.5 text-muted-foreground flex-shrink-0" />
+                    <div>
+                    <p className="font-semibold uppercase text-xs text-muted-foreground">LOCATION</p>
+                    <p className="truncate">{task.location}</p>
+                     {task.type === 'physical' && task.coordinates && (
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${task.coordinates[0]},${task.coordinates[1]}`} target="_blank" rel="noopener noreferrer">
+                        <Button variant="link" size="sm" className="p-0 h-auto -ml-1">
+                            View on map
+                        </Button>
+                        </a>
+                    )}
+                    </div>
                 </div>
-              </div>
-              <div className="flex items-start">
-                <Calendar className="h-5 w-5 mr-4 mt-0.5 text-muted-foreground" />
-                <div>
-                  <p className="font-semibold uppercase text-xs text-muted-foreground">TO BE DONE ON</p>
-                  <p>{new Date(task.date).toLocaleDateString()}</p>
+                 <div className="flex items-start p-3 rounded-lg bg-muted/50">
+                    <Calendar className="h-5 w-5 mr-3 mt-0.5 text-muted-foreground flex-shrink-0" />
+                    <div>
+                    <p className="font-semibold uppercase text-xs text-muted-foreground">TO BE DONE ON</p>
+                    <p>{new Date(task.date).toLocaleDateString()}</p>
+                    </div>
                 </div>
-              </div>
             </div>
+
             <Separator className="my-6" />
             <div>
               <h3 className="font-bold mb-2">Details</h3>
@@ -376,22 +393,6 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
           </TabsContent>
           <TabsContent value="questions" className="mt-4">
             <div className="space-y-6">
-               {user && (
-                    <Card>
-                        <CardContent className="p-4 space-y-2">
-                            <p className="font-semibold">Ask a Question</p>
-                            <Textarea 
-                                placeholder="Type your question here..."
-                                value={questionText}
-                                onChange={(e) => setQuestionText(e.target.value)}
-                                disabled={isSubmittingQuestion}
-                            />
-                            <Button onClick={handleAskQuestion} disabled={isSubmittingQuestion}>
-                                {isSubmittingQuestion ? 'Submitting...' : 'Ask Question'}
-                            </Button>
-                        </CardContent>
-                    </Card>
-               )}
               {loadingQuestions ? <p>Loading questions...</p> : questions.map(q => (
                 <Card key={q.id}>
                   <CardContent className="p-4 space-y-2">
@@ -420,6 +421,23 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
                 </Card>
               ))}
                {questions.length === 0 && !loadingQuestions && <p className="text-muted-foreground text-sm text-center py-4">There are no questions yet.</p>}
+                
+               {user && (
+                    <Card className="mt-6">
+                        <CardContent className="p-4 space-y-2">
+                            <p className="font-semibold">Ask a Question</p>
+                            <Textarea 
+                                placeholder="Type your question here..."
+                                value={questionText}
+                                onChange={(e) => setQuestionText(e.target.value)}
+                                disabled={isSubmittingQuestion}
+                            />
+                            <Button onClick={handleAskQuestion} disabled={isSubmittingQuestion}>
+                                {isSubmittingQuestion ? 'Submitting...' : 'Ask Question'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+               )}
             </div>
           </TabsContent>
         </Tabs>
@@ -438,5 +456,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
         </div>
       </div>
     </ScrollArea>
+    <LoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
+    </>
   );
 }
