@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -38,6 +37,8 @@ import { CategoryFilter } from './CategoryFilter';
 import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
 import { Input } from './ui/input';
+import { collection, getDocs, GeoPoint, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface HomePageClientProps {
   tasks: (Task & {
@@ -61,17 +62,14 @@ const getZoomFromDistance = (distance: number) => {
   return 8;
 };
 
-export default function HomePageClient({ tasks }: HomePageClientProps) {
+export default function HomePageClient({ tasks: initialTasks }: HomePageClientProps) {
+  const [tasks, setTasks] = useState(initialTasks);
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'map' | 'details'>('list');
   const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(null);
   const [currentMapCenter, setCurrentMapCenter] = useState<[number, number] | null>(pakistaniCities[0].coordinates);
   const [mapZoom, setMapZoom] = useState(6);
   const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   // Applied filters
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
@@ -104,27 +102,59 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }),
     []
   );
+  
+  const refreshTasks = useCallback(async () => {
+      const tasksCollection = collection(db, 'tasks');
+      const taskSnapshot = await getDocs(tasksCollection);
+      const taskList = taskSnapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        let coordinates: [number, number] | null = null;
+        if (data.coordinates instanceof GeoPoint) {
+            coordinates = [data.coordinates.latitude, data.coordinates.longitude];
+        }
 
-  const initializeLocation = useCallback(() => {
+        return {
+          id: doc.id,
+          title: data.title,
+          location: data.location,
+          date: data.preferredDateTime instanceof Timestamp ? data.preferredDateTime.toDate().toLocaleDateString() : data.preferredDateTime,
+          price: data.budget,
+          offers: data.offerCount || 0,
+          type: data.taskType,
+          category: data.category || 'General',
+          coordinates: coordinates,
+          description: data.description,
+          postedBy: data.postedByName || 'Anonymous',
+          status: data.status || 'open',
+           postedById: data.postedById,
+        } as (Task & { coordinates: [number, number] | null, description: string, postedBy: string });
+      });
+      setTasks(taskList);
+
+      // Re-apply selected task with fresh data
+      if (selectedTask) {
+        const freshSelectedTask = taskList.find(t => t.id === selectedTask.id) || null;
+        setSelectedTask(freshSelectedTask as any);
+      }
+    }, [selectedTask]);
+
+
+  useEffect(() => {
+    setIsClient(true);
     navigator.geolocation.getCurrentPosition(
       position => {
         const { latitude, longitude } = position.coords;
-        const userLocation = { name: 'Your Location', coordinates: [latitude, longitude] as [number, number] };
-        setAppliedLocation(userLocation);
-        setPopoverLocation(userLocation);
-        setCurrentMapCenter(userLocation.coordinates);
-        setMapZoom(getZoomFromDistance(appliedDistance));
+        setCurrentMapCenter([latitude, longitude]);
+        setMapZoom(12); // Zoom in on user's location
       },
       () => {
+        // Default to Pakistan center if location is denied
         setCurrentMapCenter(pakistaniCities[0].coordinates);
         setMapZoom(6);
       }
     );
-  }, [appliedDistance]);
-
-  useEffect(() => {
-    initializeLocation();
-  }, [initializeLocation]);
+  }, []);
 
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
@@ -296,6 +326,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           task={selectedTask as any}
           onBack={handleBackFromDetails}
           onLocationClick={() => handleLocationClick(selectedTask)}
+          onTaskUpdate={refreshTasks}
         />
       );
     }

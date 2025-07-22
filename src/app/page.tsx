@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 
 export default function Home() {
-  const [tasks, setTasks] = useState<(Task & { coordinates: [number, number], description: string, postedBy: string })[]>([]);
+  const [tasks, setTasks] = useState<(Task & { coordinates: [number, number] | null, description: string, postedBy: string })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,7 +39,8 @@ export default function Home() {
           description: data.description,
           postedBy: data.postedByName || 'Anonymous', // Assuming you store the poster's name
           status: data.status || 'open',
-        } as (Task & { coordinates: [number, number], description: string, postedBy: string });
+          postedById: data.postedById,
+        } as (Task & { coordinates: [number, number] | null, description: string, postedBy: string });
       });
       setTasks(taskList);
       setLoading(false);

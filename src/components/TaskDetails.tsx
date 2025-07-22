@@ -1,4 +1,3 @@
-
 'use client';
 
 import { type Task } from './TaskCard';
@@ -7,11 +6,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, MapPin, Calendar, User } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, where, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -26,6 +24,7 @@ interface TaskDetailsProps {
   };
   onBack: () => void;
   onLocationClick?: (task: Task) => void;
+  onTaskUpdate?: () => void;
 }
 
 interface Offer {
@@ -49,7 +48,7 @@ interface Question {
 }
 
 
-export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetailsProps) {
+export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdate }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const isOwner = user?.uid === task.postedById;
@@ -119,8 +118,9 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
         
         // Update offer count on the task
         const taskRef = doc(db, 'tasks', task.id);
-        const newOfferCount = (task.offers || 0) + 1;
+        const newOfferCount = (offers.length || 0) + 1;
         await updateDoc(taskRef, { offerCount: newOfferCount });
+        onTaskUpdate?.();
 
         setOfferComment('');
         setOfferPrice('');
@@ -175,6 +175,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
       });
 
       await batch.commit();
+      onTaskUpdate?.();
 
       toast({ title: `Task assigned to ${offer.taskerName}!` });
       onBack();
