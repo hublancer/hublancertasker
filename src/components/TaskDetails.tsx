@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -88,7 +88,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
     }
   }, [task.id]);
 
-  const handleMakeOffer = async () => {
+ const handleMakeOffer = async () => {
     if (!user || !userProfile || offerPrice === '' || !offerComment) {
         toast({ variant: 'destructive', title: "Please fill all offer fields." });
         return;
@@ -103,17 +103,12 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
             comment: offerComment,
             createdAt: serverTimestamp(),
         });
-
-        // This seems incorrect as it would create a new task. The offer count should be updated on the existing task.
-        // I'll comment it out to prevent bugs, a proper implementation would use a transaction or cloud function to update the count.
-        /*
-        const taskRef = doc(db, 'tasks', task.id);
-        await addDoc(collection(db, 'tasks'), {
-            ...task,
-            offerCount: (task.offers || 0) + 1,
-        });
-        */
         
+        // Update offer count on the task
+        const taskRef = doc(db, 'tasks', task.id);
+        const newOfferCount = (task.offers || 0) + 1;
+        await updateDoc(taskRef, { offerCount: newOfferCount });
+
         setOfferComment('');
         setOfferPrice('');
         toast({ title: "Offer submitted successfully!" });
@@ -258,7 +253,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-4 flex md:hidden"
+          className="mb-4"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Return to tasks
@@ -305,7 +300,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
                 <Calendar className="h-5 w-5 mr-4 mt-0.5 text-muted-foreground" />
                 <div>
                   <p className="font-semibold uppercase text-xs text-muted-foreground">TO BE DONE ON</p>
-                  <p>{task.date}</p>
+                  <p>{new Date(task.date).toLocaleDateString()}</p>
                 </div>
               </div>
             </div>

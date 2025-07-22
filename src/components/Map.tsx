@@ -9,8 +9,18 @@ import { RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect } from 'react';
 import { Skeleton } from './ui/skeleton';
 
+const greenIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+
 // This is to fix the missing marker icon issue with react-leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+// delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -19,7 +29,7 @@ L.Icon.Default.mergeOptions({
 });
 
 interface MapProps {
-  tasks: (Task & { coordinates: [number, number] })[];
+  tasks: (Task & { coordinates: [number, number] | null })[];
   onTaskSelect: (task: Task) => void;
   center: [number, number] | null;
   zoom?: number;
@@ -38,41 +48,8 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
   return null;
 }
 
-function MapBoundsUpdater({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
+function MapControls({ onRefresh }: { onRefresh: () => void }) {
   const map = useMap();
-  useEffect(() => {
-    const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
-    if (physicalTasks.length > 0) {
-      const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates));
-      if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [50, 50] });
-      }
-    }
-  }, [tasks, map]);
-  return null;
-}
-
-function MapControls({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
-  const map = useMap();
-
-  const handleRefresh = () => {
-    const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
-    if (physicalTasks.length > 0) {
-      const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates));
-      if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [50, 50] });
-      }
-    } else if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                map.setView([position.coords.latitude, position.coords.longitude], INITIAL_ZOOM);
-            },
-            () => {
-                map.setView(DEFAULT_CENTER, INITIAL_ZOOM);
-            }
-        );
-    }
-  };
 
   return (
     <div className="leaflet-top leaflet-right">
@@ -99,7 +76,7 @@ function MapControls({ tasks }: { tasks: (Task & { coordinates: [number, number]
             variant="outline"
             size="icon"
             className="h-8 w-8 bg-white"
-            onClick={handleRefresh}
+            onClick={onRefresh}
             aria-label="Refresh map"
         >
             <RefreshCw className="h-4 w-4" />
@@ -112,6 +89,19 @@ function MapControls({ tasks }: { tasks: (Task & { coordinates: [number, number]
 const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
   const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
   const mapCenter = center || DEFAULT_CENTER;
+  
+  const map = useMap();
+
+  const handleRefresh = () => {
+    if (physicalTasks.length > 0) {
+        const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates as L.LatLngTuple));
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    } else {
+        map.setView(DEFAULT_CENTER, INITIAL_ZOOM);
+    }
+  };
   
   if (typeof window === 'undefined') {
     return <Skeleton className="h-full w-full" />;
@@ -130,27 +120,44 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {physicalTasks.map(task => (
-        <Marker key={task.id} position={task.coordinates}>
-          <Popup>
-            <div className="space-y-1">
-              <h3 className="font-bold">{task.title}</h3>
-              <p>${task.price}</p>
-              <Button
-                variant="link"
-                className="p-0 h-auto"
-                onClick={() => onTaskSelect(task)}
-              >
-                View Task
-              </Button>
-            </div>
-          </Popup>
-        </Marker>
+        task.coordinates && (
+            <Marker key={task.id} position={task.coordinates} icon={greenIcon}>
+            <Popup>
+                <div className="space-y-1">
+                <h3 className="font-bold">{task.title}</h3>
+                <p>Rs{task.price}</p>
+                <Button
+                    variant="link"
+                    className="p-0 h-auto"
+                    onClick={() => onTaskSelect(task)}
+                >
+                    View Task
+                </Button>
+                </div>
+            </Popup>
+            </Marker>
+        )
       ))}
       <MapViewUpdater center={center} zoom={zoom} />
-      <MapControls tasks={tasks} />
-      <MapBoundsUpdater tasks={physicalTasks} />
+      <MapControls onRefresh={handleRefresh} />
     </MapContainer>
   );
 };
 
-export default Map;
+// A wrapper component is needed because useMap can only be used by a child of MapContainer
+const MapWrapper = (props: MapProps) => {
+    return (
+        <MapContainer
+            center={props.center || DEFAULT_CENTER}
+            zoom={props.zoom || INITIAL_ZOOM}
+            scrollWheelZoom={true}
+            className="h-full w-full"
+            zoomControl={false}
+        >
+            <Map {...props} />
+        </MapContainer>
+    )
+}
+
+
+export default MapWrapper;

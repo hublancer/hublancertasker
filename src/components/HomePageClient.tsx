@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
 import { type Task } from '@/components/TaskCard';
 import TaskListItem from '@/components/TaskListItem';
@@ -41,7 +41,7 @@ import { Input } from './ui/input';
 
 interface HomePageClientProps {
   tasks: (Task & {
-    coordinates: [number, number];
+    coordinates: [number, number] | null;
     description: string;
     postedBy: string;
   })[];
@@ -64,17 +64,18 @@ const getZoomFromDistance = (distance: number) => {
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'map' | 'details'>('list');
-  const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(
-    null
-  );
-  const [currentMapCenter, setCurrentMapCenter] = useState<
-    [number, number] | null
-  >(null);
-  
+  const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(null);
+  const [currentMapCenter, setCurrentMapCenter] = useState<[number, number] | null>(pakistaniCities[0].coordinates);
+  const [mapZoom, setMapZoom] = useState(6);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Applied filters
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
-  const [appliedTaskType, setAppliedTaskType] =
-    useState<TaskTypeFilter>('all');
+  const [appliedTaskType, setAppliedTaskType] = useState<TaskTypeFilter>('all');
   const [appliedLocation, setAppliedLocation] = useState<{
     name: string;
     coordinates: [number, number];
@@ -84,22 +85,16 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
   const [appliedPrice, setAppliedPrice] = useState('any');
   const [appliedSortBy, setAppliedSortBy] = useState<SortByType>('newest');
-  const [mapZoom, setMapZoom] = useState(6);
 
   // Temporary state for the popovers
-  const [popoverTaskType, setPopoverTaskType] =
-    useState<TaskTypeFilter>(appliedTaskType);
-  const [popoverLocation, setPopoverLocation] =
-    useState<typeof appliedLocation>(appliedLocation);
+  const [popoverTaskType, setPopoverTaskType] = useState<TaskTypeFilter>(appliedTaskType);
+  const [popoverLocation, setPopoverLocation] = useState<typeof appliedLocation>(appliedLocation);
   const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
-  const [popoverAvailableOnly, setPopoverAvailableOnly] =
-    useState(appliedAvailableOnly);
-  const [popoverNoOffersOnly, setPopoverNoOffersOnly] =
-    useState(appliedNoOffersOnly);
+  const [popoverAvailableOnly, setPopoverAvailableOnly] = useState(appliedAvailableOnly);
+  const [popoverNoOffersOnly, setPopoverNoOffersOnly] = useState(appliedNoOffersOnly);
 
   const [isLocationPopoverOpen, setIsLocationPopoverOpen] = useState(false);
-  const [isOtherFiltersPopoverOpen, setIsOtherFiltersPopoverOpen] =
-    useState(false);
+  const [isOtherFiltersPopoverOpen, setIsOtherFiltersPopoverOpen] = useState(false);
 
   const Map = useMemo(
     () =>
@@ -110,8 +105,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     []
   );
 
-  useEffect(() => {
-    // Auto-detect user location on initial load
+  const initializeLocation = useCallback(() => {
     navigator.geolocation.getCurrentPosition(
       position => {
         const { latitude, longitude } = position.coords;
@@ -122,12 +116,15 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         setMapZoom(getZoomFromDistance(appliedDistance));
       },
       () => {
-        // Fallback to a default location if user denies permission
         setCurrentMapCenter(pakistaniCities[0].coordinates);
         setMapZoom(6);
       }
     );
   }, [appliedDistance]);
+
+  useEffect(() => {
+    initializeLocation();
+  }, [initializeLocation]);
 
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
@@ -145,7 +142,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       if (window.innerWidth < 768) { // md breakpoint
           setMobileView('list');
       }
-  }
+  };
 
   const handleLocationClick = (task: (typeof tasks)[0]) => {
     if (task.coordinates) {
@@ -203,10 +200,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const getLocationButtonLabel = () => {
     if (appliedLocation) {
-      if (appliedTaskType === 'physical') {
-        return `Within ${appliedDistance}km`;
-      }
-      return appliedLocation.name;
+       if (appliedLocation.name === 'Your Location' && appliedTaskType === 'physical') {
+         return `Within ${appliedDistance}km`;
+       }
+       return appliedLocation.name;
     }
     if (appliedTaskType === 'physical') return 'In-person';
     if (appliedTaskType === 'online') return 'Remotely';
@@ -222,7 +219,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     } else if (appliedSortBy === 'price-desc') {
       tasksToFilter.sort((a, b) => b.price - a.price);
     } else {
-      tasksToFilter.sort((a, b) => (new Date(b.date) as any) - (new Date(a.date) as any));
+       tasksToFilter.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
 
     return tasksToFilter.filter(task => {
@@ -248,14 +245,20 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         task.type === 'physical' &&
         task.coordinates
       ) {
-        // A real app would use a proper library for geo calculations (e.g., Haversine distance)
-        // This is a simplified approximation.
         const [lat1, lon1] = appliedLocation.coordinates;
         const [lat2, lon2] = task.coordinates;
-        const latDiff = Math.abs(lat1 - lat2);
-        const lonDiff = Math.abs(lon1 - lon2);
-        const distanceApproximation = Math.sqrt(latDiff*latDiff + lonDiff*lonDiff) * 111; // Very rough approximation
-        if (distanceApproximation > appliedDistance) return false;
+        
+        const R = 6371; // Radius of the Earth in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c; // Distance in km
+
+        if (distance > appliedDistance) return false;
       }
       
       if (appliedPrice !== 'any') {
@@ -298,7 +301,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     }
     return (
       <Map
-        tasks={filteredTasks.filter(task => task.type === 'physical' && task.coordinates)}
+        tasks={filteredTasks}
         onTaskSelect={handleTaskSelect}
         center={currentMapCenter}
         zoom={mapZoom}
@@ -306,7 +309,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     );
   };
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const isMobile = isClient && window.innerWidth < 768;
 
 
   return (
@@ -401,7 +404,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                           const city = pakistaniCities.find(
                             c => c.name.toLowerCase() === value
                           );
-                          setPopoverLocation(city || null);
+                          setPopoverLocation(city ? { name: city.name, coordinates: city.coordinates } : null);
                         }}
                         placeholder="Search city..."
                       />
@@ -595,7 +598,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
             'md:block'
           )}
         >
-          {rightPanelContent()}
+          {isClient ? rightPanelContent() : <Skeleton className="h-full w-full" />}
         </div>
       </main>
     </div>
