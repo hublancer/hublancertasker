@@ -135,7 +135,11 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
 
   const handleAskQuestion = async () => {
      if (!user || !userProfile || !questionText) {
-        toast({ variant: 'destructive', title: "Please write a question." });
+        if (!user) {
+            setIsLoginOpen(true);
+        } else {
+            toast({ variant: 'destructive', title: "Please write a question." });
+        }
         return;
     }
     setIsSubmittingQuestion(true);
@@ -210,7 +214,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
   const renderActionButtons = () => {
     if (!user) {
       return (
-         <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => setIsLoginOpen(true)}>
+         <Button className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => setIsLoginOpen(true)}>
             Login to Apply
         </Button>
       )
@@ -347,82 +351,78 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
         </div>
 
         <Separator />
-
-        <Tabs defaultValue="offers" className="w-full">
-          <TabsList>
-            <TabsTrigger value="offers">Offers ({offers.length})</TabsTrigger>
-            <TabsTrigger value="questions">
-              Questions ({questions.length})
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="offers" className="mt-4">
-            <div className="space-y-6">
-              {loadingOffers ? <p>Loading offers...</p> : offers.map(offer => (
-                <Card key={offer.id}>
-                  <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
-                    <div className="flex-shrink-0 flex flex-col items-center text-center sm:border-r sm:pr-4 sm:w-32">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage
-                          src={offer.taskerAvatar || 'https://placehold.co/40x40.png'}
-                          data-ai-hint="person face"
-                        />
-                        <AvatarFallback>
-                          {offer.taskerName.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <p className="font-semibold mt-2">{offer.taskerName}</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <p className="text-lg font-bold">Rs{offer.offerPrice}</p>
-                        {isOwner && task.status === 'open' && (
-                          <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
-                            {isAccepting === offer.id ? "Accepting..." : "Accept"}
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {offer.comment}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {offers.length === 0 && !loadingOffers && <p className="text-muted-foreground text-sm text-center py-4">There are no offers yet.</p>}
-            </div>
-          </TabsContent>
-          <TabsContent value="questions" className="mt-4">
-            <div className="space-y-6">
-              {loadingQuestions ? <p>Loading questions...</p> : questions.map(q => (
-                <Card key={q.id}>
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={q.userAvatar || 'https://placehold.co/40x40.png'}
-                          data-ai-hint="person face"
-                        />
-                        <AvatarFallback>{q.userName.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <p className="font-semibold text-sm">{q.userName}</p>
-                    </div>
-                    <p className="text-sm pl-10">{q.question}</p>
-                    {q.answer && (
-                      <div className="pl-10 pt-2">
-                        <div className="bg-muted p-3 rounded-lg text-sm">
-                          <p className="font-semibold">
-                            {task.postedBy}'s reply:
-                          </p>
-                          <p>{q.answer}</p>
+        
+        <div className="space-y-8">
+            <div>
+                <h3 className="text-xl font-bold font-headline mb-4">Offers ({offers.length})</h3>
+                 <div className="space-y-6">
+                  {loadingOffers ? <p>Loading offers...</p> : offers.map(offer => (
+                    <Card key={offer.id}>
+                      <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+                        <div className="flex-shrink-0 flex flex-col items-center text-center sm:border-r sm:pr-4 sm:w-32">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage
+                              src={offer.taskerAvatar || 'https://placehold.co/40x40.png'}
+                              data-ai-hint="person face"
+                            />
+                            <AvatarFallback>
+                              {offer.taskerName.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <p className="font-semibold mt-2">{offer.taskerName}</p>
                         </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-               {questions.length === 0 && !loadingQuestions && <p className="text-muted-foreground text-sm text-center py-4">There are no questions yet.</p>}
-                
-               {user && (
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start">
+                            <p className="text-lg font-bold">Rs{offer.offerPrice}</p>
+                            {isOwner && task.status === 'open' && (
+                              <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
+                                {isAccepting === offer.id ? "Accepting..." : "Accept"}
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {offer.comment}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {offers.length === 0 && !loadingOffers && <p className="text-muted-foreground text-sm text-center py-4">There are no offers yet.</p>}
+                </div>
+            </div>
+
+            <div>
+                <h3 className="text-xl font-bold font-headline mb-4">Questions ({questions.length})</h3>
+                <div className="space-y-6">
+                  {loadingQuestions ? <p>Loading questions...</p> : questions.map(q => (
+                    <Card key={q.id}>
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage
+                              src={q.userAvatar || 'https://placehold.co/40x40.png'}
+                              data-ai-hint="person face"
+                            />
+                            <AvatarFallback>{q.userName.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <p className="font-semibold text-sm">{q.userName}</p>
+                        </div>
+                        <p className="text-sm pl-10">{q.question}</p>
+                        {q.answer && (
+                          <div className="pl-10 pt-2">
+                            <div className="bg-muted p-3 rounded-lg text-sm">
+                              <p className="font-semibold">
+                                {task.postedBy}'s reply:
+                              </p>
+                              <p>{q.answer}</p>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                   {questions.length === 0 && !loadingQuestions && <p className="text-muted-foreground text-sm text-center py-4">There are no questions yet.</p>}
+                    
                     <Card className="mt-6">
                         <CardContent className="p-4 space-y-2">
                             <p className="font-semibold">Ask a Question</p>
@@ -437,10 +437,9 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
                             </Button>
                         </CardContent>
                     </Card>
-               )}
+                </div>
             </div>
-          </TabsContent>
-        </Tabs>
+        </div>
 
         <Separator />
 
