@@ -389,20 +389,22 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
             await runTransaction(db, async (transaction) => {
                 const taskRef = doc(db, 'tasks', task.id);
-                transaction.update(taskRef, { status: 'completed' });
-
                 const taskerRef = doc(db, 'users', task.assignedToId!);
+                
+                // ALL READS FIRST
                 const taskerDoc = await transaction.get(taskerRef);
-
                 if (!taskerDoc.exists()) {
                     throw new Error("Tasker not found!");
                 }
+                
+                // ALL WRITES SECOND
+                transaction.update(taskRef, { status: 'completed' });
+
                 const taskerData = taskerDoc.data();
                 const currentTaskerBalance = taskerData.wallet?.balance ?? 0;
                 const newTaskerBalance = currentTaskerBalance + taskerPayout;
                 transaction.update(taskerRef, { 'wallet.balance': newTaskerBalance });
 
-                // Add earning transaction for tasker
                 const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId!, 'transactions'));
                 transaction.set(taskerTransactionRef, {
                     amount: taskerPayout,
@@ -412,7 +414,6 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                     timestamp: serverTimestamp(),
                 });
 
-                // Add commission transaction for admin/platform
                  const platformTransactionRef = doc(collection(db, 'platform_transactions'));
                  transaction.set(platformTransactionRef, {
                     amount: commission,
