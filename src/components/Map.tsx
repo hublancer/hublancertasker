@@ -4,7 +4,7 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import type { Task } from './TaskCard';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+import { ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect } from 'react';
 
 // This is to fix the missing marker icon issue with react-leaflet
@@ -19,30 +19,20 @@ L.Icon.Default.mergeOptions({
 interface MapProps {
   tasks: (Task & { coordinates: [number, number] })[];
   onTaskSelect: (task: Task) => void;
+  center: [number, number] | null;
+  zoom?: number;
 }
 
-const INITIAL_ZOOM = 10;
-const DEFAULT_CENTER: [number, number] = [51.505, -0.09];
+const INITIAL_ZOOM = 6;
+const DEFAULT_CENTER: [number, number] = [30.3753, 69.3451]; // Pakistan center
 
-function MapBoundsUpdater({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
+function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    if (tasks.length === 0) {
-      map.setView(DEFAULT_CENTER, 5); // Reset to a wide view if no tasks
-      return;
+    if (center) {
+      map.setView(center, zoom);
     }
-
-    if (tasks.length === 1) {
-      map.setView(tasks[0].coordinates, INITIAL_ZOOM);
-      return;
-    }
-    
-    const bounds = new L.LatLngBounds(tasks.map(t => t.coordinates));
-    if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
-
-  }, [tasks, map]);
+  }, [center, zoom, map]);
   return null;
 }
 
@@ -75,15 +65,18 @@ function MapControls() {
   );
 }
 
-const Map = ({ tasks, onTaskSelect }: MapProps) => {
+const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
   const physicalTasks = tasks.filter(task => task.type === 'physical');
-  const center: [number, number] =
-    physicalTasks.length > 0 ? physicalTasks[0].coordinates : DEFAULT_CENTER;
+  const mapCenter = center || DEFAULT_CENTER;
+  
+  if (typeof window === 'undefined') {
+    return <Skeleton className="h-full w-full" />;
+  }
 
   return (
     <MapContainer
-      center={center}
-      zoom={INITIAL_ZOOM}
+      center={mapCenter}
+      zoom={zoom}
       scrollWheelZoom={true}
       className="h-full w-full"
       zoomControl={false} // Disable default zoom control
@@ -109,7 +102,7 @@ const Map = ({ tasks, onTaskSelect }: MapProps) => {
           </Popup>
         </Marker>
       ))}
-      <MapBoundsUpdater tasks={physicalTasks} />
+      <MapViewUpdater center={center} zoom={zoom} />
       <MapControls />
     </MapContainer>
   );

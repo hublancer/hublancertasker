@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import AppHeader from '@/components/AppHeader';
 import { type Task } from '@/components/TaskCard';
 import TaskListItem from '@/components/TaskListItem';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -22,8 +21,8 @@ import {
   Search,
   Map as MapIcon,
   List,
-  MapPin,
   SlidersHorizontal,
+  LocateFixed,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import 'leaflet/dist/leaflet.css';
@@ -35,6 +34,8 @@ import { Slider } from './ui/slider';
 import { cn } from '@/lib/utils';
 import { Switch } from './ui/switch';
 import { CategoryFilter } from './CategoryFilter';
+import { Combobox } from './ui/combobox';
+import { pakistaniCities } from '@/lib/locations';
 
 interface HomePageClientProps {
   tasks: (Task & {
@@ -47,19 +48,27 @@ interface HomePageClientProps {
 type TaskTypeFilter = 'all' | 'physical' | 'online';
 type SortByType = 'newest' | 'price-asc' | 'price-desc';
 
+const MOCK_MAX_DISTANCE = 100; // km
+
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(
     null
   );
+  const [currentMapCenter, setCurrentMapCenter] = useState<
+    [number, number] | null
+  >(null);
 
   // Applied filters
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
   const [appliedTaskType, setAppliedTaskType] =
     useState<TaskTypeFilter>('all');
-  const [appliedLocation, setAppliedLocation] = useState('');
-  const [appliedDistance, setAppliedDistance] = useState(50);
+  const [appliedLocation, setAppliedLocation] = useState<{
+    name: string;
+    coordinates: [number, number];
+  } | null>(null);
+  const [appliedDistance, setAppliedDistance] = useState(25);
   const [appliedAvailableOnly, setAppliedAvailableOnly] = useState(false);
   const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
   const [appliedPrice, setAppliedPrice] = useState('any');
@@ -68,7 +77,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   // Temporary state for the popovers
   const [popoverTaskType, setPopoverTaskType] =
     useState<TaskTypeFilter>(appliedTaskType);
-  const [popoverLocation, setPopoverLocation] = useState(appliedLocation);
+  const [popoverLocation, setPopoverLocation] =
+    useState<typeof appliedLocation>(appliedLocation);
   const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
   const [popoverAvailableOnly, setPopoverAvailableOnly] =
     useState(appliedAvailableOnly);
@@ -88,14 +98,32 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     []
   );
 
+  useEffect(() => {
+    // Auto-detect user location on initial load
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const { latitude, longitude } = position.coords;
+        setCurrentMapCenter([latitude, longitude]);
+      },
+      () => {
+        // Fallback to a default location if user denies permission
+        setCurrentMapCenter(pakistaniCities[0].coordinates);
+      }
+    );
+  }, []);
+
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
+    setCurrentMapCenter(task.coordinates);
   };
 
   const handleLocationFilterApply = () => {
     setAppliedTaskType(popoverTaskType);
     setAppliedLocation(popoverLocation);
     setAppliedDistance(popoverDistance);
+    if (popoverLocation) {
+      setCurrentMapCenter(popoverLocation.coordinates);
+    }
     setIsLocationPopoverOpen(false);
   };
 
@@ -104,6 +132,18 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     setPopoverLocation(appliedLocation);
     setPopoverDistance(appliedDistance);
     setIsLocationPopoverOpen(false);
+  };
+
+  const handleUseCurrentLocation = () => {
+    navigator.geolocation.getCurrentPosition(position => {
+      const { latitude, longitude } = position.coords;
+      const myLocation = {
+        name: 'Your Location',
+        coordinates: [latitude, longitude] as [number, number],
+      };
+      setPopoverLocation(myLocation);
+      setCurrentMapCenter(myLocation.coordinates);
+    });
   };
 
   const handleOtherFiltersApply = () => {
@@ -119,24 +159,15 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   };
 
   const getLocationButtonLabel = () => {
-    if (appliedTaskType === 'online' && !appliedLocation) return 'Remotely';
-    
-    let label = '';
     if (appliedLocation) {
-        if (appliedTaskType === 'physical') {
-            label = `Within ${appliedDistance}km of ${appliedLocation}`;
-        } else {
-            label = appliedLocation;
-        }
-    } else {
-        if (appliedTaskType === 'physical') return 'In-person';
+      if (appliedTaskType === 'physical') {
+        return `Within ${appliedDistance}km of ${appliedLocation.name}`;
+      }
+      return appliedLocation.name;
     }
-
-    if (appliedTaskType === 'online') {
-      label += label ? ' & Remotely' : 'Remotely';
-    }
-
-    return label || 'Any location';
+    if (appliedTaskType === 'physical') return 'In-person';
+    if (appliedTaskType === 'online') return 'Remotely';
+    return 'Any location';
   };
 
   const filteredTasks = useMemo(() => {
@@ -148,7 +179,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     } else if (appliedSortBy === 'price-desc') {
       tasksToFilter.sort((a, b) => b.price - a.price);
     } else {
-      // Default to newest, assuming IDs are somewhat sequential or could be based on date
       tasksToFilter.sort((a, b) => parseInt(b.id) - parseInt(a.id));
     }
 
@@ -166,18 +196,24 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       ) {
         return false;
       }
-       if (appliedTaskType !== 'all') {
+      if (appliedTaskType !== 'all') {
         if (task.type !== appliedTaskType) return false;
       }
 
       if (
         appliedLocation &&
-        task.type === 'physical' &&
-        !task.location.toLowerCase().includes(appliedLocation.toLowerCase())
+        task.type === 'physical'
       ) {
-        // This is a simple text match. A real implementation would use geocoding and radius search.
-        return false;
+        // A real app would use a proper library for geo calculations (e.g., Haversine distance)
+        // This is a simplified approximation.
+        const [lat1, lon1] = appliedLocation.coordinates;
+        const [lat2, lon2] = task.coordinates;
+        const latDiff = Math.abs(lat1 - lat2);
+        const lonDiff = Math.abs(lon1 - lon2);
+        const distanceApproximation = Math.sqrt(latDiff*latDiff + lonDiff*lonDiff) * 111; // Very rough approximation
+        if (distanceApproximation > appliedDistance) return false;
       }
+      
       if (appliedPrice !== 'any') {
         const priceValue = task.price;
         if (appliedPrice === '<100' && priceValue >= 100) return false;
@@ -205,7 +241,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     appliedNoOffersOnly,
     appliedSortBy,
   ]);
-
+  
   const rightPanelContent = () => {
     if (selectedTask) {
       return (
@@ -215,7 +251,14 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         />
       );
     }
-    return <Map tasks={filteredTasks} onTaskSelect={handleTaskSelect} />;
+    return (
+      <Map
+        tasks={filteredTasks}
+        onTaskSelect={handleTaskSelect}
+        center={currentMapCenter}
+        zoom={appliedLocation ? 12 : 6}
+      />
+    );
   };
 
   return (
@@ -224,7 +267,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <div className="border-b">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
-            <div className="relative w-full sm:flex-grow">
+            <div className="relative w-full sm:flex-grow-[2]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -233,7 +276,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex w-full sm:w-auto items-center gap-2">
+            <div className="flex w-full sm:w-auto items-center gap-2 sm:flex-grow-0">
               <CategoryFilter
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
@@ -248,7 +291,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     variant="outline"
                     className="w-full sm:w-auto justify-start text-left font-normal flex-grow"
                   >
-                    <MapPin className="sm:hidden h-4 w-4" />
+                    <MapIcon className="sm:hidden h-4 w-4" />
                     <span className="truncate hidden sm:inline">
                       {getLocationButtonLabel()}
                     </span>
@@ -300,12 +343,28 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="suburb">Location</Label>
-                      <Input
-                        id="suburb"
-                        placeholder="e.g. Sydney NSW, Australia"
-                        value={popoverLocation}
-                        onChange={e => setPopoverLocation(e.target.value)}
+                      <Combobox
+                        items={pakistaniCities.map(c => ({
+                          value: c.name.toLowerCase(),
+                          label: c.name,
+                        }))}
+                        value={popoverLocation?.name.toLowerCase() || ''}
+                        onChange={value => {
+                          const city = pakistaniCities.find(
+                            c => c.name.toLowerCase() === value
+                          );
+                          setPopoverLocation(city || null);
+                        }}
+                        placeholder="Search city..."
                       />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleUseCurrentLocation}
+                      >
+                        <LocateFixed className="mr-2 h-4 w-4" />
+                        Use current location
+                      </Button>
                     </div>
                     <div className="grid gap-2">
                       <Label>
@@ -317,9 +376,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                       <Slider
                         value={[popoverDistance]}
                         onValueChange={value => setPopoverDistance(value[0])}
-                        max={100}
+                        max={MOCK_MAX_DISTANCE}
                         step={1}
-                        disabled={popoverTaskType === 'online'}
+                        disabled={popoverTaskType !== 'physical' || !popoverLocation}
                       />
                     </div>
                     <div className="flex justify-end gap-2 mt-2">
