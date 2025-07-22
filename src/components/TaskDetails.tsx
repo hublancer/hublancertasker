@@ -18,7 +18,7 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
-import { makeOffer } from '@/app/actions';
+import { makeOffer as makeOfferAction } from '@/app/actions';
 
 
 interface TaskDetailsProps {
@@ -164,22 +164,19 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             toast({ title: "Offer updated successfully!" });
 
         } else {
-             // Add new offer via server action
-             const result = await makeOffer({
-                taskId: task.id,
+             // Create the new offer document directly. The Cloud Function will handle the count.
+            await addDoc(collection(db, 'tasks', task.id, 'offers'), {
                 taskerId: user.uid,
                 taskerName: userProfile.name || 'Anonymous Tasker',
                 taskerAvatar: user.photoURL || '',
                 offerPrice: Number(offerPrice),
                 comment: offerComment,
-                postedById: task.postedById,
-                taskTitle: task.title,
+                createdAt: serverTimestamp(),
             });
 
-            if (!result.success) {
-                throw new Error(result.error || "Server failed to process offer.");
-            }
-            onTaskUpdate?.();
+             // Send notification to the task owner
+            await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
+            
             toast({ title: "Offer submitted successfully!" });
         }
 
@@ -309,10 +306,21 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
   const handleCancelOffer = async (offerId: string) => {
     try {
-        await deleteDoc(doc(db, 'tasks', task.id, 'offers', offerId));
-        const taskRef = doc(db, 'tasks', task.id);
-        const newOfferCount = Math.max(0, (task.offers || 0) - 1);
-        await updateDoc(taskRef, { offerCount: newOfferCount });
+        await runTransaction(db, async (transaction) => {
+            const taskRef = doc(db, 'tasks', task.id);
+            const offerRef = doc(db, 'tasks', task.id, 'offers', offerId);
+            
+            const taskDoc = await transaction.get(taskRef);
+            if (!taskDoc.exists()) {
+                throw "Task does not exist.";
+            }
+
+            transaction.delete(offerRef);
+            
+            const newOfferCount = Math.max(0, (taskDoc.data().offerCount || 0) - 1);
+            transaction.update(taskRef, { offerCount: newOfferCount });
+        });
+
         onTaskUpdate?.();
         toast({ title: 'Offer cancelled.' });
     } catch (error) {
@@ -399,9 +407,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
             toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
             onTaskUpdate?.();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error completing task: ", error);
-            toast({ variant: 'destructive', title: 'Could not complete task.' });
+            toast({ variant: 'destructive', title: 'Could not complete task.', description: error.message });
         }
     }
 
