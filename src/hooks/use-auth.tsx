@@ -54,9 +54,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [playNewTaskSound] = useSound('/sounds/new-task.mp3');
-  const [playMessageSound] = useSound('/sounds/new-message.mp3');
-  const [playNotificationSound] = useSound('/sounds/new-notification.mp3');
+  const [playNewTaskSound] = useSound({ frequency: 300, type: 'triangle' });
+  const [playMessageSound] = useSound({ frequency: 440, type: 'sine' });
+  const [playNotificationSound] = useSound({ frequency: 520, type: 'square', duration: 0.2 });
 
   useEffect(() => {
     // Listener for platform settings

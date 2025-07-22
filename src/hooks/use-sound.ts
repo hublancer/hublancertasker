@@ -1,25 +1,46 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 
-export function useSound(soundUrl: string, { volume = 1.0 } = {}) {
-  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+type WaveType = 'sine' | 'square' | 'sawtooth' | 'triangle';
 
-  useEffect(() => {
-    const audioInstance = new Audio(soundUrl);
-    audioInstance.volume = volume;
-    setAudio(audioInstance);
-  }, [soundUrl, volume]);
+interface SoundOptions {
+  frequency?: number;
+  volume?: number;
+  duration?: number;
+  type?: WaveType;
+}
 
+export function useSound({
+  frequency = 440,
+  volume = 0.5,
+  duration = 0.1,
+  type = 'sine',
+}: SoundOptions = {}) {
   const play = useCallback(() => {
-    if (audio) {
-      audio.currentTime = 0;
-      audio.play().catch(error => {
-        // Autoplay was prevented.
-        console.warn("Audio play was prevented by browser policy. This is common and expected.");
-      });
+    // We can only use the Web Audio API in the browser.
+    if (typeof window === 'undefined') return;
+
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+
+      gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + duration);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    } catch (error) {
+      console.warn("Could not play sound. This can happen if the browser tab is not in focus.", error);
     }
-  }, [audio]);
+  }, [frequency, volume, duration, type]);
 
   return [play];
 }
