@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -13,7 +14,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { userProfile, loading } = useAuth();
+  const { userProfile, loading, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -21,10 +22,27 @@ export default function AdminLayout({
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
 
-  if (userProfile?.role !== 'admin') {
-    router.replace('/');
-    return null;
+  // Redirect to admin login if not authenticated or not an admin
+  if (!user && pathname !== '/admin/login') {
+      router.replace('/admin/login');
+      return null;
   }
+
+  if (user && userProfile?.role !== 'admin' && pathname !== '/admin/login') {
+     router.replace('/admin/login');
+     return null;
+  }
+  
+  if (user && userProfile?.role === 'admin' && pathname === '/admin/login') {
+      router.replace('/admin/dashboard');
+      return null;
+  }
+  
+  // Don't render layout for login page
+  if (pathname === '/admin/login') {
+      return <>{children}</>;
+  }
+
 
   const navItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
