@@ -34,6 +34,7 @@ export default function RegisterPage() {
                 uid: user.uid,
                 email: data.email,
                 accountType: data.accountType,
+                role: data.accountType,
                 name: data.name,
                 wallet: {
                   balance: 0,

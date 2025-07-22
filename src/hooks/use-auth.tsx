@@ -9,6 +9,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   accountType: 'client' | 'tasker';
+  role?: 'client' | 'tasker' | 'admin';
   name?: string;
   averageRating?: number;
   reviewCount?: number;

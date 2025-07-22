@@ -10,7 +10,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell } from 'lucide-react';
+import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell, Shield } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -118,6 +118,14 @@ const AppHeader = () => {
                     <span>Wallet</span>
                 </Link>
             </DropdownMenuItem>
+            {userProfile?.role === 'admin' && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin/dashboard">
+                  <Shield className="mr-2 h-4 w-4" />
+                  <span>Admin Panel</span>
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
