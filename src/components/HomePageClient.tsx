@@ -63,7 +63,7 @@ const getZoomFromDistance = (distance: number) => {
 
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [mobileView, setMobileView] = useState<'list' | 'map' | 'details'>('list');
   const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(
     null
   );
@@ -131,9 +131,19 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
+    if (window.innerWidth < 768) { // md breakpoint
+        setMobileView('details');
+    }
     setCurrentMapCenter(task.coordinates);
     setMapZoom(14);
   };
+  
+  const handleBackFromDetails = () => {
+      setSelectedTask(null);
+      if (window.innerWidth < 768) { // md breakpoint
+          setMobileView('list');
+      }
+  }
 
   const handleLocationFilterApply = () => {
     setAppliedTaskType(popoverTaskType);
@@ -268,7 +278,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       return (
         <TaskDetails
           task={selectedTask as any}
-          onBack={() => setSelectedTask(null)}
+          onBack={handleBackFromDetails}
         />
       );
     }
@@ -281,6 +291,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       />
     );
   };
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const showList = !isMobile || mobileView === 'list';
+  const showMap = !isMobile || mobileView === 'map';
+  const showDetails = selectedTask && (!isMobile || mobileView === 'details');
+
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -512,13 +528,13 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
           </div>
         </div>
       </div>
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[40%_60%] overflow-hidden">
+       <main className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[40%_60%] overflow-hidden">
         {/* Mobile view toggle */}
         <div className="md:hidden p-2 bg-card border-b flex justify-center">
           <div className="inline-flex rounded-md shadow-sm">
             <Button
-              onClick={() => setMobileView('list')}
-              variant={mobileView === 'list' ? 'secondary' : 'ghost'}
+              onClick={() => { setMobileView('list'); setSelectedTask(null); }}
+              variant={mobileView === 'list' && !selectedTask ? 'secondary' : 'ghost'}
               className="rounded-r-none"
             >
               <List className="mr-2 h-4 w-4" />
@@ -529,7 +545,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 setMobileView('map');
                 setSelectedTask(null);
               }}
-              variant={mobileView === 'map' ? 'secondary' : 'ghost'}
+              variant={mobileView === 'map' && !selectedTask ? 'secondary' : 'ghost'}
               className="rounded-l-none"
             >
               <MapIcon className="mr-2 h-4 w-4" />
@@ -542,7 +558,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         <ScrollArea
           className={cn(
             'h-[calc(100vh-200px)] md:h-[calc(100vh-129px)]',
-            mobileView === 'map' && 'hidden',
+            (isMobile && mobileView !== 'list') && 'hidden',
             'md:block'
           )}
         >
@@ -566,8 +582,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Map or Task Details */}
         <div
           className={cn(
-            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10', // Added z-10
-            mobileView === 'list' && 'hidden',
+            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10', 
+            (isMobile && mobileView === 'list') && 'hidden',
             'md:block'
           )}
         >
