@@ -161,7 +161,11 @@ export default function PostTaskForm() {
             uid: newUser.uid,
             email: signUpData.email,
             accountType: signUpData.accountType,
+            role: signUpData.accountType,
             name: signUpData.name,
+            wallet: {
+                balance: 0,
+            }
         });
 
         await submitTask(taskData, newUser.uid, signUpData.name);
@@ -267,7 +271,7 @@ export default function PostTaskForm() {
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category for your task" />
-                      </Trigger>
+                      </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {categories.map((category) => (
