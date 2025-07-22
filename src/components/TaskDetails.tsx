@@ -82,25 +82,25 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-6 space-y-6 bg-card text-card-foreground h-full">
+      <div className="p-4 md:p-6 space-y-6 bg-card text-card-foreground h-full">
         <Button
           variant="ghost"
           onClick={onBack}
           className="mb-4 hidden md:flex"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Return to map
+          Return to tasks
         </Button>
 
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             {getStatusPill(task.status)}
           </div>
-          <h1 className="text-3xl font-bold font-headline">{task.title}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold font-headline">{task.title}</h1>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
             <div className="space-y-4 text-sm text-foreground">
               <div className="flex items-start">
                 <Avatar className="h-10 w-10 mr-4">
@@ -111,26 +111,27 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   <AvatarFallback>{task.postedBy.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold">POSTED BY</p>
-                  <p className="text-muted-foreground">{task.postedBy}</p>
+                  <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
+                  <p>{task.postedBy}</p>
                 </div>
               </div>
               <div className="flex items-start">
-                <MapPin className="h-5 w-5 mr-4 mt-1 text-muted-foreground" />
+                <MapPin className="h-5 w-5 mr-4 mt-0.5 text-muted-foreground" />
                 <div>
-                  <p className="font-semibold">LOCATION</p>
-                  <p className="text-muted-foreground">{task.location}</p>
+                  <p className="font-semibold uppercase text-xs text-muted-foreground">LOCATION</p>
+                  <p>{task.location}</p>
                 </div>
               </div>
               <div className="flex items-start">
-                <Calendar className="h-5 w-5 mr-4 mt-1 text-muted-foreground" />
+                <Calendar className="h-5 w-5 mr-4 mt-0.5 text-muted-foreground" />
                 <div>
-                  <p className="font-semibold">TO BE DONE ON</p>
-                  <p className="text-muted-foreground">{task.date}</p>
+                  <p className="font-semibold uppercase text-xs text-muted-foreground">TO BE DONE ON</p>
+                  <p>{task.date}</p>
                 </div>
               </div>
             </div>
-            <div className="mt-6">
+            <Separator className="my-6" />
+            <div>
               <h3 className="font-bold mb-2">Details</h3>
               <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {task.description}
@@ -140,8 +141,8 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
 
           <div className="space-y-4">
             <Card>
-              <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-2">
+              <CardContent className="p-4 text-center">
+                <p className="text-sm text-muted-foreground mb-1">
                   TASK BUDGET
                 </p>
                 <p className="text-3xl font-bold">${task.price}</p>
@@ -176,8 +177,8 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
             <div className="space-y-6">
               {offers.map(offer => (
                 <Card key={offer.id}>
-                  <CardContent className="p-4 flex flex-col md:flex-row gap-4">
-                    <div className="flex-shrink-0 flex flex-col items-center md:border-r md:pr-4">
+                  <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+                    <div className="flex-shrink-0 flex flex-col items-center text-center sm:border-r sm:pr-4 sm:w-32">
                       <Avatar className="h-12 w-12">
                         <AvatarImage
                           src={offer.avatar}
@@ -197,7 +198,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                       </div>
                     </div>
                     <div className="flex-1">
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify-between items-start">
                         <p className="text-lg font-bold">${offer.offerPrice}</p>
                         <Button size="sm">Accept</Button>
                       </div>
