@@ -201,7 +201,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <div className="border-b">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-2 py-4">
-            <div className="relative flex-grow">
+            <div className="relative flex-grow-[2]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -211,163 +211,164 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
               />
             </div>
             
-            <CategoryFilter 
-              selectedCategories={appliedCategories}
-              onApply={setAppliedCategories}
-            />
+            <div className="flex flex-grow-0 gap-2">
+              <CategoryFilter 
+                selectedCategories={appliedCategories}
+                onApply={setAppliedCategories}
+              />
 
-            <Popover
-              open={isLocationPopoverOpen}
-              onOpenChange={setIsLocationPopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto flex-grow-0 min-w-0 sm:min-w-[150px] justify-start text-left font-normal"
-                >
-                  <MapPin className="sm:hidden h-4 w-4" />
-                  <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="start">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">Location</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Filter tasks by location and type.
-                    </p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Task Type</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant={
-                          popoverTaskType === 'physical'
-                            ? 'primary'
-                            : 'outline'
-                        }
-                        onClick={() => setPopoverTaskType('physical')}
-                        className="flex-1"
-                      >
-                        In-person
-                      </Button>
-                      <Button
-                        variant={
-                          popoverTaskType === 'online' ? 'primary' : 'outline'
-                        }
-                        onClick={() => setPopoverTaskType('online')}
-                        className="flex-1"
-                      >
-                        Remotely
-                      </Button>
-                      <Button
-                        variant={
-                          popoverTaskType === 'all' ? 'primary' : 'outline'
-                        }
-                        onClick={() => setPopoverTaskType('all')}
-                        className="flex-1"
-                      >
-                        All
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="suburb">Location</Label>
-                    <Input
-                      id="suburb"
-                      placeholder="e.g. Sydney NSW, Australia"
-                      value={popoverLocation}
-                      onChange={e => setPopoverLocation(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>
-                      Distance -{' '}
-                      <span className="font-bold text-primary">
-                        {popoverDistance}km
-                      </span>
-                    </Label>
-                    <Slider
-                      value={[popoverDistance]}
-                      onValueChange={value => setPopoverDistance(value[0])}
-                      max={100}
-                      step={1}
-                      disabled={popoverTaskType === 'online'}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 mt-2">
-                    <Button
-                      variant="ghost"
-                      onClick={handleLocationFilterCancel}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleLocationFilterApply}>Apply</Button>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            <Popover
-              open={isOtherFiltersPopoverOpen}
-              onOpenChange={setIsOtherFiltersPopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button variant="outline">
-                  <span className="sm:hidden"><SlidersHorizontal className="h-4 w-4" /></span>
-                  <span className="hidden sm:inline">Other filters</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="start">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">Other Filters</h4>
-                  </div>
+              <Popover
+                open={isLocationPopoverOpen}
+                onOpenChange={setIsLocationPopoverOpen}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto flex-grow-0 min-w-0 sm:min-w-[150px] justify-start text-left font-normal"
+                  >
+                    <MapPin className="sm:hidden h-4 w-4" />
+                    <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="start">
                   <div className="grid gap-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="available-only">
-                          Available tasks only
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Hide tasks that are already assigned
-                        </p>
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Location</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Filter tasks by location and type.
+                      </p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Task Type</Label>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant={
+                            popoverTaskType === 'physical'
+                              ? 'primary'
+                              : 'outline'
+                          }
+                          onClick={() => setPopoverTaskType('physical')}
+                          className="flex-1"
+                        >
+                          In-person
+                        </Button>
+                        <Button
+                          variant={
+                            popoverTaskType === 'online' ? 'primary' : 'outline'
+                          }
+                          onClick={() => setPopoverTaskType('online')}
+                          className="flex-1"
+                        >
+                          Remotely
+                        </Button>
+                        <Button
+                          variant={
+                            popoverTaskType === 'all' ? 'primary' : 'outline'
+                          }
+                          onClick={() => setPopoverTaskType('all')}
+                          className="flex-1"
+                        >
+                          All
+                        </Button>
                       </div>
-                      <Switch
-                        id="available-only"
-                        checked={popoverAvailableOnly}
-                        onCheckedChange={setPopoverAvailableOnly}
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="suburb">Location</Label>
+                      <Input
+                        id="suburb"
+                        placeholder="e.g. Sydney NSW, Australia"
+                        value={popoverLocation}
+                        onChange={e => setPopoverLocation(e.target.value)}
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="no-offers-only">
-                          Tasks with no offers only
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Hide tasks that have offers
-                        </p>
-                      </div>
-                      <Switch
-                        id="no-offers-only"
-                        checked={popoverNoOffersOnly}
-                        onCheckedChange={setPopoverNoOffersOnly}
+                    <div className="grid gap-2">
+                      <Label>
+                        Distance -{' '}
+                        <span className="font-bold text-primary">
+                          {popoverDistance}km
+                        </span>
+                      </Label>
+                      <Slider
+                        value={[popoverDistance]}
+                        onValueChange={value => setPopoverDistance(value[0])}
+                        max={100}
+                        step={1}
+                        disabled={popoverTaskType === 'online'}
                       />
                     </div>
+                    <div className="flex justify-end gap-2 mt-2">
+                      <Button
+                        variant="ghost"
+                        onClick={handleLocationFilterCancel}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleLocationFilterApply}>Apply</Button>
+                    </div>
                   </div>
-                  <div className="flex justify-end gap-2 mt-2">
-                    <Button
-                      variant="ghost"
-                      onClick={handleOtherFiltersCancel}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleOtherFiltersApply}>Apply</Button>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
 
+              <Popover
+                open={isOtherFiltersPopoverOpen}
+                onOpenChange={setIsOtherFiltersPopoverOpen}
+              >
+                <PopoverTrigger asChild>
+                  <Button variant="outline">
+                    <span className="sm:hidden"><SlidersHorizontal className="h-4 w-4" /></span>
+                    <span className="hidden sm:inline">Other filters</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="start">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Other Filters</h4>
+                    </div>
+                    <div className="grid gap-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="available-only">
+                            Available tasks only
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Hide tasks that are already assigned
+                          </p>
+                        </div>
+                        <Switch
+                          id="available-only"
+                          checked={popoverAvailableOnly}
+                          onCheckedChange={setPopoverAvailableOnly}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="no-offers-only">
+                            Tasks with no offers only
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Hide tasks that have offers
+                          </p>
+                        </div>
+                        <Switch
+                          id="no-offers-only"
+                          checked={popoverNoOffersOnly}
+                          onCheckedChange={setPopoverNoOffersOnly}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-2">
+                      <Button
+                        variant="ghost"
+                        onClick={handleOtherFiltersCancel}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleOtherFiltersApply}>Apply</Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
       </div>
