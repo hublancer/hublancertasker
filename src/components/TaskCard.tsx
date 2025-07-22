@@ -23,6 +23,9 @@ export type Task = {
   description: string;
   postedBy: string;
   postedById: string;
+  assignedToId?: string;
+  assignedToName?: string;
+  coordinates?: [number, number] | null;
 };
 
 interface TaskCardProps {

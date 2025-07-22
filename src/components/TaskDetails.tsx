@@ -10,6 +10,13 @@ import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
+import { useEffect, useState } from 'react';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Textarea } from './ui/textarea';
+import { Input } from './ui/input';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface TaskDetailsProps {
   task: Task & {
@@ -19,47 +26,149 @@ interface TaskDetailsProps {
   onBack: () => void;
 }
 
-// MOCK DATA - In a real app, this would come from Firestore
-const offers = [
-  {
-    id: 1,
-    name: 'Brendan H.',
-    avatar: 'https://placehold.co/40x40.png',
-    rating: 4.9,
-    reviews: 102,
-    completionRate: '98%',
-    offerPrice: 75,
-    comment:
-      "Hi Laura, I'm available this Saturday and have my own professional lawnmower and tools. I can get this done for you efficiently. Look forward to hearing from you.",
-  },
-  {
-    id: 2,
-    name: 'Gemma P.',
-    avatar: 'https://placehold.co/40x40.png',
-    rating: 5.0,
-    reviews: 45,
-    completionRate: '100%',
-    offerPrice: 80,
-    comment:
-      'Hello! I am very experienced with gardening and can make your garden look perfect for your party. I can also dispose of all the waste for you.',
-  },
-];
+interface Offer {
+    id: string;
+    taskerId: string;
+    taskerName: string;
+    taskerAvatar: string;
+    offerPrice: number;
+    comment: string;
+    createdAt: any;
+}
 
-const questions = [
-  {
-    id: 1,
-    name: 'Mark T.',
-    avatar: 'https://placehold.co/40x40.png',
-    question:
-      'Is there access to an outdoor tap for a pressure washer if needed?',
-    answer:
-      "Hi Mark, yes there's an outdoor tap at the back of the house you're welcome to use.",
-  },
-];
+interface Question {
+    id: string;
+    userId: string;
+    userName: string;
+    userAvatar: string;
+    question: string;
+    answer?: string;
+    createdAt: any;
+}
+
 
 export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
+  const { toast } = useToast();
   const isOwner = user?.uid === task.postedById;
+  
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loadingOffers, setLoadingOffers] = useState(true);
+  const [loadingQuestions, setLoadingQuestions] = useState(true);
+
+  const [offerComment, setOfferComment] = useState('');
+  const [offerPrice, setOfferPrice] = useState<number | ''>('');
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+
+  const [questionText, setQuestionText] = useState('');
+  const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false);
+  const [isAccepting, setIsAccepting] = useState<string | null>(null);
+
+  useEffect(() => {
+    const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
+    const unsubscribeOffers = onSnapshot(offersQuery, (snapshot) => {
+        const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
+        setOffers(offersData);
+        setLoadingOffers(false);
+    });
+
+    const questionsQuery = query(collection(db, 'tasks', task.id, 'questions'));
+    const unsubscribeQuestions = onSnapshot(questionsQuery, (snapshot) => {
+        const questionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+        setQuestions(questionsData);
+        setLoadingQuestions(false);
+    });
+
+    return () => {
+        unsubscribeOffers();
+        unsubscribeQuestions();
+    }
+  }, [task.id]);
+
+  const handleMakeOffer = async () => {
+    if (!user || !userProfile || offerPrice === '' || !offerComment) {
+        toast({ variant: 'destructive', title: "Please fill all offer fields." });
+        return;
+    }
+    setIsSubmittingOffer(true);
+    try {
+        await addDoc(collection(db, 'tasks', task.id, 'offers'), {
+            taskerId: user.uid,
+            taskerName: userProfile.name,
+            taskerAvatar: user.photoURL || '',
+            offerPrice: Number(offerPrice),
+            comment: offerComment,
+            createdAt: serverTimestamp(),
+        });
+
+        // Also update the offer count on the task
+        const taskRef = doc(db, 'tasks', task.id);
+        await addDoc(collection(db, 'tasks'), {
+            ...task,
+            offerCount: (task.offers || 0) + 1,
+        });
+        
+        setOfferComment('');
+        setOfferPrice('');
+        toast({ title: "Offer submitted successfully!" });
+    } catch (error) {
+        toast({ variant: 'destructive', title: "Failed to submit offer." });
+        console.error("Error submitting offer:", error);
+    } finally {
+        setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleAskQuestion = async () => {
+     if (!user || !userProfile || !questionText) {
+        toast({ variant: 'destructive', title: "Please write a question." });
+        return;
+    }
+    setIsSubmittingQuestion(true);
+    try {
+        await addDoc(collection(db, 'tasks', task.id, 'questions'), {
+            userId: user.uid,
+            userName: userProfile.name,
+            userAvatar: user.photoURL || '',
+            question: questionText,
+            createdAt: serverTimestamp(),
+        });
+        setQuestionText('');
+        toast({ title: "Question submitted successfully!" });
+    } catch (error) {
+        toast({ variant: 'destructive', title: "Failed to submit question." });
+        console.error("Error submitting question:", error);
+    } finally {
+        setIsSubmittingQuestion(false);
+    }
+  }
+  
+  const handleAcceptOffer = async (offer: Offer) => {
+    if (!isOwner || task.status !== 'open') return;
+    setIsAccepting(offer.id);
+    try {
+      const batch = writeBatch(db);
+      const taskRef = doc(db, 'tasks', task.id);
+
+      batch.update(taskRef, {
+        status: 'assigned',
+        assignedToId: offer.taskerId,
+        assignedToName: offer.taskerName,
+      });
+
+      await batch.commit();
+
+      toast({ title: `Task assigned to ${offer.taskerName}!` });
+      onBack();
+
+    } catch (error) {
+       toast({ variant: 'destructive', title: "Failed to assign task." });
+       console.error("Error accepting offer:", error);
+    } finally {
+      setIsAccepting(null);
+    }
+  }
 
 
   const getStatusPill = (status: Task['status']) => {
@@ -96,7 +205,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
 
     if (isOwner) {
        if (task.status === 'open' && offers.length > 0) {
-         return <Button className="w-full mt-4" disabled>Review Offers</Button>
+         return <Button className="w-full mt-4" disabled>Review Offers Below</Button>
        }
        if (task.status === 'assigned') {
          return <Button className="w-full mt-4">Mark as Complete</Button>
@@ -105,14 +214,34 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
     }
 
     // Tasker view
-    if (userProfile?.accountType === 'tasker') {
-      if (task.status === 'open') {
+    if (userProfile?.accountType === 'tasker' && task.status === 'open') {
+        const hasMadeOffer = offers.some(o => o.taskerId === user.uid);
+        if (hasMadeOffer) {
+            return <Button className="w-full mt-4" disabled>Offer Already Made</Button>
+        }
         return (
-          <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
-            Make an offer
-          </Button>
+            <Card className="mt-4">
+                <CardContent className="p-4 space-y-2">
+                    <p className="font-semibold text-center">Make an Offer</p>
+                    <Input 
+                        type="number" 
+                        placeholder="Your price ($)" 
+                        value={offerPrice}
+                        onChange={(e) => setOfferPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                        disabled={isSubmittingOffer}
+                    />
+                    <Textarea 
+                        placeholder="Your comment..." 
+                        value={offerComment}
+                        onChange={(e) => setOfferComment(e.target.value)}
+                        disabled={isSubmittingOffer}
+                    />
+                    <Button onClick={handleMakeOffer} disabled={isSubmittingOffer} className="w-full">
+                        {isSubmittingOffer ? "Submitting..." : "Submit Offer"}
+                    </Button>
+                </CardContent>
+            </Card>
         )
-      }
     }
     
     return null;
@@ -204,32 +333,29 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
           </TabsList>
           <TabsContent value="offers" className="mt-4">
             <div className="space-y-6">
-              {offers.map(offer => (
+              {loadingOffers ? <p>Loading offers...</p> : offers.map(offer => (
                 <Card key={offer.id}>
                   <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
                     <div className="flex-shrink-0 flex flex-col items-center text-center sm:border-r sm:pr-4 sm:w-32">
                       <Avatar className="h-12 w-12">
                         <AvatarImage
-                          src={offer.avatar}
+                          src={offer.taskerAvatar || 'https://placehold.co/40x40.png'}
                           data-ai-hint="person face"
                         />
                         <AvatarFallback>
-                          {offer.name.charAt(0)}
+                          {offer.taskerName.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <p className="font-semibold mt-2">{offer.name}</p>
-                      <div className="text-xs text-muted-foreground">
-                        <span>{offer.rating}★</span>
-                        <span>({offer.reviews} reviews)</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {offer.completionRate} completion
-                      </div>
+                      <p className="font-semibold mt-2">{offer.taskerName}</p>
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
                         <p className="text-lg font-bold">${offer.offerPrice}</p>
-                        {isOwner && task.status === 'open' && <Button size="sm">Accept</Button>}
+                        {isOwner && task.status === 'open' && (
+                          <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
+                            {isAccepting === offer.id ? "Accepting..." : "Accept"}
+                          </Button>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-2">
                         {offer.comment}
@@ -238,23 +364,39 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   </CardContent>
                 </Card>
               ))}
-              {offers.length === 0 && <p className="text-muted-foreground text-sm text-center py-4">There are no offers yet.</p>}
+              {offers.length === 0 && !loadingOffers && <p className="text-muted-foreground text-sm text-center py-4">There are no offers yet.</p>}
             </div>
           </TabsContent>
           <TabsContent value="questions" className="mt-4">
             <div className="space-y-6">
-              {questions.map(q => (
+               {user && (
+                    <Card>
+                        <CardContent className="p-4 space-y-2">
+                            <p className="font-semibold">Ask a Question</p>
+                            <Textarea 
+                                placeholder="Type your question here..."
+                                value={questionText}
+                                onChange={(e) => setQuestionText(e.target.value)}
+                                disabled={isSubmittingQuestion}
+                            />
+                            <Button onClick={handleAskQuestion} disabled={isSubmittingQuestion}>
+                                {isSubmittingQuestion ? 'Submitting...' : 'Ask Question'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+               )}
+              {loadingQuestions ? <p>Loading questions...</p> : questions.map(q => (
                 <Card key={q.id}>
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
                         <AvatarImage
-                          src={q.avatar}
+                          src={q.userAvatar || 'https://placehold.co/40x40.png'}
                           data-ai-hint="person face"
                         />
-                        <AvatarFallback>{q.name.charAt(0)}</AvatarFallback>
+                        <AvatarFallback>{q.userName.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <p className="font-semibold text-sm">{q.name}</p>
+                      <p className="font-semibold text-sm">{q.userName}</p>
                     </div>
                     <p className="text-sm pl-10">{q.question}</p>
                     {q.answer && (
@@ -270,7 +412,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   </CardContent>
                 </Card>
               ))}
-               {questions.length === 0 && <p className="text-muted-foreground text-sm text-center py-4">There are no questions yet.</p>}
+               {questions.length === 0 && !loadingQuestions && <p className="text-muted-foreground text-sm text-center py-4">There are no questions yet.</p>}
             </div>
           </TabsContent>
         </Tabs>
