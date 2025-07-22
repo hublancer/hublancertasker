@@ -18,7 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Map as MapIcon, List, MapPin, SlidersHorizontal } from 'lucide-react';
+import {
+  Search,
+  Map as MapIcon,
+  List,
+  MapPin,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
@@ -58,7 +64,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
   const [appliedPrice, setAppliedPrice] = useState('any');
   const [appliedSortBy, setAppliedSortBy] = useState<SortByType>('newest');
-
 
   // Temporary state for the popovers
   const [popoverTaskType, setPopoverTaskType] =
@@ -115,19 +120,20 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const getLocationButtonLabel = () => {
     if (appliedTaskType === 'online' && !appliedLocation) return 'Remotely';
-    if (appliedTaskType === 'physical' && !appliedLocation) return 'In-person';
-
+    
     let label = '';
     if (appliedLocation) {
-      if (appliedTaskType === 'physical') {
-        label += `${appliedDistance}km from ${appliedLocation}`;
-      } else {
-        label += appliedLocation;
-      }
+        if (appliedTaskType === 'physical') {
+            label = `Within ${appliedDistance}km of ${appliedLocation}`;
+        } else {
+            label = appliedLocation;
+        }
+    } else {
+        if (appliedTaskType === 'physical') return 'In-person';
     }
 
     if (appliedTaskType === 'online') {
-      label += label ? ' & remotely' : 'Remotely';
+      label += label ? ' & Remotely' : 'Remotely';
     }
 
     return label || 'Any location';
@@ -146,7 +152,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       tasksToFilter.sort((a, b) => parseInt(b.id) - parseInt(a.id));
     }
 
-
     return tasksToFilter.filter(task => {
       if (
         searchTerm &&
@@ -156,18 +161,21 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }
       if (
         appliedCategories.length > 0 &&
+        task.category &&
         !appliedCategories.includes(task.category)
       ) {
         return false;
       }
-      if (appliedTaskType !== 'all' && task.type !== appliedTaskType) {
-        return false;
+       if (appliedTaskType !== 'all') {
+        if (task.type !== appliedTaskType) return false;
       }
+
       if (
         appliedLocation &&
         task.type === 'physical' &&
         !task.location.toLowerCase().includes(appliedLocation.toLowerCase())
       ) {
+        // This is a simple text match. A real implementation would use geocoding and radius search.
         return false;
       }
       if (appliedPrice !== 'any') {
@@ -191,7 +199,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     appliedCategories,
     appliedTaskType,
     appliedLocation,
-    // appliedDistance, // Not used in filtering yet
+    appliedDistance,
     appliedPrice,
     appliedAvailableOnly,
     appliedNoOffersOnly,
@@ -215,8 +223,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-           <div className="flex flex-wrap items-center gap-2 py-4">
-            <div className="relative flex-grow min-w-[150px] sm:flex-grow-[2]">
+          <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
+            <div className="relative w-full sm:flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -225,9 +233,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            
-            <div className="flex flex-grow items-center gap-2">
-               <CategoryFilter 
+            <div className="flex w-full sm:w-auto items-center gap-2">
+              <CategoryFilter
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
               />
@@ -239,10 +246,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto justify-start text-left font-normal"
+                    className="w-full sm:w-auto justify-start text-left font-normal flex-grow"
                   >
                     <MapPin className="sm:hidden h-4 w-4" />
-                     <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
+                    <span className="truncate hidden sm:inline">
+                      {getLocationButtonLabel()}
+                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80" align="start">
@@ -269,7 +278,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                         </Button>
                         <Button
                           variant={
-                            popoverTaskType === 'online' ? 'default' : 'outline'
+                            popoverTaskType === 'online'
+                              ? 'default'
+                              : 'outline'
                           }
                           onClick={() => setPopoverTaskType('online')}
                           className="flex-1"
@@ -323,7 +334,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                   </div>
                 </PopoverContent>
               </Popover>
-               <div className="hidden md:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <Select value={appliedPrice} onValueChange={setAppliedPrice}>
                   <SelectTrigger className="w-[120px]">
                     <SelectValue placeholder="Price" />
@@ -335,14 +346,21 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     <SelectItem value=">500">Over $500</SelectItem>
                   </SelectContent>
                 </Select>
-                 <Select value={appliedSortBy} onValueChange={value => setAppliedSortBy(value as SortByType)}>
+                <Select
+                  value={appliedSortBy}
+                  onValueChange={value => setAppliedSortBy(value as SortByType)}
+                >
                   <SelectTrigger className="w-[140px]">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="newest">Newest</SelectItem>
-                    <SelectItem value="price-asc">Price: Low to High</SelectItem>
-                    <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                    <SelectItem value="price-asc">
+                      Price: Low to High
+                    </SelectItem>
+                    <SelectItem value="price-desc">
+                      Price: High to Low
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -352,15 +370,19 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onOpenChange={setIsOtherFiltersPopoverOpen}
               >
                 <PopoverTrigger asChild>
-                  <Button variant="outline">
-                    <span className="sm:hidden"><SlidersHorizontal className="h-4 w-4" /></span>
+                  <Button variant="outline" className="flex-shrink-0">
+                    <span className="sm:hidden">
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </span>
                     <span className="hidden sm:inline">Other filters</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80" align="start">
                   <div className="grid gap-4">
                     <div className="space-y-2">
-                      <h4 className="font-medium leading-none">Other Filters</h4>
+                      <h4 className="font-medium leading-none">
+                        Other Filters
+                      </h4>
                     </div>
                     <div className="grid gap-4">
                       <div className="flex items-center justify-between">
