@@ -140,15 +140,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     }
   };
 
-  const handleLocationClick = (coordinates: [number, number]) => {
-    setCurrentMapCenter(coordinates);
-    setMapZoom(14);
-    if(window.innerWidth < 768) {
-      setMobileView('map');
-      setSelectedTask(null);
-    }
-  }
-  
   const handleBackFromDetails = () => {
       setSelectedTask(null);
       if (window.innerWidth < 768) { // md breakpoint
@@ -291,7 +282,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         <TaskDetails
           task={selectedTask as any}
           onBack={handleBackFromDetails}
-          onLocationClick={handleLocationClick}
         />
       );
     }

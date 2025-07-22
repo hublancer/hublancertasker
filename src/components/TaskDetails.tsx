@@ -24,7 +24,6 @@ interface TaskDetailsProps {
     postedBy: string;
   };
   onBack: () => void;
-  onLocationClick?: (coordinates: [number, number]) => void;
 }
 
 interface Offer {
@@ -48,7 +47,7 @@ interface Question {
 }
 
 
-export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetailsProps) {
+export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const isOwner = user?.uid === task.postedById;
@@ -258,7 +257,7 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-4 flex md:hidden"
+          className="mb-4 flex"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Return to tasks
@@ -292,10 +291,12 @@ export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetai
                 <div>
                   <p className="font-semibold uppercase text-xs text-muted-foreground">LOCATION</p>
                   <p>{task.location}</p>
-                  {task.type === 'physical' && task.coordinates && onLocationClick && (
-                    <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => onLocationClick(task.coordinates as [number, number])}>
+                  {task.type === 'physical' && task.coordinates && (
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${task.coordinates[0]},${task.coordinates[1]}`} target="_blank" rel="noopener noreferrer">
+                      <Button variant="link" size="sm" className="p-0 h-auto">
                         View on map
-                    </Button>
+                      </Button>
+                    </a>
                   )}
                 </div>
               </div>
