@@ -5,6 +5,7 @@ import type { Task } from './TaskCard';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
 
 // This is to fix the missing marker icon issue with react-leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -21,6 +22,15 @@ interface MapProps {
 }
 
 const INITIAL_ZOOM = 10;
+const DEFAULT_CENTER: [number, number] = [51.505, -0.09];
+
+function MapUpdater({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom() || INITIAL_ZOOM);
+  }, [center, map]);
+  return null;
+}
 
 function MapControls({ center }: { center: [number, number] }) {
   const map = useMap();
@@ -63,7 +73,7 @@ function MapControls({ center }: { center: [number, number] }) {
 const Map = ({ tasks, onTaskSelect }: MapProps) => {
   const physicalTasks = tasks.filter(task => task.type === 'physical');
   const center: [number, number] =
-    physicalTasks.length > 0 ? physicalTasks[0].coordinates : [51.505, -0.09];
+    physicalTasks.length > 0 ? physicalTasks[0].coordinates : DEFAULT_CENTER;
 
   return (
     <MapContainer
@@ -94,6 +104,7 @@ const Map = ({ tasks, onTaskSelect }: MapProps) => {
           </Popup>
         </Marker>
       ))}
+      <MapUpdater center={center} />
       <MapControls center={center} />
     </MapContainer>
   );
