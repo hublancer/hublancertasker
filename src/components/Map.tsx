@@ -104,10 +104,6 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
         map.setView(DEFAULT_CENTER, INITIAL_ZOOM);
     }
   };
-  
-  if (typeof window === 'undefined') {
-    return <Skeleton className="h-full w-full" />;
-  }
 
   return (
     <MapContainer

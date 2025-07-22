@@ -249,7 +249,7 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
     } else if (appliedSortBy === 'price-desc') {
       tasksToFilter.sort((a, b) => b.price - a.price);
     } else {
-       tasksToFilter.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+       tasksToFilter.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
     return tasksToFilter.filter(task => {
@@ -325,7 +325,6 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
         <TaskDetails
           task={selectedTask as any}
           onBack={handleBackFromDetails}
-          onLocationClick={() => handleLocationClick(selectedTask)}
           onTaskUpdate={refreshTasks}
         />
       );
