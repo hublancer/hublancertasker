@@ -217,8 +217,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-          <div className="flex items-center gap-2 py-4">
-            <div className="relative flex-grow">
+          <div className="flex flex-wrap items-center gap-2 py-4">
+            <div className="relative flex-grow min-w-[150px] sm:min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -241,10 +241,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto flex-grow-0 min-w-0 sm:min-w-[150px] justify-start text-left font-normal"
+                    className="w-full sm:w-auto flex-grow-0 min-w-0 sm:min-w-auto justify-start text-left font-normal"
                   >
                     <MapPin className="sm:hidden h-4 w-4" />
-                    <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
+                     <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80" align="start">
@@ -261,7 +261,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                         <Button
                           variant={
                             popoverTaskType === 'physical'
-                              ? 'primary'
+                              ? 'default'
                               : 'outline'
                           }
                           onClick={() => setPopoverTaskType('physical')}
@@ -271,7 +271,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                         </Button>
                         <Button
                           variant={
-                            popoverTaskType === 'online' ? 'primary' : 'outline'
+                            popoverTaskType === 'online' ? 'default' : 'outline'
                           }
                           onClick={() => setPopoverTaskType('online')}
                           className="flex-1"
@@ -280,7 +280,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                         </Button>
                         <Button
                           variant={
-                            popoverTaskType === 'all' ? 'primary' : 'outline'
+                            popoverTaskType === 'all' ? 'default' : 'outline'
                           }
                           onClick={() => setPopoverTaskType('all')}
                           className="flex-1"
@@ -441,7 +441,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Task List */}
         <ScrollArea
           className={cn(
-            'h-[calc(100vh-185px)] md:h-[calc(100vh-129px)]',
+            'h-[calc(100vh-200px)] md:h-[calc(100vh-129px)]',
             mobileView === 'map' && 'hidden',
             'md:block'
           )}
@@ -466,7 +466,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Map or Task Details */}
         <div
           className={cn(
-            'relative h-[calc(100vh-185px)] md:h-[calc(100vh-129px)] z-10', // Added z-10
+            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10', // Added z-10
             mobileView === 'list' && 'hidden',
             'md:block'
           )}
