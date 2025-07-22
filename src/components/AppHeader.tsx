@@ -224,10 +224,12 @@ const AppHeader = () => {
           {/* Right side buttons for Desktop */}
           <div className="hidden flex-1 items-center justify-end space-x-2 md:flex">
              {user && (
-                  <div className="text-sm font-semibold flex items-center gap-2">
-                    <Wallet className="h-5 w-5" />
-                    <span>Rs{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</span>
-                  </div>
+                  <Button variant="outline" asChild>
+                    <Link href="/wallet" className="flex items-center gap-2">
+                        <Wallet className="h-5 w-5" />
+                        <span>Rs{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</span>
+                    </Link>
+                  </Button>
               )}
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
