@@ -54,11 +54,11 @@ const MOCK_MAX_DISTANCE = 100; // km
 
 const getZoomFromDistance = (distance: number) => {
   if (distance <= 1) return 14;
-  if (distance <= 5) return 13;
-  if (distance <= 15) return 12;
-  if (distance <= 35) return 11;
-  if (distance <= 70) return 10;
-  return 9;
+  if (distance <= 5) return 12;
+  if (distance <= 15) return 11;
+  if (distance <= 35) return 10;
+  if (distance <= 70) return 9;
+  return 8;
 };
 
 export default function HomePageClient({ tasks }: HomePageClientProps) {
