@@ -52,6 +52,14 @@ type SortByType = 'newest' | 'price-asc' | 'price-desc';
 
 const MOCK_MAX_DISTANCE = 100; // km
 
+const getZoomFromDistance = (distance: number) => {
+  if (distance <= 5) return 13;
+  if (distance <= 15) return 12;
+  if (distance <= 35) return 11;
+  if (distance <= 70) return 10;
+  return 9;
+};
+
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
@@ -61,7 +69,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [currentMapCenter, setCurrentMapCenter] = useState<
     [number, number] | null
   >(null);
-
+  
   // Applied filters
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
   const [appliedTaskType, setAppliedTaskType] =
@@ -75,6 +83,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
   const [appliedPrice, setAppliedPrice] = useState('any');
   const [appliedSortBy, setAppliedSortBy] = useState<SortByType>('newest');
+  const [mapZoom, setMapZoom] = useState(6);
 
   // Temporary state for the popovers
   const [popoverTaskType, setPopoverTaskType] =
@@ -106,10 +115,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       position => {
         const { latitude, longitude } = position.coords;
         setCurrentMapCenter([latitude, longitude]);
+        setMapZoom(12);
       },
       () => {
         // Fallback to a default location if user denies permission
         setCurrentMapCenter(pakistaniCities[0].coordinates);
+        setMapZoom(6);
       }
     );
   }, []);
@@ -117,6 +128,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
     setCurrentMapCenter(task.coordinates);
+    setMapZoom(14);
   };
 
   const handleLocationFilterApply = () => {
@@ -125,6 +137,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     setAppliedDistance(popoverDistance);
     if (popoverLocation) {
       setCurrentMapCenter(popoverLocation.coordinates);
+      setMapZoom(getZoomFromDistance(popoverDistance));
     }
     setIsLocationPopoverOpen(false);
   };
@@ -258,7 +271,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         tasks={filteredTasks}
         onTaskSelect={handleTaskSelect}
         center={currentMapCenter}
-        zoom={appliedLocation ? 12 : 6}
+        zoom={mapZoom}
       />
     );
   };
@@ -269,7 +282,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <div className="border-b">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
-            <div className="relative w-full sm:flex-grow-[2]">
+            <div className="relative w-full sm:flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -278,7 +291,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex w-full sm:w-auto items-center gap-2 sm:flex-grow-0">
+            <div className="flex w-full sm:w-auto items-center gap-2">
               <CategoryFilter
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
@@ -558,3 +571,5 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     </div>
   );
 }
+
+    
