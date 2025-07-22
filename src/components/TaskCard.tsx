@@ -38,9 +38,9 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
   };
 
   return (
-    <Card className="flex flex-col h-full hover:shadow-md transition-shadow duration-300">
+    <Card className="flex flex-col hover:shadow-md transition-shadow duration-300">
       <CardHeader>
-        <CardTitle className="font-headline text-lg leading-snug">
+        <CardTitle className="font-headline text-lg leading-snug h-12">
           {task.title}
         </CardTitle>
         <div className="flex items-center pt-2">
@@ -52,7 +52,7 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
       <CardContent className="flex-grow grid gap-4">
         <div className="flex items-center text-sm text-muted-foreground">
           <MapPin className="mr-2 h-4 w-4 flex-shrink-0" />
-          <span>{task.location}</span>
+          <span className="truncate">{task.location}</span>
         </div>
         <div className="flex items-center text-sm text-muted-foreground">
           <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -65,7 +65,7 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
           </span>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between items-center">
+      <CardFooter className="flex justify-between items-center mt-auto pt-4">
         <div className="text-xl font-bold text-primary">${task.price}</div>
         <Button onClick={handleViewTask}>View Task</Button>
       </CardFooter>
