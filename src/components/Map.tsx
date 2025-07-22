@@ -6,6 +6,7 @@ import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect } from 'react';
+import { Skeleton } from './ui/skeleton';
 
 // This is to fix the missing marker icon issue with react-leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -33,6 +34,20 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
       map.setView(center, zoom);
     }
   }, [center, zoom, map]);
+  return null;
+}
+
+function MapBoundsUpdater({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const physicalTasks = tasks.filter(task => task.type === 'physical');
+    if (physicalTasks.length > 0) {
+      const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates));
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  }, [tasks, map]);
   return null;
 }
 
@@ -104,6 +119,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
       ))}
       <MapViewUpdater center={center} zoom={zoom} />
       <MapControls />
+      <MapBoundsUpdater tasks={physicalTasks} />
     </MapContainer>
   );
 };
