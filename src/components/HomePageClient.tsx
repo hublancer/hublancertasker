@@ -53,6 +53,7 @@ type SortByType = 'newest' | 'price-asc' | 'price-desc';
 const MOCK_MAX_DISTANCE = 100; // km
 
 const getZoomFromDistance = (distance: number) => {
+  if (distance <= 1) return 14;
   if (distance <= 5) return 13;
   if (distance <= 15) return 12;
   if (distance <= 35) return 11;
@@ -114,8 +115,11 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     navigator.geolocation.getCurrentPosition(
       position => {
         const { latitude, longitude } = position.coords;
-        setCurrentMapCenter([latitude, longitude]);
-        setMapZoom(12);
+        const userLocation = { name: 'Your Location', coordinates: [latitude, longitude] as [number, number] };
+        setAppliedLocation(userLocation);
+        setPopoverLocation(userLocation);
+        setCurrentMapCenter(userLocation.coordinates);
+        setMapZoom(getZoomFromDistance(appliedDistance));
       },
       () => {
         // Fallback to a default location if user denies permission
@@ -138,6 +142,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     if (popoverLocation) {
       setCurrentMapCenter(popoverLocation.coordinates);
       setMapZoom(getZoomFromDistance(popoverDistance));
+    } else {
+      setCurrentMapCenter(pakistaniCities[0].coordinates);
+      setMapZoom(6);
     }
     setIsLocationPopoverOpen(false);
   };
@@ -157,7 +164,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         coordinates: [latitude, longitude] as [number, number],
       };
       setPopoverLocation(myLocation);
-      setCurrentMapCenter(myLocation.coordinates);
     });
   };
 
@@ -282,7 +288,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <div className="border-b">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
-            <div className="relative w-full sm:flex-grow">
+            <div className="relative w-full sm:flex-grow-[2]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -571,5 +577,3 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     </div>
   );
 }
-
-    
