@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -36,6 +37,7 @@ import { Switch } from './ui/switch';
 import { CategoryFilter } from './CategoryFilter';
 import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
+import { Input } from './ui/input';
 
 interface HomePageClientProps {
   tasks: (Task & {
