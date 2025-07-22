@@ -8,6 +8,9 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import TaskDetails from '@/components/TaskDetails';
+import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function MyTasksPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -23,6 +26,7 @@ export default function MyTasksPage() {
   const [availableTasks, setAvailableTasks] = useState<Task[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -45,6 +49,9 @@ export default function MyTasksPage() {
             type: data.taskType,
             status: data.status,
             category: data.category || 'General',
+            description: data.description,
+            postedBy: data.postedByName,
+            postedById: data.postedById,
           } as Task;
       }
 
@@ -94,6 +101,14 @@ export default function MyTasksPage() {
     }
   }, [user, userProfile, authLoading]);
 
+  const handleTaskSelect = (task: Task) => {
+      setSelectedTask(task);
+  }
+
+  const handleBack = () => {
+      setSelectedTask(null);
+  }
+
   const renderSkeletons = () => (
      <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
@@ -138,7 +153,7 @@ export default function MyTasksPage() {
       <TabsContent value="open" className="mt-6">
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {openPostedTasks.length > 0 ? (
-            openPostedTasks.map(task => <TaskCard key={task.id} task={task} />)
+            openPostedTasks.map(task => <TaskCard key={task.id} task={task} onSelect={handleTaskSelect} />)
           ) : (
             <p>You have no open tasks.</p>
           )}
@@ -148,7 +163,7 @@ export default function MyTasksPage() {
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {assignedPostedTasks.length > 0 ? (
             assignedPostedTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard key={task.id} task={task} onSelect={handleTaskSelect}/>
             ))
           ) : (
             <p>You have no assigned tasks.</p>
@@ -159,7 +174,7 @@ export default function MyTasksPage() {
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {completedPostedTasks.length > 0 ? (
             completedPostedTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard key={task.id} task={task} onSelect={handleTaskSelect}/>
             ))
           ) : (
             <p>You have no completed tasks.</p>
@@ -179,7 +194,7 @@ export default function MyTasksPage() {
       <TabsContent value="assigned" className="mt-6">
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {assignedToMeTasks.length > 0 ? (
-            assignedToMeTasks.map(task => <TaskCard key={task.id} task={task} />)
+            assignedToMeTasks.map(task => <TaskCard key={task.id} task={task} onSelect={handleTaskSelect}/>)
           ) : (
             <p>You have no assigned tasks.</p>
           )}
@@ -189,7 +204,7 @@ export default function MyTasksPage() {
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {completedByMeTasks.length > 0 ? (
             completedByMeTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard key={task.id} task={task} onSelect={handleTaskSelect}/>
             ))
           ) : (
             <p>You have no completed tasks.</p>
@@ -199,7 +214,7 @@ export default function MyTasksPage() {
       <TabsContent value="browse" className="mt-6">
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {availableTasks.length > 0 ? (
-            availableTasks.map(task => <TaskCard key={task.id} task={task} />)
+            availableTasks.map(task => <TaskCard key={task.id} task={task} onSelect={handleTaskSelect}/>)
           ) : (
             <p>No tasks currently available.</p>
           )}
@@ -208,11 +223,8 @@ export default function MyTasksPage() {
     </Tabs>
   )
 
-  return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <AppHeader />
-      <main className="flex-1">
-        <div className="container mx-auto py-12 px-4 md:px-6">
+  const mainContent = (
+      <div className="container mx-auto py-12 px-4 md:px-6">
           <div className="space-y-4 mb-8">
             <h1 className="text-3xl font-bold font-headline">My Dashboard</h1>
             <p className="text-muted-foreground">
@@ -223,6 +235,23 @@ export default function MyTasksPage() {
             </p>
           </div>
           {userProfile?.accountType === 'client' ? renderClientDashboard() : renderTaskerDashboard()}
+        </div>
+  )
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background">
+      <AppHeader />
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-2">
+        <ScrollArea className={cn(selectedTask ? 'hidden md:block' : '')}>
+          {mainContent}
+        </ScrollArea>
+        <div className={cn(
+            'relative h-full z-10 bg-card',
+            !selectedTask && 'hidden'
+          )}>
+         {selectedTask && (
+            <TaskDetails task={selectedTask} onBack={handleBack} />
+         )}
         </div>
       </main>
     </div>

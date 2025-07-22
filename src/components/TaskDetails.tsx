@@ -8,6 +8,7 @@ import { ArrowLeft, MapPin, Calendar } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from './ui/separator';
+import { useAuth } from '@/hooks/use-auth';
 
 interface TaskDetailsProps {
   task: Task & {
@@ -17,6 +18,7 @@ interface TaskDetailsProps {
   onBack: () => void;
 }
 
+// MOCK DATA - In a real app, this would come from Firestore
 const offers = [
   {
     id: 1,
@@ -55,7 +57,9 @@ const questions = [
 ];
 
 export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
-  const userRole = 'tasker'; // This would come from auth context
+  const { user, userProfile } = useAuth();
+  const isOwner = user?.uid === task.postedById;
+
 
   const getStatusPill = (status: Task['status']) => {
     switch (status) {
@@ -79,6 +83,39 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
         );
     }
   };
+
+  const renderActionButtons = () => {
+    if (!user) {
+      return (
+         <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90" disabled>
+            Login to Apply
+        </Button>
+      )
+    }
+
+    if (isOwner) {
+       if (task.status === 'open' && offers.length > 0) {
+         return <Button className="w-full mt-4" disabled>Review Offers</Button>
+       }
+       if (task.status === 'assigned') {
+         return <Button className="w-full mt-4">Mark as Complete</Button>
+       }
+       return null;
+    }
+
+    // Tasker view
+    if (userProfile?.accountType === 'tasker') {
+      if (task.status === 'open') {
+        return (
+          <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
+            Make an offer
+          </Button>
+        )
+      }
+    }
+    
+    return null;
+  }
 
   return (
     <ScrollArea className="h-full">
@@ -146,16 +183,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   TASK BUDGET
                 </p>
                 <p className="text-3xl font-bold">${task.price}</p>
-                {userRole === 'tasker' && (
-                  <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
-                    Make an offer
-                  </Button>
-                )}
-                {!userRole && (
-                  <Button className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
-                    Login to Apply
-                  </Button>
-                )}
+                {renderActionButtons()}
               </CardContent>
             </Card>
             <Button variant="outline" className="w-full">
@@ -200,7 +228,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
                         <p className="text-lg font-bold">${offer.offerPrice}</p>
-                        <Button size="sm">Accept</Button>
+                        {isOwner && task.status === 'open' && <Button size="sm">Accept</Button>}
                       </div>
                       <p className="text-sm text-muted-foreground mt-2">
                         {offer.comment}
@@ -209,6 +237,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   </CardContent>
                 </Card>
               ))}
+              {offers.length === 0 && <p className="text-muted-foreground text-sm text-center py-4">There are no offers yet.</p>}
             </div>
           </TabsContent>
           <TabsContent value="questions" className="mt-4">
@@ -240,6 +269,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                   </CardContent>
                 </Card>
               ))}
+               {questions.length === 0 && <p className="text-muted-foreground text-sm text-center py-4">There are no questions yet.</p>}
             </div>
           </TabsContent>
         </Tabs>

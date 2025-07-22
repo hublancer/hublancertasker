@@ -20,6 +20,9 @@ export type Task = {
   type: 'physical' | 'online';
   status: 'open' | 'assigned' | 'completed';
   category: string;
+  description: string;
+  postedBy: string;
+  postedById: string;
 };
 
 interface TaskCardProps {
@@ -64,13 +67,7 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
       </CardContent>
       <CardFooter className="flex justify-between items-center">
         <div className="text-xl font-bold text-primary">${task.price}</div>
-        {onSelect ? (
-          <Button onClick={handleViewTask}>View Task</Button>
-        ) : (
-          <Button asChild>
-            <Link href={`/`}>View Task</Link>
-          </Button>
-        )}
+        <Button onClick={handleViewTask}>View Task</Button>
       </CardFooter>
     </Card>
   );
