@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -41,51 +41,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const authUnsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUser(user);
-      } else {
-        setUser(null);
-        setUserProfile(null);
-        // Don't set loading to false here, wait for settings to load
-      }
-    });
-
-    return () => authUnsubscribe();
-  }, []);
-
-  useEffect(() => {
+    // Listener for platform settings
     const settingsDocRef = doc(db, 'settings', 'platform');
     const unsubscribeSettings = onSnapshot(settingsDocRef, (doc) => {
       if (doc.exists()) {
         setSettings(doc.data() as PlatformSettings);
       } else {
-        // Set default settings if none exist
         setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
-      }
-      // Settings loaded, now check if we should stop loading screen
-      if (!user) {
-        setLoading(false);
       }
     });
 
-    return () => unsubscribeSettings();
-  }, [user]);
+    // Listener for authentication state changes
+    const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
+        // If no user, stop loading. Profile will be null.
+        setUserProfile(null);
+        setLoading(false);
+      }
+      // If there IS a user, the profile listener below will handle setting loading to false.
+    });
+
+    return () => {
+      unsubscribeSettings();
+      authUnsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
+    // If we have a user, set up a listener for their profile document
     if (user) {
-        setLoading(true);
-        const userDocRef = doc(db, 'users', user.uid);
-        const snapshotUnsubscribe = onSnapshot(userDocRef, (doc) => {
-             if (doc.exists()) {
-                setUserProfile(doc.data() as UserProfile);
-            }
-            // User profile loaded, now we can stop loading
-            setLoading(false);
-        });
-        return () => snapshotUnsubscribe();
+      setLoading(true); // Start loading while we fetch the profile
+      const userDocRef = doc(db, 'users', user.uid);
+      const profileUnsubscribe = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+          setUserProfile(doc.data() as UserProfile);
+        } else {
+          setUserProfile(null); // User exists in Auth, but not in Firestore
+        }
+        setLoading(false); // Stop loading once profile is fetched
+      }, (error) => {
+          console.error("Error listening to user profile:", error);
+          setUserProfile(null);
+          setLoading(false);
+      });
+      return () => profileUnsubscribe();
     }
-  }, [user]);
+  }, [user]); // This effect depends only on the user object
 
   return (
     <AuthContext.Provider value={{ user, userProfile, loading, settings }}>
