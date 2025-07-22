@@ -314,8 +314,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-           <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
-            <div className="relative flex-grow w-full">
+           <div className="flex w-full items-center gap-2 py-4">
+            <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -324,7 +324,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <CategoryFilter
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
