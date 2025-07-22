@@ -2,82 +2,72 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper Functions
-    function isAuth() {
-      return request.auth != null;
+  
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-
+    
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
-    function isAdmin() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
 
-    // Settings
-    match /settings/platform {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-    
-    // Users
     match /users/{userId} {
-      allow read: if isAuth() || isAdmin();
-      allow create: if isAuth();
+      allow read;
+      allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
-
+      
       match /transactions/{transactionId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, write: if isOwner(userId);
       }
       
       match /notifications/{notificationId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+      	allow read, write: if isOwner(userId);
       }
     }
 
-    // Tasks
     match /tasks/{taskId} {
-      allow read: if true;
-      allow create: if isAuth() && request.resource.data.postedById == request.auth.uid;
-      // Allow owner to update, or any authenticated user to increment offerCount
-      allow update: if (isAuth() && resource.data.postedById == request.auth.uid) ||
-                    (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount']));
-      allow delete: if isAuth() && resource.data.postedById == request.auth.uid;
+      allow read;
+      allow create: if request.auth != null && request.resource.data.postedById == request.auth.uid;
+      allow update: if request.auth != null && (
+                      (get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid) || // owner
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount'])) || // anyone can update offerCount
+                      (get(/databases/$(database)/documents/tasks/$(taskId)).data.assignedToId == request.auth.uid && request.resource.data.status == 'pending-completion') // tasker can mark as done
+                    );
+      allow delete: if get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid || isAdmin();
 
       match /offers/{offerId} {
-        allow read: if true;
-        allow create: if isAuth();
-        allow update, delete: if isAuth() && resource.data.taskerId == request.auth.uid;
+        allow read;
+        allow create, update: if request.auth != null && request.resource.data.taskerId == request.auth.uid;
+        allow delete: if get(/databases/$(database)/documents/tasks/$(taskId)/offers/$(offerId)).data.taskerId == request.auth.uid || get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
       }
-      
+
       match /questions/{questionId} {
-         allow read: if true;
-         allow create: if isAuth();
-         allow update: if isAuth() && get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
+        allow read;
+        allow create: if request.auth != null;
+        allow update: if get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid; // owner can add answer
       }
     }
     
-    // Conversations
     match /conversations/{conversationId} {
-      allow read, update: if isAuth() && request.auth.uid in resource.data.participants;
-      allow create: if isAuth(); // Allow any authenticated user to create a conversation
+        allow read, create: if request.auth.uid in resource.data.participants;
+        allow update: if request.auth.uid in resource.data.participants;
       
       match /messages/{messageId} {
-        allow read, create: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow read, create: if get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
       }
     }
-
-    // Reviews
+    
     match /reviews/{reviewId} {
-        allow read: if true;
-        allow create: if isAuth();
+      allow read, create: if request.auth.uid == request.resource.data.clientId;
     }
-
-    // Platform Transactions (Admin only)
+    
+    match /settings/{settingId} {
+        allow read;
+        allow write: if isAdmin();
+    }
+    
     match /platform_transactions/{transactionId} {
-        allow read, write: if isAdmin();
+        allow read: if isAdmin();
     }
   }
 }
