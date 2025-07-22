@@ -18,8 +18,6 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
-import { makeOffer as makeOfferAction } from '@/app/actions';
-
 
 interface TaskDetailsProps {
   task: Task & {
@@ -165,25 +163,20 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         setEditingOffer(null);
         toast({ title: 'Offer updated successfully!' });
       } else {
-        // Create a new offer - this will trigger the cloud function
-        const result = await makeOfferAction({
-            taskId: task.id,
+         // The Cloud Function will trigger to update the offer count
+        await addDoc(collection(db, 'tasks', task.id, 'offers'), {
             taskerId: user.uid,
             taskerName: userProfile.name || 'Anonymous Tasker',
             taskerAvatar: user.photoURL || '',
             offerPrice: Number(offerPrice),
             comment: offerComment,
-            postedById: task.postedById,
-            taskTitle: task.title,
+            createdAt: serverTimestamp(),
         });
+        
+        await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
 
-        if (!result.success) {
-            throw new Error(result.error || "Server failed to process offer.");
-        }
-        onTaskUpdate?.();
         toast({ title: "Offer submitted successfully!" });
       }
-
       setOfferComment('');
       setOfferPrice(task.price);
     } catch (error: any) {
@@ -250,6 +243,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       
       const conversationRef = doc(collection(db, 'conversations'));
       batch.set(conversationRef, {
+        id: conversationRef.id,
         taskId: task.id,
         taskTitle: task.title,
         participants: [task.postedById, offer.taskerId],
@@ -489,9 +483,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             setShowReviewForm(false);
             toast({ title: 'Thank you for your review!' });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error submitting review:", error);
-            toast({ variant: 'destructive', title: 'Failed to submit review.' });
+            toast({ variant: 'destructive', title: 'Failed to submit review.', description: error.message });
         } finally {
             setIsSubmittingReview(false);
         }
