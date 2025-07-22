@@ -30,40 +30,39 @@ const AppHeader = () => {
 
   const navLinks = [
     { href: '/', label: 'Browse Tasks' },
-    { href: '/my-tasks', label: 'My Tasks', auth: true },
-    { href: '/messages', label: 'Messages', auth: true },
+    { href: '/my-tasks', label: 'My Tasks' },
+    { href: '/messages', label: 'Messages' },
   ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
+        {/* Desktop Header */}
         <div className="mr-4 hidden md:flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <Briefcase className="h-6 w-6 text-primary" />
             <span className="font-bold font-headline text-lg">Hublancer</span>
           </Link>
           <nav className="flex items-center gap-6 text-sm">
-            {navLinks.map(
-              link =>
-                (!link.auth || isAuthenticated) && (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={cn(
-                      'transition-colors hover:text-foreground/80',
-                      pathname === link.href
-                        ? 'text-foreground'
-                        : 'text-foreground/60'
-                    )}
-                  >
-                    {link.label}
-                  </Link>
-                )
-            )}
+            {navLinks.map(link => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  'transition-colors hover:text-foreground/80',
+                  pathname === link.href
+                    ? 'text-foreground'
+                    : 'text-foreground/60'
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
-        <div className="md:hidden">
+        {/* Mobile Header */}
+        <div className="flex w-full items-center justify-between md:hidden">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -78,7 +77,10 @@ const AppHeader = () => {
                   Main navigation menu
                 </SheetDescription>
               </SheetHeader>
-              <Link href="/" className="flex items-center space-x-2 px-6">
+              <Link
+                href="/"
+                className="flex items-center space-x-2 px-6"
+              >
                 <Briefcase className="h-6 w-6 text-primary" />
                 <span className="font-bold font-headline text-lg">
                   Hublancer
@@ -86,44 +88,62 @@ const AppHeader = () => {
               </Link>
               <div className="my-4 h-[calc(100vh-8rem)] pb-10 pl-6">
                 <div className="flex flex-col gap-4">
-                  {navLinks.map(
-                    link =>
-                      (!link.auth || isAuthenticated) && (
-                        <Link
-                          key={link.href}
-                          href={link.href}
-                          className={cn(
-                            'text-lg font-medium transition-colors hover:text-foreground/80',
-                            pathname === link.href
-                              ? 'text-foreground'
-                              : 'text-foreground/60'
-                          )}
-                        >
-                          {link.label}
-                        </Link>
-                      )
-                  )}
-                  {isAuthenticated && isClient && (
+                  {navLinks.map(link => (
                     <Link
-                      href="/post-task"
-                      className="text-lg font-medium transition-colors text-primary hover:text-primary/80"
+                      key={link.href}
+                      href={link.href}
+                      className={cn(
+                        'text-lg font-medium transition-colors hover:text-foreground/80',
+                        pathname === link.href
+                          ? 'text-foreground'
+                          : 'text-foreground/60'
+                      )}
                     >
-                      Post a Task
+                      {link.label}
                     </Link>
-                  )}
+                  ))}
                 </div>
               </div>
             </SheetContent>
           </Sheet>
+          <Link href="/" className="flex items-center space-x-2">
+            <Briefcase className="h-6 w-6 text-primary" />
+            <span className="font-bold font-headline text-lg">Hublancer</span>
+          </Link>
+          <div className="flex items-center space-x-2">
+            {isAuthenticated ? (
+              <>
+                {isClient && (
+                  <Button asChild size="sm">
+                    <Link href="/post-task">Post Task</Link>
+                  </Button>
+                )}
+                <Button variant="default" size="icon" className="bg-accent hover:bg-accent/90">
+                  <User className="h-5 w-5" />
+                  <span className="sr-only">Profile</span>
+                </Button>
+              </>
+            ) : (
+               <>
+                <Button asChild variant="ghost">
+                  <Link href="/login">Log In</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/register">Sign Up</Link>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-1 items-center justify-end space-x-2">
+        {/* Right side buttons for Desktop */}
+        <div className="hidden flex-1 items-center justify-end space-x-2 md:flex">
           {isAuthenticated ? (
             <>
               {isClient && (
                 <Button
                   asChild
-                  className="hidden sm:inline-flex bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   <Link href="/post-task">Post a Task</Link>
                 </Button>
