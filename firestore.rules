@@ -1,62 +1,72 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read and write to their own user document.
+    // Users collection
+    // - Allow authenticated users to read public profiles
+    // - Allow users to create and update their own profile
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
 
-      // Users can read and update their own notifications.
-      // Any authenticated user can create notifications for another user.
-      match /notifications/{notificationId} {
-        allow read, update: if request.auth.uid == userId;
-        allow create: if request.auth != null;
+      // Transactions subcollection
+      // - Allow users to manage their own transactions
+      match /transactions/{transactionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       
-      // Users can read and write their own transactions
-      match /transactions/{transactionId} {
-         allow read, write: if request.auth.uid == userId;
+      // Notifications subcollection
+      // - Allow users to read/update their own notifications
+      // - Allow any authenticated user to create notifications for others
+      match /notifications/{notificationId} {
+        allow read, update: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null;
       }
     }
 
-    // Tasks are public to read for all users
+    // Tasks collection
+    // - Allow authenticated users to read and create tasks
+    // - Allow the task owner to update or delete their task
     match /tasks/{taskId} {
-      allow read: if true;
-      // Only authenticated users can create tasks
-      allow create: if request.auth != null;
-      // Only the owner of the task can update or delete it
-      allow update, delete: if request.auth.uid == resource.data.postedById;
-      
-      // Any authenticated user can create an offer (make an offer)
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.postedById;
+
+      // Offers subcollection
+      // - Allow authenticated users to create offers
+      // - Allow task owner or offer owner to read offers
+      // - Allow offer owner to update/delete their offer
       match /offers/{offerId} {
         allow create: if request.auth != null;
-        // Only the user who made the offer can delete/update it
-        allow delete, update: if request.auth.uid == resource.data.taskerId;
+        allow read: if request.auth != null && (request.auth.uid == resource.data.taskerId || request.auth.uid == get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById);
+        allow update, delete: if request.auth != null && request.auth.uid == resource.data.taskerId;
       }
 
-       // Any authenticated user can create a question
+      // Questions subcollection
+      // - Allow authenticated users to create and read questions
       match /questions/{questionId} {
-        allow create: if request.auth != null;
-        allow update: if request.auth.uid == get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById;
+        allow read, create: if request.auth != null;
       }
     }
     
-    // Only participants can read/write to a conversation and its messages
+    // Conversations collection
+    // - A user can only access a conversation if they are a participant
     match /conversations/{conversationId} {
-       allow read, create: if request.auth.uid in resource.data.participants;
-       allow update: if request.auth.uid in resource.data.participants;
-       
-       match /messages/{messageId} {
-          allow read, create: if get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
-       }
+      allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
+
+      // Messages subcollection
+      // - A user can only access messages in a conversation if they are a participant
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      }
     }
     
-    // Any authenticated user can create a review.
+    // Reviews collection
+    // - Allow authenticated users to read reviews
+    // - Allow authenticated users to create reviews
     match /reviews/{reviewId} {
-      allow create: if request.auth != null;
-      allow read: if true;
+      allow read, create: if request.auth != null;
     }
-
   }
 }
