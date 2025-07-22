@@ -28,7 +28,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { SignUpDialog } from './SignUpDialog';
+import { SignUpForm } from './SignUpForm';
+import { Separator } from './ui/separator';
 
 const formSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters.').max(100),
@@ -45,7 +46,7 @@ type PostTaskFormValues = z.infer<typeof formSchema>;
 export default function PostTaskForm() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Mock auth state
-  const [isSignUpOpen, setIsSignUpOpen] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
   const [taskData, setTaskData] = useState<PostTaskFormValues | null>(null);
 
   const form = useForm<PostTaskFormValues>({
@@ -81,7 +82,7 @@ export default function PostTaskForm() {
       // Handle form submission for logged-in user
     } else {
       setTaskData(values);
-      setIsSignUpOpen(true);
+      setShowSignUp(true);
     }
   }
 
@@ -89,165 +90,183 @@ export default function PostTaskForm() {
     console.log('Signing up user:', signUpData);
     console.log('Submitting task with user data:', taskData);
     // Handle user registration and then task submission
-    setIsSignUpOpen(false);
+    setShowSignUp(false);
     // In a real app, you'd probably get back a user session here
     // and then programmatically submit the task.
   }
-
 
   return (
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <FormField
-            control={form.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Task Title</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., Assemble IKEA furniture" {...field} />
-                </FormControl>
-                <FormDescription>
-                  A short, clear title for your task.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <div className="flex items-center justify-between">
-                  <FormLabel>Task Description</FormLabel>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerateDescription}
-                    disabled={isGenerating}
-                    className="shrink-0"
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {isGenerating ? 'Generating...' : 'Generate with AI'}
-                  </Button>
-                </div>
-                <FormControl>
-                  <Textarea
-                    placeholder="Describe the task in detail..."
-                    className="min-h-[150px]"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid md:grid-cols-2 gap-8">
+          <fieldset disabled={showSignUp} className="space-y-8">
             <FormField
               control={form.control}
-              name="budget"
+              name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Budget ($)</FormLabel>
+                  <FormLabel>Task Title</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="100" {...field} value={field.value ?? ''} />
+                    <Input placeholder="e.g., Assemble IKEA furniture" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    A short, clear title for your task.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Task Description</FormLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateDescription}
+                      disabled={isGenerating}
+                      className="shrink-0"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {isGenerating ? 'Generating...' : 'Generate with AI'}
+                    </Button>
+                  </div>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describe the task in detail..."
+                      className="min-h-[150px]"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <div className="grid md:grid-cols-2 gap-8">
+              <FormField
+                control={form.control}
+                name="budget"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Budget ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="100" {...field} value={field.value ?? ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="preferredDateTime"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Preferred Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={'outline'}
+                            className={cn(
+                              'w-full pl-3 text-left font-normal',
+                              !field.value && 'text-muted-foreground'
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, 'PPP')
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={date =>
+                            date < new Date(new Date().setHours(0, 0, 0, 0))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="preferredDateTime"
+              name="taskType"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Preferred Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={'outline'}
-                          className={cn(
-                            'w-full pl-3 text-left font-normal',
-                            !field.value && 'text-muted-foreground'
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, 'PPP')
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={date =>
-                          date < new Date(new Date().setHours(0, 0, 0, 0))
-                        }
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                <FormItem className="space-y-3">
+                  <FormLabel>Task Type</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex gap-4"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="physical" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Physical (in-person)
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="online" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Online (can be done remotely)
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          </div>
+          </fieldset>
 
-          <FormField
-            control={form.control}
-            name="taskType"
-            render={({ field }) => (
-              <FormItem className="space-y-3">
-                <FormLabel>Task Type</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    className="flex gap-4"
-                  >
-                    <FormItem className="flex items-center space-x-3 space-y-0">
-                      <FormControl>
-                        <RadioGroupItem value="physical" />
-                      </FormControl>
-                      <FormLabel className="font-normal">
-                        Physical (in-person)
-                      </FormLabel>
-                    </FormItem>
-                    <FormItem className="flex items-center space-x-3 space-y-0">
-                      <FormControl>
-                        <RadioGroupItem value="online" />
-                      </FormControl>
-                      <FormLabel className="font-normal">
-                        Online (can be done remotely)
-                      </FormLabel>
-                    </FormItem>
-                  </RadioGroup>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type="submit" size="lg">
-            Post Task
-          </Button>
+          {!showSignUp && (
+            <Button type="submit" size="lg">
+              Post Task
+            </Button>
+          )}
         </form>
       </Form>
-      <SignUpDialog
-        open={isSignUpOpen}
-        onOpenChange={setIsSignUpOpen}
-        onSignUp={handleSignUp}
-      />
+
+      {showSignUp && (
+        <div className="mt-12">
+          <Separator />
+          <div className="py-8">
+            <h3 className="text-2xl font-headline mb-2">One more step</h3>
+            <p className="text-muted-foreground mb-6">
+              Create an account to post your task. Already have an account?{' '}
+              <Button variant="link" className="p-0 h-auto" onClick={() => {
+                  // In a real app, this would open a login form/dialog
+                  console.log("Login link clicked");
+              }}>
+                Login
+              </Button>
+            </p>
+            <SignUpForm onSignUp={handleSignUp} />
+          </div>
+        </div>
+      )}
     </>
   );
 }
