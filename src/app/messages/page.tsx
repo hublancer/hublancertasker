@@ -19,10 +19,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Send, Image as ImageIcon, Briefcase, User } from 'lucide-react';
+import { Send, Image as ImageIcon, Briefcase, User, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { LoginDialog } from '@/components/LoginDialog';
 
 interface Conversation {
   id: string;
@@ -56,6 +57,7 @@ function MessagesPageContent() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -151,11 +153,15 @@ function MessagesPageContent() {
 
   if (!user) {
     return (
-      <div className="flex flex-col h-screen bg-background">
+       <div className="flex flex-col h-screen bg-background">
         <AppHeader />
-        <div className="text-center p-8">
-          Please log in to view your messages.
-        </div>
+        <main className="flex-1 flex flex-col items-center justify-center text-center p-4">
+          <MessageSquare className="w-16 h-16 text-muted-foreground mb-4" />
+          <h2 className="text-2xl font-bold mb-2">View Your Messages</h2>
+          <p className="text-muted-foreground mb-4">You need to be logged in to view your inbox.</p>
+          <Button onClick={() => setIsLoginOpen(true)}>Login</Button>
+        </main>
+        <LoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
       </div>
     );
   }

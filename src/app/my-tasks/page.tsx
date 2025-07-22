@@ -11,6 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import TaskDetails from '@/components/TaskDetails';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { LoginDialog } from '@/components/LoginDialog';
 
 export default function MyTasksPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -27,6 +29,7 @@ export default function MyTasksPage() {
 
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -53,6 +56,7 @@ export default function MyTasksPage() {
             postedBy: data.postedByName,
             postedById: data.postedById,
             coordinates: data.coordinates || null,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
           } as Task;
       }
 
@@ -137,9 +141,12 @@ export default function MyTasksPage() {
     return (
       <div className="flex flex-col min-h-screen bg-background">
         <AppHeader />
-        <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Please log in to see your dashboard.</p>
+        <main className="flex-1 flex flex-col items-center justify-center text-center p-4">
+          <h2 className="text-2xl font-bold mb-2">Access Your Tasks</h2>
+          <p className="text-muted-foreground mb-4">You need to be logged in to view your task dashboard.</p>
+          <Button onClick={() => setIsLoginOpen(true)}>Login</Button>
         </main>
+        <LoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
       </div>
     );
   }

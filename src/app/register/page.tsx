@@ -17,11 +17,13 @@ import { setDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { LoginDialog } from '@/components/LoginDialog';
 
 export default function RegisterPage() {
     const { toast } = useToast();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [isLoginOpen, setIsLoginOpen] = useState(false);
 
     const handleSignUp = async (data: SignUpFormValues) => {
         setLoading(true);
@@ -59,6 +61,7 @@ export default function RegisterPage() {
     };
 
   return (
+    <>
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
       <main className="flex-1 flex items-center justify-center p-4">
@@ -73,13 +76,15 @@ export default function RegisterPage() {
             <SignUpForm onSignUp={handleSignUp} loading={loading} />
             <div className="mt-4 text-center text-sm">
               Already have an account?{' '}
-              <Link href="/login" className="underline">
+              <Button variant="link" className="underline p-0 h-auto" onClick={() => setIsLoginOpen(true)}>
                 Login
-              </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
       </main>
     </div>
+    <LoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
+    </>
   );
 }

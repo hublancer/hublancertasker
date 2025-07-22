@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { categories } from '@/lib/categories';
 import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
+import { LoginDialog } from './LoginDialog';
 
 const formSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters.').max(100),
@@ -64,6 +65,7 @@ export default function PostTaskForm() {
   const { user, userProfile, settings } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
 
   const form = useForm<PostTaskFormValues>({
@@ -434,8 +436,7 @@ export default function PostTaskForm() {
               Create an account to post your task. Already have an account?{' '}
               <Button variant="link" className="p-0 h-auto" onClick={() => {
                   setShowSignUp(false);
-                  // In a real app, this would open a login form/dialog
-                  router.push('/login');
+                  setIsLoginOpen(true);
               }}>
                 Login
               </Button>
@@ -444,6 +445,8 @@ export default function PostTaskForm() {
           </div>
         </div>
       )}
+      <LoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
     </>
   );
 }
+
