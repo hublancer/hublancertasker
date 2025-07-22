@@ -156,7 +156,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     setIsSubmittingOffer(true);
     try {
       if (editingOffer) {
-        // Update existing offer - direct update since it's the user's own offer
+        // Update existing offer
         const offerRef = doc(db, 'tasks', task.id, 'offers', editingOffer.id);
         await updateDoc(offerRef, {
           offerPrice: Number(offerPrice),
@@ -165,22 +165,23 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         setEditingOffer(null);
         toast({ title: 'Offer updated successfully!' });
       } else {
+        // Create a new offer - this will trigger the cloud function
         const result = await makeOfferAction({
-          taskId: task.id,
-          taskerId: user.uid,
-          taskerName: userProfile.name || 'Anonymous Tasker',
-          taskerAvatar: user.photoURL || '',
-          offerPrice: Number(offerPrice),
-          comment: offerComment,
-          postedById: task.postedById,
-          taskTitle: task.title,
+            taskId: task.id,
+            taskerId: user.uid,
+            taskerName: userProfile.name || 'Anonymous Tasker',
+            taskerAvatar: user.photoURL || '',
+            offerPrice: Number(offerPrice),
+            comment: offerComment,
+            postedById: task.postedById,
+            taskTitle: task.title,
         });
 
         if (!result.success) {
-          throw new Error(result.error || 'Server failed to process offer.');
+            throw new Error(result.error || "Server failed to process offer.");
         }
         onTaskUpdate?.();
-        toast({ title: 'Offer submitted successfully!' });
+        toast({ title: "Offer submitted successfully!" });
       }
 
       setOfferComment('');
@@ -284,8 +285,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       toast({ title: `Task assigned to ${offer.taskerName}!` });
       router.push(`/messages/${conversationRef.id}`);
 
-    } catch (error) {
-       toast({ variant: 'destructive', title: "Failed to assign task." });
+    } catch (error: any) {
+       toast({ variant: 'destructive', title: "Failed to assign task.", description: error.message });
        console.error("Error accepting offer:", error);
     } finally {
       setIsAccepting(null);
@@ -312,21 +313,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
   const handleCancelOffer = async (offerId: string) => {
     try {
-        await runTransaction(db, async (transaction) => {
-            const taskRef = doc(db, 'tasks', task.id);
-            const offerRef = doc(db, 'tasks', task.id, 'offers', offerId);
-            
-            const taskDoc = await transaction.get(taskRef);
-            if (!taskDoc.exists()) {
-                throw "Task does not exist.";
-            }
-
-            transaction.delete(offerRef);
-            
-            const newOfferCount = Math.max(0, (taskDoc.data().offerCount || 0) - 1);
-            transaction.update(taskRef, { offerCount: newOfferCount });
-        });
-
+        // The cloud function will handle decrementing the offer count
+        await deleteDoc(doc(db, 'tasks', task.id, 'offers', offerId));
         onTaskUpdate?.();
         toast({ title: 'Offer cancelled.' });
     } catch (error) {
@@ -363,9 +351,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
           await addNotification(task.postedById, `${task.assignedToName} marked "${task.title}" as done.`, `/task/${task.id}`);
           toast({ title: 'Task Marked as Done', description: 'The client has been notified to review your work.' });
           onTaskUpdate?.();
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error marking task as done: ", error);
-          toast({ variant: 'destructive', title: 'Could not mark task as done.' });
+          toast({ variant: 'destructive', title: 'Could not mark task as done.', description: error.message });
         } finally {
           setIsProcessing(false);
         }

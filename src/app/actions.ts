@@ -32,31 +32,25 @@ interface MakeOfferInput {
 
 export async function makeOffer(input: MakeOfferInput): Promise<{success: boolean, error?: string}> {
     try {
-        await runTransaction(db, async (transaction) => {
-            const taskRef = doc(db, 'tasks', input.taskId);
-            const taskDoc = await transaction.get(taskRef);
+        // The offer creation will be handled directly on the client, 
+        // and the offerCount will be updated via a Cloud Function.
+        // This action can now focus on things like notifications.
+        
+        // 1. Create the new offer document (This logic is now primarily in TaskDetails, 
+        // but could be kept here if you want the server to do it. For now, we assume
+        // the client does this and the cloud function handles the count).
 
-            if (!taskDoc.exists()) {
-                throw new Error("Task does not exist!");
-            }
-            
-            // 1. Create the new offer document
-            const newOfferRef = doc(collection(db, 'tasks', input.taskId, 'offers'));
-            transaction.set(newOfferRef, {
-                taskerId: input.taskerId,
-                taskerName: input.taskerName,
-                taskerAvatar: input.taskerAvatar,
-                offerPrice: input.offerPrice,
-                comment: input.comment,
-                createdAt: serverTimestamp(),
-            });
-
-            // 2. Update the offer count on the task
-            const newOfferCount = (taskDoc.data().offerCount || 0) + 1;
-            transaction.update(taskRef, { offerCount: newOfferCount });
+        const offersCollectionRef = collection(db, 'tasks', input.taskId, 'offers');
+        await addDoc(offersCollectionRef, {
+            taskerId: input.taskerId,
+            taskerName: input.taskerName,
+            taskerAvatar: input.taskerAvatar,
+            offerPrice: input.offerPrice,
+            comment: input.comment,
+            createdAt: serverTimestamp(),
         });
 
-        // 3. Add notification (outside the transaction)
+        // 2. Add notification (outside the transaction)
          await addDoc(collection(db, 'users', input.postedById, 'notifications'), {
             message: `${input.taskerName} made an offer on your task "${input.taskTitle}"`,
             link: `/task/${input.taskId}`,

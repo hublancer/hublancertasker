@@ -5,95 +5,90 @@ service cloud.firestore {
 
     // Helper function to check if a user is an admin
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Helper function to check if a user is the owner of a document
-    function isOwner(docData) {
-      return request.auth.uid == docData.postedById;
-    }
-    
-    // Helper function to check if a user is the assigned tasker
-    function isAssignedTasker(docData) {
-        return request.auth.uid == docData.assignedToId;
+    // Helper function to check if a user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // SETTINGS
-    match /settings/{settingId} {
-        // Only admins can read or write platform settings
-        allow read, write: if isAdmin();
-    }
-
-    // TASKS
-    match /tasks/{taskId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-
-      // Complex update logic for tasks
-      allow update: if 
-        // Case 1: Owner can update an open task (e.g. edit details, not implemented yet but good to have)
-        (isOwner(resource.data) && resource.data.status == 'open') ||
-        // Case 2: Owner can accept an offer, changing status to 'assigned'
-        (isOwner(resource.data) && request.resource.data.status == 'assigned' && resource.data.status == 'open') ||
-        // Case 3: Owner can complete a task that is 'pending-completion'
-        (isOwner(resource.data) && request.resource.data.status == 'completed' && resource.data.status == 'pending-completion') ||
-        // Case 4: Assigned tasker can mark a task as 'pending-completion'
-        (isAssignedTasker(resource.data) && request.resource.data.status == 'pending-completion' && resource.data.status == 'assigned');
-        
-      allow delete: if isOwner(resource.data) && resource.data.status == 'open';
-
-      // OFFERS subcollection
-      match /offers/{offerId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
-        allow update, delete: if request.auth.uid == resource.data.taskerId;
-      }
-      
-      // QUESTIONS subcollection
-      match /questions/{questionId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
-      }
-    }
-    
-    // USERS
+    // Rules for the 'users' collection
     match /users/{userId} {
-      // Anyone can read public profiles
-      allow read: if true;
-      // Only the user themselves or an admin can update their profile
+      allow read: if isAuthenticated();
       allow update: if request.auth.uid == userId || isAdmin();
+      allow create, delete: if isAdmin();
+
+      // Rules for user's private subcollections
+      match /transactions/{transactionId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+    }
+
+    // Rules for the 'tasks' collection
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow delete: if resource.data.postedById == request.auth.uid && resource.data.status == 'open';
       
-      // TRANSACTION, NOTIFICATIONS (private subcollections)
-      match /{privateCollection}/{docId} {
-          allow read, write, create, delete: if request.auth.uid == userId;
+      // Update rules for tasks
+      allow update: if 
+        // Allow owner to cancel their own task
+        (resource.data.postedById == request.auth.uid && resource.data.status == 'open') ||
+        // Allow client to accept an offer (status -> assigned)
+        (resource.data.postedById == request.auth.uid && request.resource.data.status == 'assigned' && resource.data.status == 'open') ||
+        // Allow assigned tasker to mark as 'pending-completion'
+        (request.auth.uid == resource.data.assignedToId && request.resource.data.status == 'pending-completion' && request.resource.data.keys().hasAll(['status', 'completionDetails'])) ||
+        // Allow client to mark as 'completed'
+        (request.auth.uid == resource.data.postedById && request.resource.data.status == 'completed' && (resource.data.status == 'pending-completion' || resource.data.status == 'assigned')) ||
+        // Allow offerCount to be updated by our Cloud Function (or anyone, since it's controlled by the function)
+        (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount']));
+
+
+      // Rules for 'offers' subcollection
+      match /offers/{offerId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'tasker';
+        allow update, delete: if isAuthenticated() && resource.data.taskerId == request.auth.uid;
+      }
+
+      // Rules for 'questions' subcollection
+      match /questions/{questionId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
       }
     }
     
-    // REVIEWS
+    // Rules for the 'reviews' collection
     match /reviews/{reviewId} {
         allow read: if true;
-        // Only the client who posted the review can create it.
-        allow create: if request.auth.uid == request.resource.data.clientId;
+        allow create: if isAuthenticated() && 
+                      request.resource.data.clientId == request.auth.uid &&
+                      get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.status == 'completed';
     }
 
-    // CONVERSATIONS
+    // Rules for 'conversations' collection
     match /conversations/{conversationId} {
-        // Only participants of the conversation can read/write
-        allow read, write: if request.auth.uid in resource.data.participants;
+        allow read, write: if isAuthenticated() && request.auth.uid in resource.data.participants;
         
         match /messages/{messageId} {
-            // Only participants can read messages
-            allow read: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-            // A participant can only create a message if the conversation is not linked to a completed task
-            allow create: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants &&
-                           get(/databases/$(database)/documents/tasks/$(get(/databases/$(database)/documents/conversations/$(conversationId)).data.taskId)).data.status != 'completed';
+            allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
         }
     }
+
+    // Rules for 'settings' collection
+    match /settings/{docId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
     
-    // PLATFORM_TRANSACTIONS (Admin only)
+    // Rules for 'platform_transactions'
     match /platform_transactions/{transactionId} {
-        allow read, write, create, delete: if isAdmin();
+        allow read, write: if isAdmin();
     }
   }
 }
