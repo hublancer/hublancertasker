@@ -1,69 +1,67 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+  
+    // Helper function to check for admin role
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Users can read any profile, but only write to their own. Admins can write to any.
     match /users/{userId} {
-      // Admins can read all user profiles. Regular users can only read public info.
-      allow read: if isAdmin() || request.auth != null;
-      // Users can create and update their own profile.
-      allow create, update: if request.auth.uid == userId;
-
-      match /notifications/{notificationId} {
-        allow read, update: if request.auth.uid == userId;
-        allow create: if request.auth != null;
-      }
-
-       match /transactions/{transactionId} {
-        allow read, create: if request.auth.uid == userId;
-       }
-    }
-
-    match /tasks/{taskId} {
-      // Admins can read all tasks. Anyone can read a task.
-      allow read: if isAdmin() || true;
-      allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.postedById || request.auth.uid == resource.data.assignedToId;
-      allow delete: if request.auth.uid == resource.data.postedById;
-      
-      match /offers/{offerId} {
-          allow read, create: if request.auth != null;
-          allow update, delete: if request.auth.uid == request.resource.data.taskerId;
-      }
-      
-      match /questions/{questionId} {
-        allow read, create: if request.auth != null;
-        allow update: if request.auth.uid == resource.data.postedById;
-      }
-    }
-
-    match /conversations/{conversationId} {
-        allow read, create: if request.auth.uid in resource.data.participants;
-        allow update: if request.auth.uid in resource.data.participants;
-
-        match /messages/{messageId} {
-            allow read, create: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-        }
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
     }
     
-    match /reviews/{reviewId} {
-        allow read: if true;
-        allow create: if request.auth != null;
+    // Admins can read/write all user subcollections
+    match /users/{userId}/{document=**} {
+        allow read, write: if isAdmin() || request.auth.uid == userId;
     }
 
-    match /settings/platform {
-        allow read: if true;
+    // Tasks are publicly readable. Only owners can update/delete. Admins have full access.
+    match /tasks/{taskId} {
+      allow read;
+      allow create: if request.auth.uid == request.resource.data.postedById;
+      allow update, delete: if resource.data.postedById == request.auth.uid || isAdmin();
+      
+      // Anyone can make offers or ask questions
+      match /offers/{offerId} {
+        allow read;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth.uid == resource.data.taskerId;
+      }
+
+      match /questions/{questionId} {
+        allow read;
+        allow create: if request.auth != null;
+        allow update: if resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
+      }
+    }
+    
+    // Admins have full access to platform-wide data
+    match /platform_transactions/{transactionId} {
+        allow read, write: if isAdmin();
+    }
+    match /settings/{settingId} {
+        allow read;
         allow write: if isAdmin();
     }
+
+    // Conversations are private to participants
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth.uid in resource.data.participants;
+      
+      match /messages/{messageId} {
+        allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      }
+    }
     
-    match /platform_transactions/{transactionId} {
-      // Only admins can read platform transactions.
-      allow read: if isAdmin();
-      // Transactions are created via backend functions (task completion logic).
-      allow create: if request.auth != null;
+    // Anyone can read reviews. Only clients can create them.
+    match /reviews/{reviewId} {
+        allow read;
+        allow create: if request.auth.uid == request.resource.data.clientId;
     }
   }
 }
