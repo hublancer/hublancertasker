@@ -128,7 +128,7 @@ const AppHeader = () => {
                   <Link href="/post-task">Post a Task</Link>
                 </Button>
               )}
-              <Button variant="ghost" size="icon">
+              <Button variant="default" size="icon" className="bg-accent hover:bg-accent/90">
                 <User className="h-5 w-5" />
                 <span className="sr-only">Profile</span>
               </Button>
