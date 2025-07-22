@@ -390,7 +390,11 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
                 onTaskUpdate?.();
             } else {
-                throw new Error(result.error || 'An unknown error occurred.');
+                toast({
+                    variant: 'destructive',
+                    title: 'Completion Failed',
+                    description: result.error || 'An unknown error occurred.',
+                });
             }
         } catch (error: any) {
             console.error("Error completing task: ", error);
