@@ -18,6 +18,7 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
+import { makeOffer } from '@/app/actions';
 
 
 interface TaskDetailsProps {
@@ -153,7 +154,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     setIsSubmittingOffer(true);
     try {
         if(editingOffer) {
-            // Update existing offer
+            // Update existing offer - direct update since it's the user's own offer
             const offerRef = doc(db, 'tasks', task.id, 'offers', editingOffer.id);
             await updateDoc(offerRef, {
                 offerPrice: Number(offerPrice),
@@ -163,28 +164,21 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             toast({ title: "Offer updated successfully!" });
 
         } else {
-             // Add new offer
-            await addDoc(collection(db, 'tasks', task.id, 'offers'), {
+             // Add new offer via server action
+             const result = await makeOffer({
+                taskId: task.id,
                 taskerId: user.uid,
-                taskerName: userProfile.name,
+                taskerName: userProfile.name || 'Anonymous Tasker',
                 taskerAvatar: user.photoURL || '',
                 offerPrice: Number(offerPrice),
                 comment: offerComment,
-                createdAt: serverTimestamp(),
+                postedById: task.postedById,
+                taskTitle: task.title,
             });
-            
-            // Update offer count on the task
-            await runTransaction(db, async (transaction) => {
-                const taskRef = doc(db, 'tasks', task.id);
-                const taskDoc = await transaction.get(taskRef);
-                if (!taskDoc.exists()) { throw "Task does not exist!"; }
-                const newOfferCount = (taskDoc.data().offerCount || 0) + 1;
-                transaction.update(taskRef, { offerCount: newOfferCount });
-            });
-            
-            await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
 
-
+            if (!result.success) {
+                throw new Error(result.error || "Server failed to process offer.");
+            }
             onTaskUpdate?.();
             toast({ title: "Offer submitted successfully!" });
         }
@@ -192,8 +186,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         setOfferComment('');
         setOfferPrice(task.price);
        
-    } catch (error) {
-        toast({ variant: 'destructive', title: "Failed to submit offer." });
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Failed to submit offer.", description: error.message });
         console.error("Error submitting offer:", error);
     } finally {
         setIsSubmittingOffer(false);
