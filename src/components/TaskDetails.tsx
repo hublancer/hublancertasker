@@ -4,7 +4,7 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle, Star, Hourglass } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
@@ -164,7 +164,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
         } else {
              // Add new offer
-            const offerRef = await addDoc(collection(db, 'tasks', task.id, 'offers'), {
+            await addDoc(collection(db, 'tasks', task.id, 'offers'), {
                 taskerId: user.uid,
                 taskerName: userProfile.name,
                 taskerAvatar: user.photoURL || '',
@@ -280,12 +280,12 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
       await batch.commit();
 
-      await addNotification(offer.taskerId, `Your offer for "${task.title}" was accepted!`, `/messages?conversationId=${conversationRef.id}`);
+      await addNotification(offer.taskerId, `Your offer for "${task.title}" was accepted!`, `/messages/${conversationRef.id}`);
 
       onTaskUpdate?.();
 
       toast({ title: `Task assigned to ${offer.taskerName}!` });
-      router.push(`/messages?conversationId=${conversationRef.id}`);
+      router.push(`/messages/${conversationRef.id}`);
 
     } catch (error) {
        toast({ variant: 'destructive', title: "Failed to assign task." });
@@ -307,7 +307,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const conversationId = querySnapshot.docs[0].id;
-        router.push(`/messages?conversationId=${conversationId}`);
+        router.push(`/messages/${conversationId}`);
       } else {
         toast({ variant: 'destructive', title: 'Conversation not found.' });
       }
@@ -341,8 +341,22 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         }
     }
 
+    const handleMarkAsDone = async () => {
+        if (user?.uid !== task.assignedToId || task.status !== 'assigned') return;
+        try {
+            const taskRef = doc(db, 'tasks', task.id);
+            await updateDoc(taskRef, { status: 'pending-completion' });
+            await addNotification(task.postedById, `${task.assignedToName} marked "${task.title}" as done.`, `/task/${task.id}`);
+            toast({title: 'Task Marked as Done', description: 'The client has been notified to review your work.'});
+            onTaskUpdate?.();
+        } catch (error) {
+            console.error("Error marking task as done: ", error);
+            toast({ variant: 'destructive', title: 'Could not mark task as done.' });
+        }
+    }
+
     const handleCompleteTask = async () => {
-        if (!isOwner || task.status !== 'assigned' || !task.assignedToId) return;
+        if (!isOwner || (task.status !== 'assigned' && task.status !== 'pending-completion') || !task.assignedToId) return;
 
         try {
             const commissionRate = settings?.commissionRate ?? 0.1;
@@ -469,9 +483,15 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       case 'assigned':
         return (
           <span className="inline-flex items-center rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 ring-1 ring-inset ring-blue-600/20">
-            ASSIGNED
+            IN PROGRESS
           </span>
         );
+      case 'pending-completion':
+        return (
+            <span className="inline-flex items-center rounded-md bg-yellow-100 px-2.5 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+              PENDING COMPLETION
+            </span>
+          );
       case 'completed':
         return (
           <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 ring-1 ring-inset ring-gray-600/20">
@@ -492,7 +512,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     
     const isParticipant = task.postedById === user.uid || task.assignedToId === user.uid;
 
-    if (task.status === 'assigned') {
+    if (task.status === 'assigned' || task.status === 'pending-completion') {
         if (isParticipant) {
              return (
                 <div className="space-y-2 mt-4">
@@ -500,8 +520,13 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                         <MessageSquare className="mr-2 h-4 w-4" /> Message
                     </Button>
                      {isOwner && (
-                         <Button onClick={handleCompleteTask} variant="outline" className="w-full">
-                            <CheckCircle className="mr-2 h-4 w-4" /> Mark as Complete
+                         <Button onClick={handleCompleteTask} variant="default" className="w-full">
+                            <CheckCircle className="mr-2 h-4 w-4" /> Complete & Pay
+                        </Button>
+                     )}
+                     {user.uid === task.assignedToId && task.status === 'assigned' && (
+                        <Button onClick={handleMarkAsDone} variant="outline" className="w-full">
+                            <Hourglass className="mr-2 h-4 w-4" /> Mark as Done
                         </Button>
                      )}
                 </div>
