@@ -8,6 +8,7 @@ import { Home, Users, Briefcase, CreditCard, Shield, LifeBuoy, Settings } from '
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import AppHeader from '@/components/AppHeader';
+import { useEffect } from 'react';
 
 export default function AdminLayout({
   children,
@@ -18,31 +19,34 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
 
-  if (loading) {
+  useEffect(() => {
+    if (loading) {
+      return; // Wait until loading is finished
+    }
+
+    // If not on the login page...
+    if (pathname !== '/admin/login') {
+      // and is not authenticated OR is not an admin, redirect to login
+      if (!user || userProfile?.role !== 'admin') {
+        router.replace('/admin/login');
+      }
+    } else {
+      // If on the login page...
+      // and is an authenticated admin, redirect to dashboard
+      if (user && userProfile?.role === 'admin') {
+        router.replace('/admin/dashboard');
+      }
+    }
+  }, [user, userProfile, loading, pathname, router]);
+
+  if (loading || (!user && pathname !== '/admin/login') || (user && userProfile?.role !== 'admin' && pathname !== '/admin/login')) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
-  }
-
-  // Redirect to admin login if not authenticated or not an admin
-  if (!user && pathname !== '/admin/login') {
-      router.replace('/admin/login');
-      return null;
-  }
-
-  if (user && userProfile?.role !== 'admin' && pathname !== '/admin/login') {
-     router.replace('/admin/login');
-     return null;
-  }
-  
-  if (user && userProfile?.role === 'admin' && pathname === '/admin/login') {
-      router.replace('/admin/dashboard');
-      return null;
   }
   
   // Don't render layout for login page
   if (pathname === '/admin/login') {
       return <>{children}</>;
   }
-
 
   const navItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
