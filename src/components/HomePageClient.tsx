@@ -134,9 +134,20 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     if (window.innerWidth < 768) { // md breakpoint
         setMobileView('details');
     }
-    setCurrentMapCenter(task.coordinates);
-    setMapZoom(14);
+    if (task.coordinates) {
+        setCurrentMapCenter(task.coordinates);
+        setMapZoom(14);
+    }
   };
+
+  const handleLocationClick = (coordinates: [number, number]) => {
+    setCurrentMapCenter(coordinates);
+    setMapZoom(14);
+    if(window.innerWidth < 768) {
+      setMobileView('map');
+      setSelectedTask(null);
+    }
+  }
   
   const handleBackFromDetails = () => {
       setSelectedTask(null);
@@ -210,7 +221,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     } else if (appliedSortBy === 'price-desc') {
       tasksToFilter.sort((a, b) => b.price - a.price);
     } else {
-      tasksToFilter.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+      tasksToFilter.sort((a, b) => (new Date(b.date) as any) - (new Date(a.date) as any));
     }
 
     return tasksToFilter.filter(task => {
@@ -233,7 +244,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
       if (
         appliedLocation &&
-        task.type === 'physical'
+        task.type === 'physical' &&
+        task.coordinates
       ) {
         // A real app would use a proper library for geo calculations (e.g., Haversine distance)
         // This is a simplified approximation.
@@ -279,6 +291,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         <TaskDetails
           task={selectedTask as any}
           onBack={handleBackFromDetails}
+          onLocationClick={handleLocationClick}
         />
       );
     }

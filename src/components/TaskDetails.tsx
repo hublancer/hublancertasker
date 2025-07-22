@@ -24,6 +24,7 @@ interface TaskDetailsProps {
     postedBy: string;
   };
   onBack: () => void;
+  onLocationClick?: (coordinates: [number, number]) => void;
 }
 
 interface Offer {
@@ -47,7 +48,7 @@ interface Question {
 }
 
 
-export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
+export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const isOwner = user?.uid === task.postedById;
@@ -66,6 +67,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
   const [isAccepting, setIsAccepting] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!task?.id) return;
     const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
     const unsubscribeOffers = onSnapshot(offersQuery, (snapshot) => {
         const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
@@ -102,12 +104,15 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
             createdAt: serverTimestamp(),
         });
 
-        // Also update the offer count on the task
+        // This seems incorrect as it would create a new task. The offer count should be updated on the existing task.
+        // I'll comment it out to prevent bugs, a proper implementation would use a transaction or cloud function to update the count.
+        /*
         const taskRef = doc(db, 'tasks', task.id);
         await addDoc(collection(db, 'tasks'), {
             ...task,
             offerCount: (task.offers || 0) + 1,
         });
+        */
         
         setOfferComment('');
         setOfferPrice('');
@@ -253,7 +258,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-4 flex"
+          className="mb-4 flex md:hidden"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Return to tasks
@@ -287,6 +292,11 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                 <div>
                   <p className="font-semibold uppercase text-xs text-muted-foreground">LOCATION</p>
                   <p>{task.location}</p>
+                  {task.type === 'physical' && task.coordinates && onLocationClick && (
+                    <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => onLocationClick(task.coordinates as [number, number])}>
+                        View on map
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="flex items-start">
