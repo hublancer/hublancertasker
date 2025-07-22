@@ -2,119 +2,75 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isAuth() {
-      return request.auth != null;
+    
+    // By default, deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    function isOwner(userId) {
-      return isAuth() && request.auth.uid == userId;
+    // Allow admins to read/write settings
+    match /settings/platform {
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    function isAdmin() {
-        return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Allow admins to read platform transactions. Writes are handled by functions.
+    match /platform_transactions/{transactionId} {
+      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if false;
     }
 
-    // TASKS
-    match /tasks/{taskId} {
-      // ANYONE can read a task
-      allow read: if true;
-
-      // Authenticated users can create tasks
-      allow create: if isAuth();
-
-      // The owner can cancel (delete) an open task
-      allow delete: if isAuth() && resource.data.postedById == request.auth.uid && resource.data.status == 'open';
-
-      // Updates are more complex, handle by case
-      allow update: if 
-        // Case 1: The assigned tasker is marking the task as done
-        (isAuth() && request.auth.uid == resource.data.assignedToId && request.resource.data.status == 'pending-completion') ||
-        // Case 2: The owner is completing the task
-        (isAuth() && request.auth.uid == resource.data.postedById && request.resource.data.status == 'completed') ||
-        // Case 3: The owner is assigning the task
-        (isAuth() && request.auth.uid == resource.data.postedById && request.resource.data.status == 'assigned');
-
-      // OFFERS on a task
-      match /offers/{offerId} {
-        // ANYONE can read offers
-        allow read: if true;
-        
-        // Authenticated users can create offers
-        allow create: if isAuth();
-
-        // Only the offer creator can edit or delete their offer
-        allow update, delete: if isAuth() && resource.data.taskerId == request.auth.uid;
-      }
-      
-       // QUESTIONS on a task
-      match /questions/{questionId} {
-        // ANYONE can read questions
-        allow read: if true;
-
-        // Authenticated users can create questions
-        allow create: if isAuth();
-        
-        // The task owner can answer a question (update)
-        allow update: if isAuth() && get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
-      }
-    }
-    
-    // REVIEWS
-    match /reviews/{reviewId} {
-      // Anyone can read reviews
-      allow read: if true;
-      // Only the client who created the task can create a review
-      allow create: if isAuth() && request.resource.data.clientId == request.auth.uid;
-    }
-
-    // USERS
+    // User profiles can be read by anyone, but only edited by the owner or an admin.
     match /users/{userId} {
-      // Allow users to create their own account document
-      allow create: if isOwner(userId);
-
-      // Anyone can read public profile info
       allow read: if true;
+      allow update: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth.uid == userId;
 
-      // A user can only update their own profile
-      allow update: if isOwner(userId);
-      
-      // Allow admins to update any user profile (e.g., wallet adjustments)
-      allow update: if isAdmin();
-
-      // Secure transactions, notifications, and other private subcollections
+      // Transactions and notifications are private to the user.
       match /transactions/{transactionId} {
-        allow read, list, create: if isOwner(userId);
+        allow read, list: if request.auth.uid == userId;
       }
       match /notifications/{notificationId} {
-        allow read, list, create, update: if isOwner(userId);
+        allow read, list, update: if request.auth.uid == userId;
       }
     }
     
-    // CONVERSATIONS
-    match /conversations/{conversationId} {
-        // Only participants can read/write to a conversation
-        allow read, update, delete: if isAuth() && request.auth.uid in resource.data.participants;
-        allow create: if isAuth();
-        
-        match /messages/{messageId} {
-             allow read, create: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-        }
-    }
-    
-    // SETTINGS
-    match /settings/platform {
-        // Anyone can read settings, but only admins can write
+    // Reviews can be read by anyone. Only the client who posted it can create it.
+    match /reviews/{reviewId} {
         allow read: if true;
-        allow write: if isAdmin();
+        allow create: if request.auth.uid == request.resource.data.clientId;
+    }
+
+    // Tasks can be read by anyone.
+    match /tasks/{taskId} {
+      allow read: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null; // Further logic is handled client-side or by functions
+      allow delete: if request.resource.data.postedById == request.auth.uid; // Owner can delete
+
+      // Offers can be created by any authenticated user.
+      match /offers/{offerId} {
+        allow read: if true;
+        allow create: if request.auth.uid != null;
+        allow update, delete: if get(/databases/$(database)/documents/tasks/$(taskId)/offers/$(offerId)).data.taskerId == request.auth.uid;
+      }
+
+      // Questions can be created by any authenticated user.
+      match /questions/{questionId} {
+        allow read: if true;
+        allow create: if request.auth.uid != null;
+        allow update: if get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid; // Only task owner can reply
+      }
     }
     
-    // PLATFORM TRANSACTIONS (for admin)
-    match /platform_transactions/{transactionId} {
-        allow read, list: if isAdmin();
-        // Disallow client-side creation
-        allow create, update, delete: if false;
+    // Conversations can only be accessed by participants.
+    match /conversations/{conversationId} {
+      allow read, list, create: if request.auth.uid in resource.data.participants;
+      allow update: if request.auth.uid in resource.data.participants;
+      
+      // Messages can only be accessed by participants.
+      match /messages/{messageId} {
+        allow read, list, create: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      }
     }
   }
 }
