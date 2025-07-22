@@ -743,7 +743,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
-                            <p className="text-lg font-bold">{settings?.currencySymbol ?? 'Rs'}{offer.offerPrice}</p>
+                            {isOwner ? (
+                              <p className="text-lg font-bold">{settings?.currencySymbol ?? 'Rs'}{offer.offerPrice}</p>
+                            ) : <div />}
                             {isOwner && task.status === 'open' && (
                               <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
                                 {isAccepting === offer.id ? "Accepting..." : "Accept"}
