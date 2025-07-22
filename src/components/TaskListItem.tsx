@@ -3,7 +3,8 @@
 import type { Task } from './TaskCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { MapPin, Calendar } from 'lucide-react';
+import { MapPin, Calendar, Tag, Users } from 'lucide-react';
+import { Badge } from './ui/badge';
 
 interface TaskListItemProps {
   task: Task;
@@ -39,13 +40,20 @@ export default function TaskListItem({
                 <Calendar className="mr-1.5 h-4 w-4" />
                 <span>{task.date}</span>
               </div>
+              <div className="flex items-center">
+                <Tag className="mr-1.5 h-4 w-4" />
+                <span>{task.category}</span>
+              </div>
             </div>
             <div className="mt-2 text-sm">
-              <span className="text-primary font-semibold capitalize">{task.status}</span>
-              <span className="text-muted-foreground">
-                {' '}
-                &middot; {task.offers} {task.offers === 1 ? 'offer' : 'offers'}
-              </span>
+                <Badge variant="outline" className="capitalize">{task.status}</Badge>
+                <span className="text-muted-foreground mx-2">&middot;</span>
+                <span className="inline-flex items-center">
+                    <Users className="mr-1.5 h-4 w-4 text-muted-foreground"/>
+                    <span className="text-muted-foreground">
+                        {task.offers} {task.offers === 1 ? 'offer' : 'offers'}
+                    </span>
+                </span>
             </div>
           </div>
 
