@@ -1,88 +1,83 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
+
+    // Helper Functions
+    function isAuth() {
+      return request.auth != null;
+    }
+
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
+    
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // USER PROFILES
+    // Settings
+    match /settings/platform {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+    
+    // Users
     match /users/{userId} {
-      // Admins can read/write any user profile
-      allow read, write: if isAdmin();
-      
-      // Users can read any profile, but only write to their own
-      allow read: if request.auth != null;
-      allow update: if isOwner(userId);
+      allow read: if isAuth() || isAdmin();
+      allow create: if isAuth();
+      allow update: if isOwner(userId) || isAdmin();
 
-      // Users can access their own transactions and notifications
       match /transactions/{transactionId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
+      
       match /notifications/{notificationId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
-    // TASKS
+    // Tasks
     match /tasks/{taskId} {
-      // Anyone can read a task
-      allow read: if request.auth != null;
+      allow read: if true;
+      allow create: if isAuth() && request.resource.data.postedById == request.auth.uid;
+      // Allow owner to update, or any authenticated user to increment offerCount
+      allow update: if (isAuth() && resource.data.postedById == request.auth.uid) ||
+                    (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount']));
+      allow delete: if isAuth() && resource.data.postedById == request.auth.uid;
 
-      // Anyone authenticated can create a task for themselves
-      allow create: if isOwner(request.resource.data.postedById);
-
-      // Only the poster can update their task, EXCEPT for offerCount
-      allow update: if (isOwner(resource.data.postedById)) ||
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount']));
-      
-      // Only the poster or an admin can delete a task
-      allow delete: if isOwner(resource.data.postedById) || isAdmin();
-
-      // Anyone can make an offer on a task
       match /offers/{offerId} {
-        allow read, write: if request.auth != null;
+        allow read: if true;
+        allow create: if isAuth();
+        allow update, delete: if isAuth() && resource.data.taskerId == request.auth.uid;
       }
-
-      // Anyone can ask a question
+      
       match /questions/{questionId} {
-        allow read, write: if request.auth != null;
+         allow read: if true;
+         allow create: if isAuth();
+         allow update: if isAuth() && get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
       }
-    }
-
-    // REVIEWS
-    match /reviews/{reviewId} {
-        // Anyone can read reviews
-        allow read: if request.auth != null;
-        // Only the client who created the task can write a review
-        allow write: if isOwner(request.resource.data.clientId);
-    }
-
-    // CONVERSATIONS
-    match /conversations/{conversationId} {
-        // Only participants can read/write
-        allow read, write: if request.auth.uid in resource.data.participants || isAdmin();
-
-        match /messages/{messageId} {
-            // Only participants can read/write messages
-            allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants || isAdmin();
-        }
     }
     
-    // ADMIN-ONLY COLLECTIONS
-    match /settings/{docId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
+    // Conversations
+    match /conversations/{conversationId} {
+      allow read, update: if isAuth() && request.auth.uid in resource.data.participants;
+      allow create: if isAuth(); // Allow any authenticated user to create a conversation
+      
+      match /messages/{messageId} {
+        allow read, create: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      }
     }
 
+    // Reviews
+    match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuth();
+    }
+
+    // Platform Transactions (Admin only)
     match /platform_transactions/{transactionId} {
-      allow read, write: if isAdmin();
+        allow read, write: if isAdmin();
     }
   }
 }
