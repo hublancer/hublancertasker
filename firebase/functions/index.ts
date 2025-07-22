@@ -86,7 +86,8 @@ exports.completeTask = onCall(async (request) => {
         await db.runTransaction(async (transaction) => {
             const taskRef = db.doc(`tasks/${taskId}`);
             const settingsRef = db.doc('settings/platform');
-
+            
+            // --- Perform all reads first ---
             const taskDoc = await transaction.get(taskRef);
             const settingsDoc = await transaction.get(settingsRef);
 
@@ -98,7 +99,14 @@ exports.completeTask = onCall(async (request) => {
             if (!taskData) {
                 throw new HttpsError('internal', 'Task data is missing.');
             }
+             if (!taskData.assignedToId) {
+                throw new HttpsError('failed-precondition', 'Task has no one assigned to it.');
+            }
 
+            const taskerRef = db.doc(`users/${taskData.assignedToId}`);
+            const taskerDoc = await transaction.get(taskerRef);
+
+            // --- Validate data from reads ---
             if (taskData.postedById !== clientId) {
                 throw new HttpsError('permission-denied', 'You are not the owner of this task.');
             }
@@ -107,24 +115,16 @@ exports.completeTask = onCall(async (request) => {
                  throw new HttpsError('failed-precondition', `Task cannot be completed from its current state: ${taskData.status}`);
             }
 
-            if (!taskData.assignedToId) {
-                throw new HttpsError('failed-precondition', 'Task has no one assigned to it.');
+            if (!taskerDoc.exists) {
+                throw new HttpsError('not-found', 'Tasker not found.');
             }
 
+            // --- All reads are done and validated. Now, perform calculations and writes. ---
             const commissionRate = settingsDoc.exists ? (settingsDoc.data()?.commissionRate ?? 0.1) : 0.1;
             const taskPrice = taskData.price;
             const commission = taskPrice * commissionRate;
             const taskerPayout = taskPrice - commission;
             
-            const taskerRef = db.doc(`users/${taskData.assignedToId}`);
-            const taskerDoc = await transaction.get(taskerRef);
-
-            if (!taskerDoc.exists) {
-                throw new HttpsError('not-found', 'Tasker not found.');
-            }
-            
-            // --- All reads are done. Now, perform writes. ---
-
             // 1. Update task status
             transaction.update(taskRef, { status: 'completed' });
 
