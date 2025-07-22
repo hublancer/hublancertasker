@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Map as MapIcon, List, ChevronDown } from 'lucide-react';
+import { Search, Map as MapIcon, List, ChevronDown, MapPin, SlidersHorizontal } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
@@ -199,9 +199,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     <div className="flex flex-col h-screen bg-background">
       <AppHeader />
       <div className="border-b">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="flex flex-wrap items-center gap-2 md:gap-4 py-4">
-            <div className="relative flex-grow min-w-[150px]">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center gap-2 py-4">
+            <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -223,9 +223,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[150px] justify-start text-left font-normal"
+                  className="w-full sm:w-auto flex-grow-0 min-w-0 sm:min-w-[150px] justify-start text-left font-normal"
                 >
-                  <span className="truncate">{getLocationButtonLabel()}</span>
+                  <MapPin className="sm:hidden h-4 w-4" />
+                  <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80" align="start">
@@ -307,25 +308,14 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
               </PopoverContent>
             </Popover>
 
-            <Select value={price} onValueChange={setPrice}>
-              <SelectTrigger className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[120px]">
-                <SelectValue placeholder="Any price" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any Price</SelectItem>
-                <SelectItem value="<100">&lt; $100</SelectItem>
-                <SelectItem value="100-500">$100 - $500</SelectItem>
-                <SelectItem value=">500">&gt; $500</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Popover
               open={isOtherFiltersPopoverOpen}
               onOpenChange={setIsOtherFiltersPopoverOpen}
             >
               <PopoverTrigger asChild>
-                <Button variant="outline" className="hidden md:inline-flex">
-                  Other filters <ChevronDown className="ml-2 h-4 w-4" />
+                <Button variant="outline">
+                  <span className="sm:hidden"><SlidersHorizontal className="h-4 w-4" /></span>
+                  <span className="hidden sm:inline">Other filters</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80" align="start">
@@ -378,16 +368,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
               </PopoverContent>
             </Popover>
 
-            <Select defaultValue="newest">
-              <SelectTrigger className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Sort: Newest</SelectItem>
-                <SelectItem value="price-asc">Price low-high</SelectItem>
-                <SelectItem value="price-desc">Price high-low</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </div>
@@ -445,7 +425,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Map or Task Details */}
         <div
           className={cn(
-            'relative h-[calc(100vh-185px)] md:h-[calc(100vh-129px)]',
+            'relative h-[calc(100vh-185px)] md:h-[calc(100vh-129px)] z-10', // Added z-10
             mobileView === 'list' && 'hidden',
             'md:block'
           )}

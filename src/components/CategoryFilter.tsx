@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Search } from 'lucide-react';
+import { Search, ListFilter } from 'lucide-react';
 import { categories } from '@/lib/categories';
 import { Separator } from './ui/separator';
 
@@ -63,8 +63,9 @@ export function CategoryFilter({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full sm:w-auto flex-grow sm:flex-grow-0 min-w-[120px] justify-start text-left font-normal">
-          <span className="truncate">{getButtonLabel()}</span>
+        <Button variant="outline" className="w-full sm:w-auto flex-grow-0 sm:flex-grow-0 min-w-0 sm:min-w-[120px] justify-start text-left font-normal">
+           <ListFilter className="sm:hidden h-4 w-4" />
+          <span className="truncate hidden sm:inline">{getButtonLabel()}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 md:w-[500px] p-0" align="start">
@@ -116,3 +117,5 @@ export function CategoryFilter({
     </Popover>
   );
 }
+
+    
