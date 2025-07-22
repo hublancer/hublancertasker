@@ -1,3 +1,4 @@
+
 'use client';
 
 import { type Task } from './TaskCard';
@@ -123,7 +124,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-4 hidden md:flex"
+          className="mb-4 flex"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Return to tasks
