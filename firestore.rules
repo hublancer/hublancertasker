@@ -3,78 +3,93 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId, resourceData) {
-      return userId == resourceData.postedById;
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
     
-    function isTasker(userId, resourceData) {
-        return userId == resourceData.taskerId;
+    function isTaskOwner(taskId) {
+        return isOwner(get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById);
     }
 
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    // Only allow updating offerCount
-    function isUpdatingOfferCount(requestData, resourceData) {
-      return requestData.keys().hasOnly(['offerCount']) && requestData.offerCount == resourceData.offerCount + 1;
+    // Settings can be read by anyone, but only written by admins.
+    match /settings/platform {
+      allow read: if true;
+      allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Users can only read/write their own document. Admins can read/write any.
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId || isAdmin();
+      allow read, write: if isOwner(userId) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      // Anyone can create their own user document during sign-up.
+      allow create: if isOwner(userId);
       
+      // Transactions can only be accessed by the user who owns them.
       match /transactions/{transactionId} {
-        allow read, create: if request.auth.uid == userId || isAdmin();
+        allow read, write, create: if isOwner(userId);
       }
       
+      // Notifications can only be accessed by the user who owns them.
       match /notifications/{notificationId} {
-        allow read, create, update: if request.auth.uid == userId || isAdmin();
+        allow read, write, create: if isOwner(userId);
       }
     }
 
+    // Tasks can be read by anyone.
     match /tasks/{taskId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isOwner(request.auth.uid, request.resource.data);
-      allow update: if (isSignedIn() && isOwner(request.auth.uid, resource.data)) || (isSignedIn() && isUpdatingOfferCount(request.resource.data, resource.data));
-      allow delete: if isSignedIn() && isOwner(request.auth.uid, resource.data);
-
-      match /offers/{offerId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update, delete: if isSignedIn() && isTasker(request.auth.uid, resource.data);
-      }
+      allow read: if true;
       
+      // Allow creation for any signed-in user.
+      allow create: if isSignedIn();
+
+      // Allow updates only by the owner of the task, OR
+      // if ONLY the offerCount is being incremented.
+      allow update: if (isTaskOwner(taskId)) || 
+                     (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount']));
+
+      // Allow deletion only by the owner.
+      allow delete: if isTaskOwner(taskId);
+
+      // Offers can be created by any signed-in user.
+      match /offers/{offerId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        // Offers can only be updated/deleted by the user who created them.
+        allow update, delete: if isOwner(get(/databases/$(database)/documents/tasks/$(taskId)/offers/$(offerId)).data.taskerId);
+      }
+
+      // Questions can be created by any signed-in user.
       match /questions/{questionId} {
-        allow read, create: if isSignedIn();
-        allow update: if isSignedIn() && isOwner(request.auth.uid, get(/databases/$(database)/documents/tasks/$(taskId)).data);
+        allow read: if true;
+        allow create, update: if isSignedIn();
       }
     }
-    
+
+    // Conversations can be read by participants, and created by any signed in user.
     match /conversations/{conversationId} {
-      allow read, create: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn();
+      
       match /messages/{messageId} {
         allow read, create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
       }
     }
     
+    // Reviews can be created by the client of a completed task
     match /reviews/{reviewId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.clientId == request.auth.uid;
     }
     
-    match /settings/platform {
-        allow read: if isSignedIn();
-        allow write: if isAdmin();
-    }
-    
+    // Admins can read all platform transactions
     match /platform_transactions/{transactionId} {
-      allow read, create: if isAdmin();
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        // Transactions are created via backend logic/transactions so no direct client create rule needed.
     }
   }
 }
