@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -57,13 +58,13 @@ export function CategoryFilter({
   const getButtonLabel = () => {
     if (selectedCategories.length === 0) return 'Category';
     if (selectedCategories.length === 1) return selectedCategories[0];
-    return `${selectedCategories.length} categories`;
+    return `${selectedCategories.length} cat.`;
   };
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full sm:w-auto flex-grow-0 sm:flex-grow-0 min-w-0 sm:min-w-[120px] justify-start text-left font-normal">
+        <Button variant="outline" className="w-full sm:w-auto flex-grow-0 justify-start text-left font-normal">
            <ListFilter className="sm:hidden h-4 w-4" />
           <span className="truncate hidden sm:inline">{getButtonLabel()}</span>
         </Button>

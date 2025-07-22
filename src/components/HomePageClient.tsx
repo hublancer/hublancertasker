@@ -147,6 +147,16 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       }
   }
 
+  const handleLocationClick = (task: (typeof tasks)[0]) => {
+    if (task.coordinates) {
+      setCurrentMapCenter(task.coordinates);
+      setMapZoom(14);
+      if (window.innerWidth < 768) {
+        setMobileView('map');
+      }
+    }
+  };
+
   const handleLocationFilterApply = () => {
     setAppliedTaskType(popoverTaskType);
     setAppliedLocation(popoverLocation);
@@ -194,13 +204,13 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const getLocationButtonLabel = () => {
     if (appliedLocation) {
       if (appliedTaskType === 'physical') {
-        return `Within ${appliedDistance}km of ${appliedLocation.name}`;
+        return `Within ${appliedDistance}km`;
       }
       return appliedLocation.name;
     }
     if (appliedTaskType === 'physical') return 'In-person';
     if (appliedTaskType === 'online') return 'Remotely';
-    return 'Any location';
+    return 'Location';
   };
 
   const filteredTasks = useMemo(() => {
@@ -282,6 +292,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         <TaskDetails
           task={selectedTask as any}
           onBack={handleBackFromDetails}
+          onLocationClick={() => handleLocationClick(selectedTask)}
         />
       );
     }
@@ -306,8 +317,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
-            <div className="relative w-full sm:flex-grow-[2]">
+          <div className="flex items-center gap-2 py-4">
+            <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -316,7 +327,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex w-full sm:w-auto items-center gap-2">
+            <div className="flex items-center gap-2">
               <CategoryFilter
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
@@ -329,7 +340,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto justify-start text-left font-normal flex-grow"
+                    className="w-full sm:w-auto justify-start text-left font-normal flex-grow-0"
                   >
                     <MapIcon className="sm:hidden h-4 w-4" />
                     <span className="truncate hidden sm:inline">
@@ -473,7 +484,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     <span className="sm:hidden">
                       <SlidersHorizontal className="h-4 w-4" />
                     </span>
-                    <span className="hidden sm:inline">Other filters</span>
+                    <span className="hidden sm:inline">Filters</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80" align="start">
@@ -484,6 +495,36 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                       </h4>
                     </div>
                     <div className="grid gap-4">
+                       <div className="md:hidden space-y-4">
+                          <Select value={appliedPrice} onValueChange={setAppliedPrice}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Price" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="any">Any Price</SelectItem>
+                                <SelectItem value="<100">Under $100</SelectItem>
+                                <SelectItem value="100-500">$100 - $500</SelectItem>
+                                <SelectItem value=">500">Over $500</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={appliedSortBy}
+                              onValueChange={value => setAppliedSortBy(value as SortByType)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Sort by" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="newest">Newest</SelectItem>
+                                <SelectItem value="price-asc">
+                                  Price: Low to High
+                                </SelectItem>
+                                <SelectItem value="price-desc">
+                                  Price: High to Low
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                       </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label htmlFor="available-only">
