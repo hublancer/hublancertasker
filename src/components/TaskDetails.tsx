@@ -4,12 +4,12 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle, Star, Hourglass } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle, Star, Hourglass, ShieldAlert } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, GeoPoint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -95,6 +95,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
+  
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (!task?.id) return;
@@ -142,52 +144,56 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     }
   }, [task.id, user, task.status, task.assignedToId]);
 
- const handleMakeOffer = async () => {
+  const handleMakeOffer = async () => {
     if (!user || !userProfile) {
-        setIsLoginOpen(true);
-        return;
+      setIsLoginOpen(true);
+      return;
     }
     if (offerPrice === '' || !offerComment) {
-        toast({ variant: 'destructive', title: "Please fill all offer fields." });
-        return;
+      toast({ variant: 'destructive', title: 'Please fill all offer fields.' });
+      return;
     }
     setIsSubmittingOffer(true);
     try {
-        if(editingOffer) {
-            // Update existing offer - direct update since it's the user's own offer
-            const offerRef = doc(db, 'tasks', task.id, 'offers', editingOffer.id);
-            await updateDoc(offerRef, {
-                offerPrice: Number(offerPrice),
-                comment: offerComment,
-            });
-            setEditingOffer(null);
-            toast({ title: "Offer updated successfully!" });
+      if (editingOffer) {
+        // Update existing offer - direct update since it's the user's own offer
+        const offerRef = doc(db, 'tasks', task.id, 'offers', editingOffer.id);
+        await updateDoc(offerRef, {
+          offerPrice: Number(offerPrice),
+          comment: offerComment,
+        });
+        setEditingOffer(null);
+        toast({ title: 'Offer updated successfully!' });
+      } else {
+        const result = await makeOfferAction({
+          taskId: task.id,
+          taskerId: user.uid,
+          taskerName: userProfile.name || 'Anonymous Tasker',
+          taskerAvatar: user.photoURL || '',
+          offerPrice: Number(offerPrice),
+          comment: offerComment,
+          postedById: task.postedById,
+          taskTitle: task.title,
+        });
 
-        } else {
-             // Create the new offer document directly. The Cloud Function will handle the count.
-            await addDoc(collection(db, 'tasks', task.id, 'offers'), {
-                taskerId: user.uid,
-                taskerName: userProfile.name || 'Anonymous Tasker',
-                taskerAvatar: user.photoURL || '',
-                offerPrice: Number(offerPrice),
-                comment: offerComment,
-                createdAt: serverTimestamp(),
-            });
-
-             // Send notification to the task owner
-            await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
-            
-            toast({ title: "Offer submitted successfully!" });
+        if (!result.success) {
+          throw new Error(result.error || 'Server failed to process offer.');
         }
+        onTaskUpdate?.();
+        toast({ title: 'Offer submitted successfully!' });
+      }
 
-        setOfferComment('');
-        setOfferPrice(task.price);
-       
+      setOfferComment('');
+      setOfferPrice(task.price);
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Failed to submit offer.", description: error.message });
-        console.error("Error submitting offer:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to submit offer.',
+        description: error.message,
+      });
+      console.error('Error submitting offer:', error);
     } finally {
-        setIsSubmittingOffer(false);
+      setIsSubmittingOffer(false);
     }
   };
 
@@ -344,22 +350,56 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     }
 
     const handleMarkAsDone = async () => {
-        if (user?.uid !== task.assignedToId || task.status !== 'assigned') return;
+      if (user?.uid !== task.assignedToId || task.status !== 'assigned') return;
+      setIsProcessing(true);
+    
+      const markTaskAsDone = async (completionDetails: any) => {
         try {
-            const taskRef = doc(db, 'tasks', task.id);
-            await updateDoc(taskRef, { status: 'pending-completion' });
-            await addNotification(task.postedById, `${task.assignedToName} marked "${task.title}" as done.`, `/task/${task.id}`);
-            toast({title: 'Task Marked as Done', description: 'The client has been notified to review your work.'});
-            onTaskUpdate?.();
+          const taskRef = doc(db, 'tasks', task.id);
+          await updateDoc(taskRef, {
+            status: 'pending-completion',
+            completionDetails,
+          });
+          await addNotification(task.postedById, `${task.assignedToName} marked "${task.title}" as done.`, `/task/${task.id}`);
+          toast({ title: 'Task Marked as Done', description: 'The client has been notified to review your work.' });
+          onTaskUpdate?.();
         } catch (error) {
-            console.error("Error marking task as done: ", error);
-            toast({ variant: 'destructive', title: 'Could not mark task as done.' });
+          console.error("Error marking task as done: ", error);
+          toast({ variant: 'destructive', title: 'Could not mark task as done.' });
+        } finally {
+          setIsProcessing(false);
         }
-    }
+      };
+    
+      const completionDetails: any = { timestamp: serverTimestamp() };
+    
+      if (task.type === 'physical') {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            completionDetails.location = new GeoPoint(latitude, longitude);
+            markTaskAsDone(completionDetails);
+          },
+          (error) => {
+            console.error("Geolocation error:", error);
+            toast({
+              variant: 'destructive',
+              title: 'Location Error',
+              description: 'Could not get your location. Please try again.',
+            });
+            setIsProcessing(false);
+          }
+        );
+      } else {
+        markTaskAsDone(completionDetails);
+      }
+    };
+    
 
     const handleCompleteTask = async () => {
         if (!isOwner || (task.status !== 'assigned' && task.status !== 'pending-completion') || !task.assignedToId) return;
 
+        setIsProcessing(true);
         try {
             const commissionRate = settings?.commissionRate ?? 0.1;
             const commission = task.price * commissionRate;
@@ -410,6 +450,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         } catch (error: any) {
             console.error("Error completing task: ", error);
             toast({ variant: 'destructive', title: 'Could not complete task.', description: error.message });
+        } finally {
+            setIsProcessing(false);
         }
     }
 
@@ -514,26 +556,50 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     
     const isParticipant = task.postedById === user.uid || task.assignedToId === user.uid;
 
-    if (task.status === 'assigned' || task.status === 'pending-completion') {
+    if (task.status === 'assigned') {
         if (isParticipant) {
              return (
                 <div className="space-y-2 mt-4">
                     <Button onClick={handleMessage} className="w-full">
                         <MessageSquare className="mr-2 h-4 w-4" /> Message
                     </Button>
-                     {isOwner && (
-                         <Button onClick={handleCompleteTask} variant="default" className="w-full">
-                            <CheckCircle className="mr-2 h-4 w-4" /> Complete & Pay
-                        </Button>
-                     )}
-                     {user.uid === task.assignedToId && task.status === 'assigned' && (
-                        <Button onClick={handleMarkAsDone} variant="outline" className="w-full">
-                            <Hourglass className="mr-2 h-4 w-4" /> Mark as Done
+                     {user.uid === task.assignedToId && (
+                        <Button onClick={handleMarkAsDone} variant="outline" className="w-full" disabled={isProcessing}>
+                            <Hourglass className="mr-2 h-4 w-4" /> 
+                            {isProcessing ? 'Processing...' : 'Mark as Done'}
                         </Button>
                      )}
                 </div>
             );
         }
+    }
+
+    if (task.status === 'pending-completion') {
+      if (isOwner) {
+        return (
+          <div className="space-y-2 mt-4">
+            <Button onClick={handleCompleteTask} disabled={isProcessing} className="w-full">
+              <CheckCircle className="mr-2 h-4 w-4" />
+              {isProcessing ? 'Processing...' : 'Accept & Release Payment'}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={isProcessing}
+              onClick={() => toast({ title: 'Feature coming soon!' })}
+              className="w-full"
+            >
+              <ShieldAlert className="mr-2 h-4 w-4" /> Raise a Dispute
+            </Button>
+          </div>
+        );
+      }
+      if (user.uid === task.assignedToId) {
+        return (
+          <Button onClick={handleMessage} className="w-full mt-4">
+            <MessageSquare className="mr-2 h-4 w-4" /> Message Client
+          </Button>
+        );
+      }
     }
     
     if (task.status === 'completed') {
