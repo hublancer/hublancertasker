@@ -17,32 +17,47 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 
 const signUpSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters.'),
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
   accountType: z.enum(['client', 'tasker']),
 });
 
+export type SignUpFormValues = z.infer<typeof signUpSchema>;
+
 interface SignUpFormProps {
-  onSignUp: (data: z.infer<typeof signUpSchema>) => void;
+  onSignUp: (data: SignUpFormValues) => void;
+  submitButtonText?: string;
+  loading?: boolean;
 }
 
-export function SignUpForm({ onSignUp }: SignUpFormProps) {
-  const form = useForm<z.infer<typeof signUpSchema>>({
+export function SignUpForm({ onSignUp, submitButtonText = "Sign Up", loading = false }: SignUpFormProps) {
+  const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
+      name: '',
       email: '',
       password: '',
       accountType: 'client',
     },
   });
 
-  function handleSubmit(values: z.infer<typeof signUpSchema>) {
-    onSignUp(values);
-  }
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSignUp)} className="space-y-8">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Full Name</FormLabel>
+              <FormControl>
+                <Input placeholder="John Doe" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="email"
@@ -113,8 +128,8 @@ export function SignUpForm({ onSignUp }: SignUpFormProps) {
             </FormItem>
           )}
         />
-        <Button type="submit" size="lg">
-          Sign Up & Post Task
+        <Button type="submit" size="lg" disabled={loading}>
+          {loading ? "Processing..." : submitButtonText}
         </Button>
       </form>
     </Form>

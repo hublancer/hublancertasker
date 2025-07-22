@@ -28,8 +28,14 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { SignUpForm } from './SignUpForm';
+import { SignUpForm, SignUpFormValues } from './SignUpForm';
 import { Separator } from './ui/separator';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import { auth, db } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
 const formSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters.').max(100),
@@ -45,9 +51,13 @@ type PostTaskFormValues = z.infer<typeof formSchema>;
 
 export default function PostTaskForm() {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // Mock auth state
   const [showSignUp, setShowSignUp] = useState(false);
   const [taskData, setTaskData] = useState<PostTaskFormValues | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
+
 
   const form = useForm<PostTaskFormValues>({
     resolver: zodResolver(formSchema),
@@ -76,30 +86,75 @@ export default function PostTaskForm() {
     setIsGenerating(false);
   }
 
+  async function submitTask(taskDetails: PostTaskFormValues, userId: string, userName: string) {
+    try {
+        await addDoc(collection(db, 'tasks'), {
+            ...taskDetails,
+            postedById: userId,
+            postedByName: userName,
+            createdAt: serverTimestamp(),
+            status: 'open',
+        });
+        toast({
+            title: "Task Posted!",
+            description: "Your task is now live for others to see.",
+        });
+        router.push('/my-tasks');
+    } catch (error: any) {
+        console.error("Error posting task:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to post task. " + error.message,
+        });
+    }
+  }
+
   function onSubmit(values: PostTaskFormValues) {
-    if (isAuthenticated) {
-      console.log('Submitting task for authenticated user:', values);
-      // Handle form submission for logged-in user
+    if (user) {
+      submitTask(values, user.uid, user.displayName || user.email!);
     } else {
       setTaskData(values);
       setShowSignUp(true);
     }
   }
 
-  function handleSignUp(signUpData: any) {
-    console.log('Signing up user:', signUpData);
-    console.log('Submitting task with user data:', taskData);
-    // Handle user registration and then task submission
-    setShowSignUp(false);
-    // In a real app, you'd probably get back a user session here
-    // and then programmatically submit the task.
+  async function handleSignUp(signUpData: SignUpFormValues) {
+    if (!taskData) return;
+    setLoading(true);
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, signUpData.email, signUpData.password);
+        const newUser = userCredential.user;
+
+        await setDoc(doc(db, "users", newUser.uid), {
+            uid: newUser.uid,
+            email: signUpData.email,
+            accountType: signUpData.accountType,
+            name: signUpData.name,
+        });
+
+        await submitTask(taskData, newUser.uid, signUpData.name);
+
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Sign Up Failed",
+            description: error.message,
+        });
+    } finally {
+        setLoading(false);
+    }
   }
+  
+  const isAuthenticated = !!user;
+
 
   return (
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <fieldset disabled={showSignUp} className="space-y-8">
+          <fieldset disabled={showSignUp || loading} className="space-y-8">
             <FormField
               control={form.control}
               name="title"
@@ -242,8 +297,8 @@ export default function PostTaskForm() {
           </fieldset>
 
           {!showSignUp && (
-            <Button type="submit" size="lg">
-              Post Task
+            <Button type="submit" size="lg" disabled={loading}>
+              {loading ? "Processing..." : isAuthenticated ? "Post Task" : "Continue"}
             </Button>
           )}
         </form>
@@ -257,13 +312,14 @@ export default function PostTaskForm() {
             <p className="text-muted-foreground mb-6">
               Create an account to post your task. Already have an account?{' '}
               <Button variant="link" className="p-0 h-auto" onClick={() => {
+                  setShowSignUp(false);
                   // In a real app, this would open a login form/dialog
                   console.log("Login link clicked");
               }}>
                 Login
               </Button>
             </p>
-            <SignUpForm onSignUp={handleSignUp} />
+            <SignUpForm onSignUp={handleSignUp} submitButtonText='Sign Up & Post Task' loading={loading} />
           </div>
         </div>
       )}
