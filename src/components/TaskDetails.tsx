@@ -383,11 +383,11 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
         setIsProcessing(true);
         try {
-            const commissionRate = settings?.commissionRate ?? 0.1;
-            const commission = task.price * commissionRate;
-            const taskerPayout = task.price - commission;
-
             await runTransaction(db, async (transaction) => {
+                const commissionRate = settings?.commissionRate ?? 0.1;
+                const commission = task.price * commissionRate;
+                const taskerPayout = task.price - commission;
+
                 const taskRef = doc(db, 'tasks', task.id);
                 const taskerRef = doc(db, 'users', task.assignedToId!);
                 
