@@ -9,7 +9,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -94,6 +94,15 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
 
+  const addNotification = async (userId: string, message: string, link: string) => {
+    await addDoc(collection(db, 'users', userId, 'notifications'), {
+        message,
+        link,
+        read: false,
+        createdAt: serverTimestamp()
+    });
+  }
+
   useEffect(() => {
     if (!task?.id) return;
     setOffers([]);
@@ -163,7 +172,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
 
         } else {
              // Add new offer
-            await addDoc(collection(db, 'tasks', task.id, 'offers'), {
+            const offerRef = await addDoc(collection(db, 'tasks', task.id, 'offers'), {
                 taskerId: user.uid,
                 taskerName: userProfile.name,
                 taskerAvatar: user.photoURL || '',
@@ -173,9 +182,17 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
             });
             
             // Update offer count on the task
-            const taskRef = doc(db, 'tasks', task.id);
-            const newOfferCount = (task.offers || 0) + 1;
-            await updateDoc(taskRef, { offerCount: newOfferCount });
+            await runTransaction(db, async (transaction) => {
+                const taskRef = doc(db, 'tasks', task.id);
+                const taskDoc = await transaction.get(taskRef);
+                if (!taskDoc.exists()) { throw "Task does not exist!"; }
+                const newOfferCount = (taskDoc.data().offerCount || 0) + 1;
+                transaction.update(taskRef, { offerCount: newOfferCount });
+            });
+            
+            await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/my-tasks`);
+
+
             onTaskUpdate?.();
             toast({ title: "Offer submitted successfully!" });
         }
@@ -222,6 +239,14 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
   const handleAcceptOffer = async (offer: Offer) => {
     if (!isOwner || task.status !== 'open' || !userProfile) return;
     setIsAccepting(offer.id);
+    
+    // Check if client has enough balance
+    if ((userProfile.wallet?.balance ?? 0) < offer.offerPrice) {
+        toast({ variant: 'destructive', title: 'Insufficient balance', description: 'Please deposit funds to your wallet to accept this offer.' });
+        setIsAccepting(null);
+        return;
+    }
+
     try {
       const batch = writeBatch(db);
       const taskRef = doc(db, 'tasks', task.id);
@@ -230,6 +255,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
         status: 'assigned',
         assignedToId: offer.taskerId,
         assignedToName: offer.taskerName,
+        price: offer.offerPrice, // Use the offer price as the final price
       });
       
       const conversationRef = doc(collection(db, 'conversations'));
@@ -245,7 +271,25 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
         taskerAvatar: offer.taskerAvatar || ''
       });
 
+      // Deduct funds from client's wallet
+      const clientRef = doc(db, 'users', task.postedById);
+      const newClientBalance = (userProfile.wallet?.balance ?? 0) - offer.offerPrice;
+      batch.update(clientRef, { 'wallet.balance': newClientBalance });
+
+      // Add transaction record for client
+      const clientTransactionRef = doc(collection(db, 'users', task.postedById, 'transactions'));
+      batch.set(clientTransactionRef, {
+        amount: -offer.offerPrice,
+        type: 'payment',
+        description: `Payment for task: ${task.title}`,
+        taskId: task.id,
+        timestamp: serverTimestamp(),
+      });
+
       await batch.commit();
+
+      await addNotification(offer.taskerId, `Your offer for "${task.title}" was accepted!`, `/messages?conversationId=${conversationRef.id}`);
+
       onTaskUpdate?.();
 
       toast({ title: `Task assigned to ${offer.taskerName}!` });
@@ -305,9 +349,36 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     }
 
     const handleCompleteTask = async () => {
-         if (!isOwner || task.status !== 'assigned') return;
+        if (!isOwner || task.status !== 'assigned' || !task.assignedToId) return;
+
         try {
-            await updateDoc(doc(db, 'tasks', task.id), { status: 'completed' });
+            const batch = writeBatch(db);
+            const taskRef = doc(db, 'tasks', task.id);
+            batch.update(taskRef, { status: 'completed' });
+
+            const taskerRef = doc(db, 'users', task.assignedToId);
+
+            // Fetch the tasker's current wallet balance to avoid race conditions
+            const taskerSnap = await getDoc(taskerRef);
+            const taskerData = taskerSnap.data();
+            const currentTaskerBalance = taskerData?.wallet?.balance ?? 0;
+            const newTaskerBalance = currentTaskerBalance + task.price;
+            batch.update(taskerRef, { 'wallet.balance': newTaskerBalance });
+
+            // Add transaction record for tasker
+            const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId, 'transactions'));
+            batch.set(taskerTransactionRef, {
+                amount: task.price,
+                type: 'earning',
+                description: `Earning from task: ${task.title}`,
+                taskId: task.id,
+                timestamp: serverTimestamp(),
+            });
+
+            await batch.commit();
+            
+            await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
+
             toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
             onTaskUpdate?.();
         } catch (error) {
@@ -599,7 +670,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                     <Calendar className="h-5 w-5 mr-3 mt-0.5 text-muted-foreground flex-shrink-0" />
                     <div>
                     <p className="font-semibold uppercase text-xs text-muted-foreground">TO BE DONE ON</p>
-                    <p>{new Date(task.date).toLocaleDateString()}</p>
+                    <p>{task.date instanceof Timestamp ? task.date.toDate().toLocaleDateString() : task.date}</p>
                     </div>
                 </div>
             </div>
@@ -768,4 +839,3 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     </>
   );
 }
-    

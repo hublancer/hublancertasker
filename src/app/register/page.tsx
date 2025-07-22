@@ -35,13 +35,16 @@ export default function RegisterPage() {
                 email: data.email,
                 accountType: data.accountType,
                 name: data.name,
+                wallet: {
+                  balance: 0,
+                }
             });
 
             toast({
                 title: "Account Created!",
                 description: "You have been successfully registered.",
             });
-            router.push('/');
+            router.push('/my-tasks');
 
         } catch (error: any) {
             toast({

@@ -13,6 +13,9 @@ export interface UserProfile {
   averageRating?: number;
   reviewCount?: number;
   photoURL?: string;
+  wallet?: {
+    balance: number;
+  };
 }
 
 interface AuthContextType {

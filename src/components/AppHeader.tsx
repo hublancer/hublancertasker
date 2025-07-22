@@ -10,13 +10,13 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogIn, LogOut } from 'lucide-react';
+import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LoginDialog } from './LoginDialog';
 import { useAuth } from '@/hooks/use-auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import {
   DropdownMenu,
@@ -27,17 +27,48 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { collection, onSnapshot, query, where, orderBy, updateDoc, doc } from 'firebase/firestore';
+
+interface Notification {
+  id: string;
+  message: string;
+  read: boolean;
+  link: string;
+  createdAt: any;
+}
 
 
 const AppHeader = () => {
   const { user, userProfile, loading } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const q = query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        setNotifications(notifs);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleLogout = async () => {
     await signOut(auth);
   };
+
+  const handleMarkAsRead = async (id: string) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.uid, 'notifications', id), { read: true });
+  }
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
 
   const navLinks = [
     { href: '/', label: 'Browse Tasks' },
@@ -80,6 +111,12 @@ const AppHeader = () => {
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
               </Link>
+            </DropdownMenuItem>
+             <DropdownMenuItem asChild>
+                <Link href="/wallet">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    <span>Wallet</span>
+                </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
@@ -186,6 +223,37 @@ const AppHeader = () => {
 
           {/* Right side buttons for Desktop */}
           <div className="hidden flex-1 items-center justify-end space-x-2 md:flex">
+             {user && (
+                  <div className="text-sm font-semibold flex items-center gap-2">
+                    <Wallet className="h-5 w-5" />
+                    <span>Rs{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</span>
+                  </div>
+              )}
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative">
+                        <Bell className="h-5 w-5" />
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
+                                {unreadCount}
+                            </span>
+                        )}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80" align="end">
+                    <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {notifications.length === 0 ? (
+                        <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
+                    ) : (
+                        notifications.map(n => (
+                            <DropdownMenuItem key={n.id} className={cn(!n.read && 'font-bold')} onSelect={() => handleMarkAsRead(n.id)} asChild>
+                                <Link href={n.link}>{n.message}</Link>
+                            </DropdownMenuItem>
+                        ))
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
               <Button
                 asChild
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
