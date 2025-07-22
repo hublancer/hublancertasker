@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 
-type FullTask = Task & { createdAt: any };
+type FullTask = Task & { createdAt: any, budget: number };
 
 export default function AdminTasksPage() {
   const { settings } = useAuth();
@@ -80,7 +80,7 @@ export default function AdminTasksPage() {
                    <Badge variant="outline" className="capitalize">{task.type}</Badge>
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  {settings?.currencySymbol ?? 'Rs'}{task.price.toFixed(2)}
+                  {settings?.currencySymbol ?? 'Rs'}{(task.budget || task.price || 0).toFixed(2)}
                 </TableCell>
               </TableRow>
             ))}
