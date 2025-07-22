@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -37,6 +38,7 @@ import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
 import { Input } from './ui/input';
 import { useRouter } from 'next/navigation';
+import { useMediaQuery } from '@/hooks/use-media-query';
 
 interface HomePageClientProps {
   tasks: (Task & {
@@ -69,7 +71,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     [number, number] | null
   >(pakistaniCities[0].coordinates);
   const [mapZoom, setMapZoom] = useState(6);
-  const [isClient, setIsClient] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
   // Applied filters
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
@@ -110,7 +112,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   );
 
   useEffect(() => {
-    setIsClient(true);
     navigator.geolocation.getCurrentPosition(
       position => {
         const { latitude, longitude } = position.coords;
@@ -279,7 +280,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     appliedSortBy,
   ]);
 
-  const isMobile = isClient && window.innerWidth < 768;
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -582,16 +582,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
             'md:block'
           )}
         >
-          {isClient ? (
-            <Map
+          {<Map
               tasks={filteredTasks}
               onTaskSelect={handleViewDetails}
               center={currentMapCenter}
               zoom={mapZoom}
-            />
-          ) : (
-            <Skeleton className="h-full w-full" />
-          )}
+            />}
         </div>
       </main>
     </div>
