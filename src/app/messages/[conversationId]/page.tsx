@@ -165,7 +165,7 @@ function ConversationPageContent() {
                 </div>
             </div>
             <div className="ml-auto">
-                 <Link href={`/task/${conversation.taskId}`} legacyBehavior>
+                 <Link href={`/task/${conversation.taskId}`}>
                     <Button variant="outline" size="sm">
                         View Task
                     </Button>

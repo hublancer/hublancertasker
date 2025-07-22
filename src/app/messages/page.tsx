@@ -141,20 +141,27 @@ function MessagesPageContent() {
             {conversations.map(convo => {
               const partner = getConvoPartner(convo);
               return (
-                <Link key={convo.id} href={`/messages/${convo.id}`} legacyBehavior>
-                    <a className="flex items-start gap-3 p-4 cursor-pointer hover:bg-muted/50">
-                        <Avatar>
-                            <AvatarImage src={partner.avatar} data-ai-hint="person face" />
-                            <AvatarFallback>{partner.name?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 truncate">
-                            <p className="font-semibold">{partner.name}</p>
-                            <p className="text-sm font-semibold truncate text-primary">{convo.taskTitle}</p>
-                            <p className="text-sm text-muted-foreground truncate">
-                            {convo.lastMessage}
-                            </p>
-                        </div>
-                    </a>
+                <Link
+                  key={convo.id}
+                  href={`/messages/${convo.id}`}
+                  className="flex items-start gap-3 p-4 cursor-pointer hover:bg-muted/50"
+                >
+                  <Avatar>
+                    <AvatarImage
+                      src={partner.avatar}
+                      data-ai-hint="person face"
+                    />
+                    <AvatarFallback>{partner.name?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 truncate">
+                    <p className="font-semibold">{partner.name}</p>
+                    <p className="text-sm font-semibold truncate text-primary">
+                      {convo.taskTitle}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {convo.lastMessage}
+                    </p>
+                  </div>
                 </Link>
               );
             })}
