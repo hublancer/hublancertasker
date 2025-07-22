@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import HomePageClient from '@/components/HomePageClient';
 import { type Task } from '@/components/TaskCard';
-import { collection, getDocs, Timestamp, GeoPoint } from 'firebase/firestore';
+import { collection, getDocs, Timestamp, GeoPoint, query, orderBy, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -16,7 +16,8 @@ export default function Home() {
     const fetchTasks = async () => {
       setLoading(true);
       const tasksCollection = collection(db, 'tasks');
-      const taskSnapshot = await getDocs(tasksCollection);
+      const q = query(tasksCollection, where('status', '==', 'open'), orderBy('createdAt', 'desc'));
+      const taskSnapshot = await getDocs(q);
       const taskList = taskSnapshot.docs.map(doc => {
         const data = doc.data();
         
@@ -40,6 +41,7 @@ export default function Home() {
           postedBy: data.postedByName || 'Anonymous', // Assuming you store the poster's name
           status: data.status || 'open',
           postedById: data.postedById,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         } as (Task & { coordinates: [number, number] | null, description: string, postedBy: string });
       });
       setTasks(taskList);

@@ -27,6 +27,7 @@ export type Task = {
   assignedToId?: string;
   assignedToName?: string;
   coordinates?: [number, number] | null;
+  createdAt: string;
 };
 
 interface TaskCardProps {
