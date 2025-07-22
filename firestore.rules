@@ -2,38 +2,41 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can create their own profile, but can only read/update their own.
+
+    // Users can create their own profile, but only read/update their own.
     match /users/{userId} {
       allow read, update: if request.auth.uid == userId;
       allow create: if request.auth.uid != null;
     }
 
-    // Anyone can read tasks. Only authenticated users can create them.
-    // Only the user who posted the task can update or delete it.
+    // Anyone can read tasks. Logged-in users can create them.
+    // Only the owner can update or delete their own task.
     match /tasks/{taskId} {
-      allow read;
+      allow read: if true;
       allow create: if request.auth.uid != null;
       allow update, delete: if request.auth.uid == resource.data.postedById;
-    }
-    
-    // Authenticated users can create offers and questions.
-    // Anyone who can view the task can view the offers and questions.
-    match /tasks/{taskId}/offers/{offerId} {
-        allow read, create: if request.auth.uid != null;
-        allow update, delete: if request.auth.uid == request.resource.data.taskerId || request.auth.uid == get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById;
-    }
-    
-    match /tasks/{taskId}/questions/{questionId} {
-        allow read, create: if request.auth.uid != null;
-        allow update: if request.auth.uid == resource.data.userId || request.auth.uid == get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById;
-    }
 
+      // Logged-in users can create offers and questions.
+      // Anyone can read offers and questions.
+      match /offers/{offerId} {
+        allow read: if true;
+        allow create, update, delete: if request.auth.uid != null;
+      }
+
+      match /questions/{questionId} {
+        allow read: if true;
+        allow create: if request.auth.uid != null;
+        allow update: if request.auth.uid == resource.data.userId || request.auth.uid == get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById;
+      }
+    }
+    
     // Only participants can read or write to a conversation.
     match /conversations/{conversationId} {
-        allow read, update, create: if request.auth.uid in resource.data.participants;
-        
+        allow read, write: if request.auth.uid in resource.data.participants;
+        allow create: if request.auth.uid != null && request.auth.uid in request.resource.data.participants;
+
         match /messages/{messageId} {
-            allow read, create: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+            allow read, create: if get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
         }
     }
   }

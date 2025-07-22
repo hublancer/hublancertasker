@@ -4,7 +4,7 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
@@ -16,6 +16,7 @@ import { Input } from './ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 
 
 interface TaskDetailsProps {
@@ -254,6 +255,31 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     }
   };
 
+    const handleCancelTask = async () => {
+        if (!isOwner) return;
+        try {
+            await deleteDoc(doc(db, 'tasks', task.id));
+            toast({title: 'Task Cancelled', description: 'Your task has been successfully removed.'});
+            onTaskUpdate?.();
+            onBack();
+        } catch (error) {
+            console.error("Error cancelling task: ", error);
+            toast({ variant: 'destructive', title: 'Could not cancel task.' });
+        }
+    }
+
+    const handleCompleteTask = async () => {
+         if (!isOwner) return;
+        try {
+            await updateDoc(doc(db, 'tasks', task.id), { status: 'completed' });
+            toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
+            onTaskUpdate?.();
+        } catch (error) {
+            console.error("Error completing task: ", error);
+            toast({ variant: 'destructive', title: 'Could not complete task.' });
+        }
+    }
+
   const handleEditOffer = (offer: Offer) => {
     setEditingOffer(offer);
     setOfferPrice(offer.offerPrice);
@@ -295,27 +321,58 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     
     const isParticipant = task.postedById === user.uid || task.assignedToId === user.uid;
 
-    if (task.status === 'assigned' && isParticipant) {
-      return (
-        <Button onClick={handleMessage} className="w-full mt-4">
-          <MessageSquare className="mr-2 h-4 w-4" /> Message
-        </Button>
-      );
+    if (task.status === 'assigned') {
+        if (isParticipant) {
+             return (
+                <div className="space-y-2 mt-4">
+                    <Button onClick={handleMessage} className="w-full">
+                        <MessageSquare className="mr-2 h-4 w-4" /> Message
+                    </Button>
+                     {isOwner && (
+                         <Button onClick={handleCompleteTask} variant="outline" className="w-full">
+                            <CheckCircle className="mr-2 h-4 w-4" /> Mark as Complete
+                        </Button>
+                     )}
+                </div>
+            );
+        }
+    }
+    
+    if (task.status === 'completed') {
+        // Future: Add review button
+        return <Button className="w-full mt-4" disabled>Task Completed</Button>
     }
 
-    if (isOwner) {
-       if (task.status === 'open' && offers.length > 0) {
+
+    if (isOwner) { // Client view on 'open' task
+       if (offers.length > 0) {
          return <Button className="w-full mt-4" disabled>Review Offers Below</Button>
        }
-       if (task.status === 'assigned') {
-         // Placeholder for future functionality
-         return <Button className="w-full mt-4">Mark as Complete</Button>
-       }
-       return null;
+       return (
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full mt-4">
+                        <XCircle className="mr-2 h-4 w-4" /> Cancel Task
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently delete your task and cannot be undone.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>Back</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCancelTask}>Yes, Cancel Task</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+       );
     }
 
-    // Tasker view
-    if (userProfile?.accountType === 'tasker' && task.status === 'open') {
+    // Tasker view on 'open' task
+    if (userProfile?.accountType === 'tasker') {
         const hasMadeOffer = offers.some(o => o.taskerId === user.uid) && !editingOffer;
         if (hasMadeOffer) {
             return <Button className="w-full mt-4" disabled>Offer Already Made</Button>
@@ -477,9 +534,26 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                                     <Button size="sm" variant="outline" onClick={() => handleEditOffer(offer)}>
                                         <Edit className="mr-2 h-4 w-4" /> Edit
                                     </Button>
-                                    <Button size="sm" variant="destructive" onClick={() => handleCancelOffer(offer.id)}>
-                                        <Trash2 className="mr-2 h-4 w-4" /> Cancel
-                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button size="sm" variant="destructive">
+                                                <Trash2 className="mr-2 h-4 w-4" /> Cancel
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently cancel your offer.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Back</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleCancelOffer(offer.id)}>Yes, Cancel</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+
                                 </div>
                             )}
                         </div>
