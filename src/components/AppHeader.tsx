@@ -10,7 +10,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell, Shield } from 'lucide-react';
+import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell, Shield, Settings } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -39,7 +39,7 @@ interface Notification {
 
 
 const AppHeader = () => {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, settings, loading } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -119,12 +119,21 @@ const AppHeader = () => {
                 </Link>
             </DropdownMenuItem>
             {userProfile?.role === 'admin' && (
-              <DropdownMenuItem asChild>
-                <Link href="/admin/dashboard">
-                  <Shield className="mr-2 h-4 w-4" />
-                  <span>Admin Panel</span>
-                </Link>
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/dashboard">
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Admin Panel</span>
+                  </Link>
+                </DropdownMenuItem>
+                 <DropdownMenuItem asChild>
+                  <Link href="/admin/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+              </>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
@@ -235,7 +244,7 @@ const AppHeader = () => {
                   <Button variant="outline" asChild>
                     <Link href="/wallet" className="flex items-center gap-2">
                         <Wallet className="h-5 w-5" />
-                        <span>Rs{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</span>
+                        <span>{settings?.currencySymbol ?? 'Rs'}{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</span>
                     </Link>
                   </Button>
               )}

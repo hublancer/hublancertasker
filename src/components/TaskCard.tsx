@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { MapPin, Calendar, Users } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 export type Task = {
   id: string;
@@ -34,6 +35,8 @@ interface TaskCardProps {
 }
 
 export default function TaskCard({ task, onSelect }: TaskCardProps) {
+  const { settings } = useAuth();
+
   const handleViewTask = () => {
     if (onSelect) {
       onSelect(task);
@@ -69,7 +72,7 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
         </div>
       </CardContent>
       <CardFooter className="flex justify-between items-center mt-auto pt-4">
-        <div className="text-xl font-bold text-primary">Rs{task.price}</div>
+        <div className="text-xl font-bold text-primary">{settings?.currencySymbol ?? 'Rs'}{task.price}</div>
         <Button onClick={handleViewTask}>View Task</Button>
       </CardFooter>
     </Card>

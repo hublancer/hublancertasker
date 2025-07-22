@@ -20,13 +20,13 @@ import { Timestamp } from 'firebase/firestore';
 interface Transaction {
     id: string;
     amount: number;
-    type: 'deposit' | 'withdrawal' | 'payment' | 'earning';
+    type: 'deposit' | 'withdrawal' | 'payment' | 'earning' | 'commission';
     description: string;
     timestamp: Timestamp;
 }
 
 export default function WalletPage() {
-    const { user, userProfile } = useAuth();
+    const { user, userProfile, settings } = useAuth();
     const { toast } = useToast();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -84,7 +84,7 @@ export default function WalletPage() {
                 });
             });
 
-            toast({ title: 'Deposit Successful', description: `Rs${depositAmount} has been added to your wallet.` });
+            toast({ title: 'Deposit Successful', description: `${settings?.currencySymbol ?? 'Rs'}${depositAmount} has been added to your wallet.` });
             setDepositAmount('');
         } catch (error) {
             console.error('Deposit error: ', error);
@@ -126,7 +126,7 @@ export default function WalletPage() {
                     timestamp: serverTimestamp(),
                 });
             });
-            toast({ title: 'Withdrawal Successful', description: `Rs${withdrawAmount} has been withdrawn from your wallet.` });
+            toast({ title: 'Withdrawal Successful', description: `${settings?.currencySymbol ?? 'Rs'}${withdrawAmount} has been withdrawn from your wallet.` });
             setWithdrawAmount('');
         } catch (error) {
             console.error('Withdrawal error: ', error);
@@ -155,6 +155,7 @@ export default function WalletPage() {
         )
     }
 
+    const currencySymbol = settings?.currencySymbol ?? 'Rs';
 
     const getTransactionIcon = (type: Transaction['type']) => {
         switch (type) {
@@ -164,6 +165,8 @@ export default function WalletPage() {
             case 'withdrawal':
             case 'payment':
                 return <ArrowUpRight className="h-5 w-5 text-red-500" />;
+            case 'commission':
+                 return <ArrowUpRight className="h-5 w-5 text-red-500" />;
             default:
                 return <DollarSign className="h-5 w-5 text-muted-foreground" />;
         }
@@ -185,7 +188,7 @@ export default function WalletPage() {
                                 <CardTitle>Current Balance</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-4xl font-bold">Rs{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</p>
+                                <p className="text-4xl font-bold">{currencySymbol}{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -213,7 +216,7 @@ export default function WalletPage() {
                                                 </TableCell>
                                                 <TableCell>{t.timestamp?.toDate().toLocaleDateString()}</TableCell>
                                                 <TableCell className={cn("text-right font-mono", t.amount > 0 ? 'text-green-600' : 'text-red-600')}>
-                                                    {t.amount > 0 ? `+Rs${t.amount.toFixed(2)}` : `-Rs${Math.abs(t.amount).toFixed(2)}`}
+                                                    {t.amount > 0 ? `+${currencySymbol}${t.amount.toFixed(2)}` : `-${currencySymbol}${Math.abs(t.amount).toFixed(2)}`}
                                                 </TableCell>
                                             </TableRow>
                                         )) : (
@@ -235,7 +238,7 @@ export default function WalletPage() {
                             <CardContent className="space-y-4">
                                 <Input 
                                     type="number" 
-                                    placeholder="Amount in Rs" 
+                                    placeholder={`Amount in ${currencySymbol}`} 
                                     value={depositAmount}
                                     onChange={(e) => setDepositAmount(e.target.value)}
                                     disabled={isDepositing}
@@ -253,7 +256,7 @@ export default function WalletPage() {
                             <CardContent className="space-y-4">
                                 <Input 
                                     type="number" 
-                                    placeholder="Amount in Rs"
+                                    placeholder={`Amount in ${currencySymbol}`}
                                     value={withdrawAmount}
                                     onChange={(e) => setWithdrawAmount(e.target.value)}
                                     disabled={isWithdrawing}

@@ -8,10 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
 
 type FullTask = Task & { createdAt: any };
 
 export default function AdminTasksPage() {
+  const { settings } = useAuth();
   const [tasks, setTasks] = useState<FullTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,7 +80,7 @@ export default function AdminTasksPage() {
                    <Badge variant="outline" className="capitalize">{task.type}</Badge>
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  Rs{task.price.toFixed(2)}
+                  {settings?.currencySymbol ?? 'Rs'}{task.price.toFixed(2)}
                 </TableCell>
               </TableRow>
             ))}

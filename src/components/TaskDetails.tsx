@@ -9,7 +9,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -67,7 +67,7 @@ const StarRating = ({ rating, setRating }: { rating: number; setRating?: (rating
 
 
 export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsProps) {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, settings } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const isOwner = user?.uid === task.postedById;
@@ -352,30 +352,47 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
         if (!isOwner || task.status !== 'assigned' || !task.assignedToId) return;
 
         try {
-            const batch = writeBatch(db);
-            const taskRef = doc(db, 'tasks', task.id);
-            batch.update(taskRef, { status: 'completed' });
+            const commissionRate = settings?.commissionRate ?? 0.1;
+            const commission = task.price * commissionRate;
+            const taskerPayout = task.price - commission;
 
-            const taskerRef = doc(db, 'users', task.assignedToId);
+            await runTransaction(db, async (transaction) => {
+                const taskRef = doc(db, 'tasks', task.id);
+                transaction.update(taskRef, { status: 'completed' });
 
-            // Fetch the tasker's current wallet balance to avoid race conditions
-            const taskerSnap = await getDoc(taskerRef);
-            const taskerData = taskerSnap.data();
-            const currentTaskerBalance = taskerData?.wallet?.balance ?? 0;
-            const newTaskerBalance = currentTaskerBalance + task.price;
-            batch.update(taskerRef, { 'wallet.balance': newTaskerBalance });
+                const taskerRef = doc(db, 'users', task.assignedToId!);
+                const taskerDoc = await transaction.get(taskerRef);
 
-            // Add transaction record for tasker
-            const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId, 'transactions'));
-            batch.set(taskerTransactionRef, {
-                amount: task.price,
-                type: 'earning',
-                description: `Earning from task: ${task.title}`,
-                taskId: task.id,
-                timestamp: serverTimestamp(),
+                if (!taskerDoc.exists()) {
+                    throw new Error("Tasker not found!");
+                }
+                const taskerData = taskerDoc.data();
+                const currentTaskerBalance = taskerData.wallet?.balance ?? 0;
+                const newTaskerBalance = currentTaskerBalance + taskerPayout;
+                transaction.update(taskerRef, { 'wallet.balance': newTaskerBalance });
+
+                // Add earning transaction for tasker
+                const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId!, 'transactions'));
+                transaction.set(taskerTransactionRef, {
+                    amount: taskerPayout,
+                    type: 'earning',
+                    description: `Earning from task: ${task.title}`,
+                    taskId: task.id,
+                    timestamp: serverTimestamp(),
+                });
+
+                // Add commission transaction for admin/platform
+                 const platformTransactionRef = doc(collection(db, 'platform_transactions'));
+                 transaction.set(platformTransactionRef, {
+                    amount: commission,
+                    type: 'commission',
+                    description: `Commission from task: ${task.title}`,
+                    taskId: task.id,
+                    taskPrice: task.price,
+                    commissionRate: commissionRate,
+                    timestamp: serverTimestamp(),
+                 })
             });
-
-            await batch.commit();
             
             await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
 
@@ -553,7 +570,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                     <p className="font-semibold text-center">{editingOffer ? "Edit Your Offer" : "Make an Offer"}</p>
                     <Input 
                         type="number" 
-                        placeholder="Your price (Rs)" 
+                        placeholder={`Your price (${settings?.currencySymbol})`}
                         value={offerPrice}
                         onChange={(e) => setOfferPrice(e.target.value === '' ? '' : Number(e.target.value))}
                         disabled={isSubmittingOffer}
@@ -690,7 +707,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                 <p className="text-sm text-muted-foreground mb-1">
                   TASK BUDGET
                 </p>
-                <p className="text-3xl font-bold">Rs{task.price}</p>
+                <p className="text-3xl font-bold">{settings?.currencySymbol ?? 'Rs'}{task.price}</p>
                 {renderActionButtons()}
                 {renderReviewForm()}
               </CardContent>
@@ -726,7 +743,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
-                            <p className="text-lg font-bold">Rs{offer.offerPrice}</p>
+                            <p className="text-lg font-bold">{settings?.currencySymbol ?? 'Rs'}{offer.offerPrice}</p>
                             {isOwner && task.status === 'open' && (
                               <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
                                 {isAccepting === offer.id ? "Accepting..." : "Accept"}

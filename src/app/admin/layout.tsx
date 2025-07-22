@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Home, Users, Briefcase, CreditCard, Shield, LifeBuoy } from 'lucide-react';
+import { Home, Users, Briefcase, CreditCard, Shield, LifeBuoy, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import AppHeader from '@/components/AppHeader';
@@ -32,6 +32,7 @@ export default function AdminLayout({
     { href: '/admin/tasks', label: 'Tasks', icon: Briefcase },
     { href: '/admin/transactions', label: 'Transactions', icon: CreditCard },
     { href: '/admin/disputes', label: 'Disputes', icon: Shield },
+    { href: '/admin/settings', label: 'Settings', icon: Settings },
   ];
 
   return (

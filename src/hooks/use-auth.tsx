@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -19,17 +19,25 @@ export interface UserProfile {
   };
 }
 
+export interface PlatformSettings {
+    commissionRate: number; // e.g., 0.1 for 10%
+    currencySymbol: string; // e.g., 'Rs', '$'
+}
+
+
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
+  settings: PlatformSettings | null;
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, userProfile: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, userProfile: null, settings: null, loading: true });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,12 +47,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setUser(null);
         setUserProfile(null);
-        setLoading(false);
+        // Don't set loading to false here, wait for settings to load
       }
     });
 
     return () => authUnsubscribe();
   }, []);
+
+  useEffect(() => {
+    const settingsDocRef = doc(db, 'settings', 'platform');
+    const unsubscribeSettings = onSnapshot(settingsDocRef, (doc) => {
+      if (doc.exists()) {
+        setSettings(doc.data() as PlatformSettings);
+      } else {
+        // Set default settings if none exist
+        setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
+      }
+      // Settings loaded, now check if we should stop loading screen
+      if (!user) {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribeSettings();
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -54,6 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
              if (doc.exists()) {
                 setUserProfile(doc.data() as UserProfile);
             }
+            // User profile loaded, now we can stop loading
             setLoading(false);
         });
         return () => snapshotUnsubscribe();
@@ -61,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading }}>
+    <AuthContext.Provider value={{ user, userProfile, loading, settings }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,8 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Briefcase, CreditCard, Shield } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function AdminDashboard() {
+  const { settings } = useAuth();
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
@@ -34,7 +36,7 @@ export default function AdminDashboard() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs12,234.00</div>
+            <div className="text-2xl font-bold">{settings?.currencySymbol ?? 'Rs'}12,234.00</div>
             <p className="text-xs text-muted-foreground">+19% from last month</p>
           </CardContent>
         </Card>

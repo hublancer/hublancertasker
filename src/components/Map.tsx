@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect } from 'react';
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 const greenIcon = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -87,6 +88,7 @@ function MapControls({ onRefresh }: { onRefresh: () => void }) {
 }
 
 const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
+  const { settings } = useAuth();
   const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
   const mapCenter = center || DEFAULT_CENTER;
   
@@ -125,7 +127,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
             <Popup>
                 <div className="space-y-1">
                 <h3 className="font-bold">{task.title}</h3>
-                <p>Rs{task.price}</p>
+                <p>{settings?.currencySymbol ?? 'Rs'}{task.price}</p>
                 <Button
                     variant="link"
                     className="p-0 h-auto"

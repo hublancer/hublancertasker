@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { MapPin, Calendar, Tag, Users } from 'lucide-react';
 import { Badge } from './ui/badge';
+import { useAuth } from '@/hooks/use-auth';
 
 interface TaskListItemProps {
   task: Task;
@@ -18,6 +19,7 @@ export default function TaskListItem({
   isSelected,
 }: TaskListItemProps) {
   const isRemote = task.type === 'online';
+  const { settings } = useAuth();
 
   return (
     <Card
@@ -58,7 +60,7 @@ export default function TaskListItem({
           </div>
 
           <div className="text-right flex flex-col items-end justify-between h-full">
-            <p className="text-xl font-bold text-primary">Rs{task.price}</p>
+            <p className="text-xl font-bold text-primary">{settings?.currencySymbol ?? 'Rs'}{task.price}</p>
           </div>
         </div>
       </CardContent>

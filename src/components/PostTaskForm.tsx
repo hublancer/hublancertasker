@@ -61,7 +61,7 @@ export default function PostTaskForm() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [taskData, setTaskData] = useState<PostTaskFormValues | null>(null);
   const [loading, setLoading] = useState(false);
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, settings } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -267,7 +267,7 @@ export default function PostTaskForm() {
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category for your task" />
-                      </SelectTrigger>
+                      </Trigger>
                     </FormControl>
                     <SelectContent>
                       {categories.map((category) => (
@@ -288,7 +288,7 @@ export default function PostTaskForm() {
                 name="budget"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Budget (Rs)</FormLabel>
+                    <FormLabel>Budget ({settings?.currencySymbol ?? 'Rs'})</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="5000" {...field} value={field.value ?? ''} />
                     </FormControl>

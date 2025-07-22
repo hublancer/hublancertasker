@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { UserProfile } from '@/hooks/use-auth';
+import { UserProfile, useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function AdminUsersPage() {
+  const { settings } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +67,7 @@ export default function AdminUsersPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  Rs{user.wallet?.balance.toFixed(2) ?? '0.00'}
+                  {settings?.currencySymbol ?? 'Rs'}{user.wallet?.balance.toFixed(2) ?? '0.00'}
                 </TableCell>
               </TableRow>
             ))}
