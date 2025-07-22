@@ -41,7 +41,7 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
 function MapBoundsUpdater({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
   const map = useMap();
   useEffect(() => {
-    const physicalTasks = tasks.filter(task => task.type === 'physical');
+    const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
     if (physicalTasks.length > 0) {
       const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates));
       if (bounds.isValid()) {
@@ -56,7 +56,7 @@ function MapControls({ tasks }: { tasks: (Task & { coordinates: [number, number]
   const map = useMap();
 
   const handleRefresh = () => {
-    const physicalTasks = tasks.filter(task => task.type === 'physical');
+    const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
     if (physicalTasks.length > 0) {
       const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates));
       if (bounds.isValid()) {
@@ -110,7 +110,7 @@ function MapControls({ tasks }: { tasks: (Task & { coordinates: [number, number]
 }
 
 const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
-  const physicalTasks = tasks.filter(task => task.type === 'physical');
+  const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
   const mapCenter = center || DEFAULT_CENTER;
   
   if (typeof window === 'undefined') {

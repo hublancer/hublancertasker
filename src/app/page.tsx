@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import HomePageClient from '@/components/HomePageClient';
 import { type Task } from '@/components/TaskCard';
-import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, Timestamp, GeoPoint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -20,6 +20,12 @@ export default function Home() {
       const taskSnapshot = await getDocs(tasksCollection);
       const taskList = taskSnapshot.docs.map(doc => {
         const data = doc.data();
+        
+        let coordinates: [number, number] | null = null;
+        if (data.coordinates instanceof GeoPoint) {
+            coordinates = [data.coordinates.latitude, data.coordinates.longitude];
+        }
+
         return {
           id: doc.id,
           title: data.title,
@@ -30,7 +36,7 @@ export default function Home() {
           offers: data.offerCount || 0, // Assuming you might add this field
           type: data.taskType,
           category: data.category || 'General',
-          coordinates: data.coordinates || [0,0],
+          coordinates: coordinates,
           description: data.description,
           postedBy: data.postedByName || 'Anonymous', // Assuming you store the poster's name
           status: data.status || 'open',
