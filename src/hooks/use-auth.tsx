@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { useSound } from './use-sound';
 
 export interface UserProfile {
@@ -18,6 +18,7 @@ export interface UserProfile {
   wallet?: {
     balance: number;
   };
+  lastMessageReadTimestamp?: any;
 }
 
 export interface PlatformSettings {
@@ -59,7 +60,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [playNotificationSound] = useSound({ frequency: 520, type: 'square', duration: 0.2 });
 
   useEffect(() => {
-    // Listener for platform settings
     const settingsDocRef = doc(db, 'settings', 'platform');
     const unsubscribeSettings = onSnapshot(settingsDocRef, (doc) => {
       if (doc.exists()) {
@@ -69,10 +69,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    // Listener for authentication state changes
     const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        setUser(null);
         setUserProfile(null);
         setLoading(false);
       }
@@ -86,11 +87,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (user) {
-      setLoading(true);
       const userDocRef = doc(db, 'users', user.uid);
       const profileUnsubscribe = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
-          setUserProfile(doc.data() as UserProfile);
+          setUserProfile({ uid: doc.id, ...doc.data() } as UserProfile);
         } else {
           setUserProfile(null);
         }
@@ -101,9 +101,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
       });
       return () => profileUnsubscribe();
-    } else {
-        setUserProfile(null);
-        setLoading(false);
     }
   }, [user]);
 

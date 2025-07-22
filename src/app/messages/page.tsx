@@ -47,7 +47,7 @@ interface Message {
 }
 
 function MessagesPageContent() {
-  const { user, userProfile, playMessageSound } = useAuth();
+  const { user, userProfile } = useAuth();
   const searchParams = useSearchParams();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -64,6 +64,11 @@ function MessagesPageContent() {
       setLoading(false);
       return;
     }
+    
+    // Update last read timestamp when user visits the page
+    const userRef = doc(db, 'users', user.uid);
+    updateDoc(userRef, { lastMessageReadTimestamp: serverTimestamp() });
+
 
     const q = query(
       collection(db, 'conversations'),
@@ -76,10 +81,6 @@ function MessagesPageContent() {
         doc => ({ id: doc.id, ...doc.data() } as Conversation)
       );
       setConversations(convos);
-
-      if (snapshot.docChanges().some(change => change.type === 'modified') && conversations.length > 0) {
-        playMessageSound();
-      }
 
       const conversationIdFromUrl = searchParams.get('conversationId');
       if (conversationIdFromUrl) {

@@ -10,7 +10,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell, Shield, Settings } from 'lucide-react';
+import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell, Shield, Settings, MessageSquare } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { collection, onSnapshot, query, where, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp } from 'firebase/firestore';
 
 interface Notification {
   id: string;
@@ -39,18 +39,19 @@ interface Notification {
 
 
 const AppHeader = () => {
-  const { user, userProfile, settings, loading, playNotificationSound } = useAuth();
+  const { user, userProfile, settings, loading, playNotificationSound, playMessageSound } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
   const pathname = usePathname();
 
   useEffect(() => {
     if (!user) return;
     
-    const q = query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Notifications listener
+    const notificationsQuery = query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'));
+    const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
         const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
         
         if (snapshot.docChanges().some(change => change.type === 'added') && notifications.length > 0) {
@@ -60,9 +61,29 @@ const AppHeader = () => {
         setNotifications(notifs);
     });
 
-    return () => unsubscribe();
+    // Unread messages listener
+    const lastReadTimestamp = userProfile?.lastMessageReadTimestamp || new Timestamp(0, 0);
+    const conversationsQuery = query(
+        collection(db, 'conversations'), 
+        where('participants', 'array-contains', user.uid),
+        where('lastMessageAt', '>', lastReadTimestamp)
+    );
+
+    const unsubscribeConversations = onSnapshot(conversationsQuery, (snapshot) => {
+        const newMessagesCount = snapshot.docs.filter(doc => doc.data().lastMessageAt > (userProfile?.lastMessageReadTimestamp || new Timestamp(0,0))).length;
+        if (newMessagesCount > unreadMessagesCount) {
+             playMessageSound();
+        }
+        setUnreadMessagesCount(snapshot.size);
+    });
+
+
+    return () => {
+        unsubscribeNotifications();
+        unsubscribeConversations();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, playNotificationSound]);
+  }, [user, userProfile, playNotificationSound, playMessageSound]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -73,13 +94,12 @@ const AppHeader = () => {
     await updateDoc(doc(db, 'users', user.uid, 'notifications', id), { read: true });
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
+  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
 
   const navLinks = [
     { href: '/', label: 'Browse Tasks' },
     { href: '/my-tasks', label: 'My Tasks' },
-    { href: '/messages', label: 'Messages' },
+    { href: '/messages', label: 'Messages', badge: unreadMessagesCount, icon: MessageSquare },
   ];
   
   const renderProfileButton = () => {
@@ -175,13 +195,18 @@ const AppHeader = () => {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    'transition-colors hover:text-foreground/80',
+                    'transition-colors hover:text-foreground/80 flex items-center gap-2',
                     pathname === link.href
                       ? 'text-foreground'
                       : 'text-foreground/60'
                   )}
                 >
                   {link.label}
+                  {link.badge && link.badge > 0 && (
+                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                        {link.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>
@@ -219,13 +244,18 @@ const AppHeader = () => {
                         key={link.href}
                         href={link.href}
                         className={cn(
-                          'text-lg font-medium transition-colors hover:text-foreground/80',
+                          'text-lg font-medium transition-colors hover:text-foreground/80 flex items-center gap-2',
                           pathname === link.href
                             ? 'text-foreground'
                             : 'text-foreground/60'
                         )}
                       >
-                        {link.label}
+                         {link.label}
+                         {link.badge && link.badge > 0 && (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                                {link.badge}
+                            </span>
+                         )}
                       </Link>
                     ))}
                   </div>
@@ -258,9 +288,9 @@ const AppHeader = () => {
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="relative">
                         <Bell className="h-5 w-5" />
-                        {unreadCount > 0 && (
+                        {unreadNotificationsCount > 0 && (
                             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-                                {unreadCount}
+                                {unreadNotificationsCount}
                             </span>
                         )}
                     </Button>

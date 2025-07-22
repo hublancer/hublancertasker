@@ -23,6 +23,8 @@ export function useSound({
 
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContext) return;
+      
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
 
