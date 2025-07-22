@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState }from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,7 +25,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Sparkles } from 'lucide-react';
+import { CalendarIcon, Sparkles, LocateFixed } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { SignUpForm, SignUpFormValues } from './SignUpForm';
@@ -34,8 +34,12 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, addDoc, GeoPoint } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { categories } from '@/lib/categories';
+import { Combobox } from './ui/combobox';
+import { pakistaniCities } from '@/lib/locations';
 
 const formSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters.').max(100),
@@ -45,6 +49,9 @@ const formSchema = z.object({
   budget: z.coerce.number().positive('Budget must be a positive number.'),
   taskType: z.enum(['physical', 'online']),
   preferredDateTime: z.date({ required_error: 'A date is required.' }),
+  category: z.string().min(1, { message: 'Please select a category.'}),
+  location: z.string().optional(),
+  coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
 });
 
 type PostTaskFormValues = z.infer<typeof formSchema>;
@@ -67,8 +74,13 @@ export default function PostTaskForm() {
       budget: undefined,
       taskType: 'physical',
       preferredDateTime: undefined,
+      category: 'General',
+      location: '',
+      coordinates: undefined,
     },
   });
+
+  const taskType = form.watch('taskType');
 
   async function handleGenerateDescription() {
     setIsGenerating(true);
@@ -88,13 +100,24 @@ export default function PostTaskForm() {
 
   async function submitTask(taskDetails: PostTaskFormValues, userId: string, userName: string) {
     try {
-        await addDoc(collection(db, 'tasks'), {
-            ...taskDetails,
+        const { coordinates, ...restOfTaskDetails } = taskDetails;
+        const dataToSave: any = {
+            ...restOfTaskDetails,
             postedById: userId,
             postedByName: userName,
             createdAt: serverTimestamp(),
             status: 'open',
-        });
+            offerCount: 0
+        };
+
+        if (taskDetails.taskType === 'physical' && coordinates) {
+            dataToSave.coordinates = new GeoPoint(coordinates.lat, coordinates.lng);
+            dataToSave.location = taskDetails.location;
+        } else {
+            dataToSave.location = 'Online';
+        }
+
+        await addDoc(collection(db, 'tasks'), dataToSave);
         toast({
             title: "Task Posted!",
             description: "Your task is now live for others to see.",
@@ -107,11 +130,14 @@ export default function PostTaskForm() {
             title: "Error",
             description: "Failed to post task. " + error.message,
         });
+    } finally {
+        setLoading(false);
     }
   }
 
   function onSubmit(values: PostTaskFormValues) {
     if (user) {
+      setLoading(true);
       submitTask(values, user.uid, user.displayName || user.email!);
     } else {
       setTaskData(values);
@@ -147,6 +173,30 @@ export default function PostTaskForm() {
     }
   }
   
+  const handleUseCurrentLocation = () => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        form.setValue('coordinates', { lat: latitude, lng: longitude });
+        // You might need a reverse geocoding service to get a location name from coords
+        form.setValue('location', 'Current Location'); 
+        toast({
+            title: "Location set!",
+            description: "Your current location has been set for this task.",
+        });
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        toast({
+            variant: "destructive",
+            title: "Location Error",
+            description: "Could not get your location. Please select one manually.",
+        });
+      }
+    );
+  };
+
+
   const isAuthenticated = !!user;
 
 
@@ -198,6 +248,31 @@ export default function PostTaskForm() {
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category for your task" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.name} value={category.name}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -294,6 +369,44 @@ export default function PostTaskForm() {
                 </FormItem>
               )}
             />
+
+            {taskType === 'physical' && (
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                     <FormControl>
+                        <div className="flex gap-2">
+                           <Combobox
+                                items={pakistaniCities.map(c => ({ value: c.name.toLowerCase(), label: c.name }))}
+                                value={field.value || ''}
+                                onChange={(value) => {
+                                    const city = pakistaniCities.find(c => c.name.toLowerCase() === value);
+                                    if (city) {
+                                        field.onChange(city.name);
+                                        form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
+                                    } else {
+                                        field.onChange('');
+                                        form.setValue('coordinates', undefined);
+                                    }
+                                }}
+                                placeholder="Select a city..."
+                                searchPlaceholder="Search city..."
+                                notFoundText="City not found."
+                            />
+                            <Button type="button" variant="outline" onClick={handleUseCurrentLocation}>
+                                <LocateFixed className="mr-2 h-4 w-4" />
+                                Use current location
+                            </Button>
+                        </div>
+                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </fieldset>
 
           {!showSignUp && (

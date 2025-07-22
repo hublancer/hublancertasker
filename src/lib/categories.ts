@@ -1,5 +1,6 @@
 export const categories = [
   // Physical Services
+  { name: 'General', type: 'physical' },
   { name: 'AC Service & Repair', type: 'physical' },
   { name: 'Electrician', type: 'physical' },
   { name: 'Plumber', type: 'physical' },
