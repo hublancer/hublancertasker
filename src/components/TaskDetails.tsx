@@ -4,17 +4,18 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar, User } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, MessageSquare } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { LoginDialog } from './LoginDialog';
+import { useRouter } from 'next/navigation';
 
 
 interface TaskDetailsProps {
@@ -51,6 +52,7 @@ interface Question {
 export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdate }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const isOwner = user?.uid === task.postedById;
   
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -118,7 +120,7 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
         
         // Update offer count on the task
         const taskRef = doc(db, 'tasks', task.id);
-        const newOfferCount = (offers.length || 0) + 1;
+        const newOfferCount = (task.offers || 0) + 1;
         await updateDoc(taskRef, { offerCount: newOfferCount });
         onTaskUpdate?.();
 
@@ -162,7 +164,7 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
   }
   
   const handleAcceptOffer = async (offer: Offer) => {
-    if (!isOwner || task.status !== 'open') return;
+    if (!isOwner || task.status !== 'open' || !userProfile) return;
     setIsAccepting(offer.id);
     try {
       const batch = writeBatch(db);
@@ -173,12 +175,25 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
         assignedToId: offer.taskerId,
         assignedToName: offer.taskerName,
       });
+      
+      const conversationRef = doc(collection(db, 'conversations'));
+      batch.set(conversationRef, {
+        taskId: task.id,
+        taskTitle: task.title,
+        participants: [task.postedById, offer.taskerId],
+        clientName: userProfile.name,
+        taskerName: offer.taskerName,
+        lastMessage: 'Task assigned. Start conversation!',
+        lastMessageAt: serverTimestamp(),
+        clientAvatar: user?.photoURL || '',
+        taskerAvatar: offer.taskerAvatar || ''
+      });
 
       await batch.commit();
       onTaskUpdate?.();
 
       toast({ title: `Task assigned to ${offer.taskerName}!` });
-      onBack();
+      router.push(`/messages?conversationId=${conversationRef.id}`);
 
     } catch (error) {
        toast({ variant: 'destructive', title: "Failed to assign task." });
@@ -187,6 +202,24 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
       setIsAccepting(null);
     }
   }
+
+  const handleMessage = async () => {
+      if (!user) return;
+      
+      const q = query(
+        collection(db, 'conversations'),
+        where('taskId', '==', task.id),
+        where('participants', 'array-contains', user.uid)
+      );
+
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const conversationId = querySnapshot.docs[0].id;
+        router.push(`/messages?conversationId=${conversationId}`);
+      } else {
+        toast({ variant: 'destructive', title: 'Conversation not found.' });
+      }
+  };
 
 
   const getStatusPill = (status: Task['status']) => {
@@ -220,12 +253,23 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
         </Button>
       )
     }
+    
+    const isParticipant = task.postedById === user.uid || task.assignedToId === user.uid;
+
+    if (task.status === 'assigned' && isParticipant) {
+      return (
+        <Button onClick={handleMessage} className="w-full mt-4">
+          <MessageSquare className="mr-2 h-4 w-4" /> Message
+        </Button>
+      );
+    }
 
     if (isOwner) {
        if (task.status === 'open' && offers.length > 0) {
          return <Button className="w-full mt-4" disabled>Review Offers Below</Button>
        }
        if (task.status === 'assigned') {
+         // Placeholder for future functionality
          return <Button className="w-full mt-4">Mark as Complete</Button>
        }
        return null;
@@ -460,3 +504,4 @@ export default function TaskDetails({ task, onBack, onLocationClick, onTaskUpdat
     </>
   );
 }
+    

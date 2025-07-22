@@ -1,34 +1,61 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read and write to their own user document.
-    match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isParticipant(conversationId) {
+      return request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
     }
 
-    // Tasks can be read by anyone, but only created, updated, or deleted by authenticated users.
+    // USERS collection
+    match /users/{userId} {
+      allow read, update, delete: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn();
+    }
+    
+    // TASKS collection
     match /tasks/{taskId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && request.resource.data.postedById == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && isOwner(resource.data.postedById);
+      
+      // OFFERS subcollection
+      match /offers/{offerId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        // Only the offer creator can modify/delete it
+        allow update, delete: if isSignedIn() && isOwner(resource.data.taskerId);
+      }
+      
+      // QUESTIONS subcollection
+      match /questions/{questionId} {
+         allow read: if true;
+         allow create: if isSignedIn();
+         allow update: if isSignedIn() && (isOwner(resource.data.userId) || isOwner(get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById));
+         allow delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+    }
+    
+    // CONVERSATIONS collection
+    match /conversations/{conversationId} {
+      allow read, update, delete: if isSignedIn() && isParticipant(conversationId);
+      allow create: if isSignedIn();
 
-        // Offers can be created by any authenticated user, but only on 'open' tasks.
-        match /offers/{offerId} {
-            allow read: if true;
-            allow create: if request.auth != null && get(/databases/$(database)/documents/tasks/$(taskId)).data.status == 'open';
-        }
-
-        // Questions can be created by any authenticated user.
-        match /questions/{questionId} {
-            allow read: if true;
-            allow create: if request.auth != null;
-            // Allow the task owner to update a question with an answer.
-            allow update: if request.auth != null && get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid;
-        }
+      // MESSAGES subcollection
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn() && isParticipant(conversationId);
+        allow update, delete: if isSignedIn() && isOwner(resource.data.senderId);
+      }
     }
   }
 }
+    
