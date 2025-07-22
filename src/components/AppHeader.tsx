@@ -75,6 +75,13 @@ const AppHeader = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+             <DropdownMenuItem asChild>
+              <Link href={`/profile/${user.uid}`}>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>

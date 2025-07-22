@@ -4,12 +4,12 @@ import { type Task } from './TaskCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle, Star } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import Link from 'next/link';
 
 
 interface TaskDetailsProps {
@@ -48,6 +49,22 @@ interface Question {
     createdAt: any;
 }
 
+const StarRating = ({ rating, setRating }: { rating: number; setRating?: (rating: number) => void }) => {
+    const isInteractive = !!setRating;
+    return (
+        <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                    key={star}
+                    className={`h-5 w-5 ${rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
+                        } ${isInteractive ? 'cursor-pointer' : ''}`}
+                    onClick={() => setRating?.(star)}
+                />
+            ))}
+        </div>
+    );
+};
+
 
 export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
@@ -71,10 +88,18 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
 
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
 
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
+
   useEffect(() => {
     if (!task?.id) return;
     setOffers([]);
     setQuestions([]);
+    setShowReviewForm(false);
+    setHasAlreadyReviewed(false);
     setLoadingOffers(true);
     setLoadingQuestions(true);
 
@@ -98,11 +123,22 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
         setLoadingQuestions(false);
     });
 
+    // Check if review exists
+    if (user && task.status === 'completed' && task.assignedToId) {
+        const reviewQuery = query(collection(db, 'reviews'), where('taskId', '==', task.id), where('clientId', '==', user.uid));
+        getDocs(reviewQuery).then(snapshot => {
+            if (!snapshot.empty) {
+                setHasAlreadyReviewed(true);
+            }
+        });
+    }
+
+
     return () => {
         unsubscribeOffers();
         unsubscribeQuestions();
     }
-  }, [task.id]);
+  }, [task.id, user, task.status, task.assignedToId]);
 
  const handleMakeOffer = async () => {
     if (!user || !userProfile) {
@@ -269,7 +305,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     }
 
     const handleCompleteTask = async () => {
-         if (!isOwner) return;
+         if (!isOwner || task.status !== 'assigned') return;
         try {
             await updateDoc(doc(db, 'tasks', task.id), { status: 'completed' });
             toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
@@ -277,6 +313,60 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
         } catch (error) {
             console.error("Error completing task: ", error);
             toast({ variant: 'destructive', title: 'Could not complete task.' });
+        }
+    }
+
+    const handleSubmitReview = async () => {
+        if (!user || !task.assignedToId || !userProfile) return;
+        if (reviewRating === 0 || !reviewComment) {
+            toast({ variant: 'destructive', title: 'Please provide a rating and a comment.' });
+            return;
+        }
+
+        setIsSubmittingReview(true);
+        try {
+            await runTransaction(db, async (transaction) => {
+                const taskerRef = doc(db, 'users', task.assignedToId!);
+                const taskerDoc = await transaction.get(taskerRef);
+
+                if (!taskerDoc.exists()) {
+                    throw new Error("Tasker not found!");
+                }
+
+                const newReviewRef = doc(collection(db, 'reviews'));
+                transaction.set(newReviewRef, {
+                    taskId: task.id,
+                    taskerId: task.assignedToId,
+                    clientId: user.uid,
+                    clientName: userProfile.name,
+                    clientAvatar: user.photoURL || '',
+                    rating: reviewRating,
+                    comment: reviewComment,
+                    createdAt: serverTimestamp(),
+                });
+
+                const taskerData = taskerDoc.data();
+                const oldReviewCount = taskerData.reviewCount || 0;
+                const oldAverageRating = taskerData.averageRating || 0;
+                
+                const newReviewCount = oldReviewCount + 1;
+                const newAverageRating = ((oldAverageRating * oldReviewCount) + reviewRating) / newReviewCount;
+
+                transaction.update(taskerRef, {
+                    reviewCount: newReviewCount,
+                    averageRating: newAverageRating
+                });
+            });
+
+            setHasAlreadyReviewed(true);
+            setShowReviewForm(false);
+            toast({ title: 'Thank you for your review!' });
+
+        } catch (error) {
+            console.error("Error submitting review:", error);
+            toast({ variant: 'destructive', title: 'Failed to submit review.' });
+        } finally {
+            setIsSubmittingReview(false);
         }
     }
 
@@ -339,7 +429,16 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     }
     
     if (task.status === 'completed') {
-        // Future: Add review button
+        if (isOwner && !hasAlreadyReviewed && !showReviewForm) {
+            return (
+                <Button className="w-full mt-4" onClick={() => setShowReviewForm(true)}>
+                    <Star className="mr-2 h-4 w-4" /> Leave a Review
+                </Button>
+            );
+        }
+         if (isOwner && hasAlreadyReviewed) {
+            return <Button className="w-full mt-4" disabled>Review Submitted</Button>;
+        }
         return <Button className="w-full mt-4" disabled>Task Completed</Button>
     }
 
@@ -409,6 +508,40 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     
     return null;
   }
+
+  const renderReviewForm = () => {
+        if (!showReviewForm || hasAlreadyReviewed) return null;
+
+        return (
+            <Card className="mt-4">
+                <CardContent className="p-4 space-y-4">
+                    <h3 className="font-bold text-center">Leave a Review for {task.assignedToName}</h3>
+                    <div className="flex justify-center">
+                        <StarRating rating={reviewRating} setRating={setReviewRating} />
+                    </div>
+                    <Textarea
+                        placeholder="Share your experience..."
+                        value={reviewComment}
+                        onChange={(e) => setReviewComment(e.target.value)}
+                        disabled={isSubmittingReview}
+                    />
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowReviewForm(false)}
+                            disabled={isSubmittingReview}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSubmitReview} disabled={isSubmittingReview} className="flex-1">
+                            {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
+
 
   return (
     <>
@@ -488,6 +621,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                 </p>
                 <p className="text-3xl font-bold">Rs{task.price}</p>
                 {renderActionButtons()}
+                {renderReviewForm()}
               </CardContent>
             </Card>
             <Button variant="outline" className="w-full">
@@ -506,16 +640,18 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                     <Card key={offer.id}>
                       <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
                         <div className="flex-shrink-0 flex flex-col items-center text-center sm:border-r sm:pr-4 sm:w-32">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage
-                              src={offer.taskerAvatar || 'https://placehold.co/40x40.png'}
-                              data-ai-hint="person face"
-                            />
-                            <AvatarFallback>
-                              {offer.taskerName.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <p className="font-semibold mt-2">{offer.taskerName}</p>
+                            <Link href={`/profile/${offer.taskerId}`}>
+                              <Avatar className="h-12 w-12 cursor-pointer">
+                                <AvatarImage
+                                  src={offer.taskerAvatar || 'https://placehold.co/40x40.png'}
+                                  data-ai-hint="person face"
+                                />
+                                <AvatarFallback>
+                                  {offer.taskerName.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </Link>
+                          <Link href={`/profile/${offer.taskerId}`}><p className="font-semibold mt-2 hover:underline">{offer.taskerName}</p></Link>
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
