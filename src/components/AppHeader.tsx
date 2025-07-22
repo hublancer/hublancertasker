@@ -18,7 +18,6 @@ import { LoginDialog } from './LoginDialog';
 
 const AppHeader = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isClient, setIsClient] = useState(true);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   // In a real app, this would come from an auth context/hook
@@ -26,7 +25,6 @@ const AppHeader = () => {
   // useEffect(() => {
   //   // This is a mock authentication check
   //   setIsAuthenticated(false);
-  //   setIsClient(true);
   // }, []);
 
   const pathname = usePathname();
@@ -115,11 +113,9 @@ const AppHeader = () => {
               <span className="font-bold font-headline text-lg">Hublancer</span>
             </Link>
             <div className="flex items-center space-x-2">
-              {isAuthenticated && isClient && (
-                <Button asChild size="sm">
-                  <Link href="/post-task">Post Task</Link>
-                </Button>
-              )}
+              <Button asChild size="sm">
+                <Link href="/post-task">Post Task</Link>
+              </Button>
                <Button variant="default" size="icon" className="bg-accent hover:bg-accent/90" onClick={() => !isAuthenticated && setIsLoginOpen(true)}>
                   <User className="h-5 w-5" />
                   <span className="sr-only">Profile</span>
@@ -129,14 +125,12 @@ const AppHeader = () => {
 
           {/* Right side buttons for Desktop */}
           <div className="hidden flex-1 items-center justify-end space-x-2 md:flex">
-            {isAuthenticated && isClient && (
               <Button
                 asChild
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 <Link href="/post-task">Post a Task</Link>
               </Button>
-            )}
             <Button variant="default" size="icon" className="bg-accent hover:bg-accent/90" onClick={() => !isAuthenticated && setIsLoginOpen(true)}>
               <User className="h-5 w-5" />
               <span className="sr-only">Profile</span>
