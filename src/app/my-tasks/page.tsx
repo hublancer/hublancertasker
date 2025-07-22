@@ -26,6 +26,7 @@ export default function MyTasksPage() {
   // Client state
   const [openPostedTasks, setOpenPostedTasks] = useState<Task[]>([]);
   const [assignedPostedTasks, setAssignedPostedTasks] = useState<Task[]>([]);
+  const [pendingCompletionPostedTasks, setPendingCompletionPostedTasks] = useState<Task[]>([]);
   const [completedPostedTasks, setCompletedPostedTasks] = useState<Task[]>([]);
 
   // Tasker state
@@ -81,16 +82,19 @@ export default function MyTasksPage() {
 
         const open: Task[] = [];
         const assigned: Task[] = [];
+        const pendingCompletion: Task[] = [];
         const completed: Task[] = [];
 
         postedSnapshot.forEach(doc => {
           const task = toTask(doc);
           if (task.status === 'open') open.push(task);
           if (task.status === 'assigned') assigned.push(task);
+          if (task.status === 'pending-completion') pendingCompletion.push(task);
           if (task.status === 'completed') completed.push(task);
         });
         setOpenPostedTasks(open);
         setAssignedPostedTasks(assigned);
+        setPendingCompletionPostedTasks(pendingCompletion);
         setCompletedPostedTasks(completed);
       } else if (userProfile.accountType === 'tasker') {
         // Fetch tasks assigned to the tasker
@@ -173,9 +177,10 @@ export default function MyTasksPage() {
 
   const renderClientDashboard = () => (
     <Tabs defaultValue="open" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 max-w-md">
+      <TabsList className="grid w-full grid-cols-4 max-w-lg">
         <TabsTrigger value="open">Open</TabsTrigger>
         <TabsTrigger value="assigned">Assigned</TabsTrigger>
+        <TabsTrigger value="pending">Pending</TabsTrigger>
         <TabsTrigger value="completed">Completed</TabsTrigger>
       </TabsList>
       <TabsContent value="open" className="mt-6">
@@ -205,6 +210,21 @@ export default function MyTasksPage() {
             ))
           ) : (
             <p>You have no assigned tasks.</p>
+          )}
+        </div>
+      </TabsContent>
+      <TabsContent value="pending" className="mt-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {pendingCompletionPostedTasks.length > 0 ? (
+            pendingCompletionPostedTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onSelect={() => handleTaskSelect(task.id)}
+              />
+            ))
+          ) : (
+            <p>You have no tasks pending completion.</p>
           )}
         </div>
       </TabsContent>
