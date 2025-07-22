@@ -28,7 +28,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
-import TaskDetails from './TaskDetails';
 import { Label } from './ui/label';
 import { Slider } from './ui/slider';
 import { cn } from '@/lib/utils';
@@ -37,8 +36,7 @@ import { CategoryFilter } from './CategoryFilter';
 import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
 import { Input } from './ui/input';
-import { collection, getDocs, GeoPoint, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 interface HomePageClientProps {
   tasks: (Task & {
@@ -62,18 +60,21 @@ const getZoomFromDistance = (distance: number) => {
   return 8;
 };
 
-export default function HomePageClient({ tasks: initialTasks }: HomePageClientProps) {
-  const [tasks, setTasks] = useState(initialTasks);
+export default function HomePageClient({ tasks }: HomePageClientProps) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const [mobileView, setMobileView] = useState<'list' | 'map' | 'details'>('list');
-  const [selectedTask, setSelectedTask] = useState<(typeof tasks)[0] | null>(null);
-  const [currentMapCenter, setCurrentMapCenter] = useState<[number, number] | null>(pakistaniCities[0].coordinates);
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [currentMapCenter, setCurrentMapCenter] = useState<
+    [number, number] | null
+  >(pakistaniCities[0].coordinates);
   const [mapZoom, setMapZoom] = useState(6);
   const [isClient, setIsClient] = useState(false);
 
   // Applied filters
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
-  const [appliedTaskType, setAppliedTaskType] = useState<TaskTypeFilter>('all');
+  const [appliedTaskType, setAppliedTaskType] =
+    useState<TaskTypeFilter>('all');
   const [appliedLocation, setAppliedLocation] = useState<{
     name: string;
     coordinates: [number, number];
@@ -85,14 +86,19 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
   const [appliedSortBy, setAppliedSortBy] = useState<SortByType>('newest');
 
   // Temporary state for the popovers
-  const [popoverTaskType, setPopoverTaskType] = useState<TaskTypeFilter>(appliedTaskType);
-  const [popoverLocation, setPopoverLocation] = useState<typeof appliedLocation>(appliedLocation);
+  const [popoverTaskType, setPopoverTaskType] =
+    useState<TaskTypeFilter>(appliedTaskType);
+  const [popoverLocation, setPopoverLocation] =
+    useState<typeof appliedLocation>(appliedLocation);
   const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
-  const [popoverAvailableOnly, setPopoverAvailableOnly] = useState(appliedAvailableOnly);
-  const [popoverNoOffersOnly, setPopoverNoOffersOnly] = useState(appliedNoOffersOnly);
+  const [popoverAvailableOnly, setPopoverAvailableOnly] =
+    useState(appliedAvailableOnly);
+  const [popoverNoOffersOnly, setPopoverNoOffersOnly] =
+    useState(appliedNoOffersOnly);
 
   const [isLocationPopoverOpen, setIsLocationPopoverOpen] = useState(false);
-  const [isOtherFiltersPopoverOpen, setIsOtherFiltersPopoverOpen] = useState(false);
+  const [isOtherFiltersPopoverOpen, setIsOtherFiltersPopoverOpen] =
+    useState(false);
 
   const Map = useMemo(
     () =>
@@ -102,43 +108,6 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
       }),
     []
   );
-  
-  const refreshTasks = useCallback(async () => {
-      const tasksCollection = collection(db, 'tasks');
-      const taskSnapshot = await getDocs(tasksCollection);
-      const taskList = taskSnapshot.docs.map(doc => {
-        const data = doc.data();
-        
-        let coordinates: [number, number] | null = null;
-        if (data.coordinates instanceof GeoPoint) {
-            coordinates = [data.coordinates.latitude, data.coordinates.longitude];
-        }
-
-        return {
-          id: doc.id,
-          title: data.title,
-          location: data.location,
-          date: data.preferredDateTime instanceof Timestamp ? data.preferredDateTime.toDate().toLocaleDateString() : data.preferredDateTime,
-          price: data.budget,
-          offers: data.offerCount || 0,
-          type: data.taskType,
-          category: data.category || 'General',
-          coordinates: coordinates,
-          description: data.description,
-          postedBy: data.postedByName || 'Anonymous',
-          status: data.status || 'open',
-           postedById: data.postedById,
-        } as (Task & { coordinates: [number, number] | null, description: string, postedBy: string });
-      });
-      setTasks(taskList);
-
-      // Re-apply selected task with fresh data
-      if (selectedTask) {
-        const freshSelectedTask = taskList.find(t => t.id === selectedTask.id) || null;
-        setSelectedTask(freshSelectedTask as any);
-      }
-    }, [selectedTask]);
-
 
   useEffect(() => {
     setIsClient(true);
@@ -157,31 +126,15 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
   }, []);
 
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
-    setSelectedTask(task);
-    if (window.innerWidth < 768) { // md breakpoint
-        setMobileView('details');
-    }
-    if (task.coordinates) {
-        setCurrentMapCenter(task.coordinates);
-        setMapZoom(14);
-    }
-  };
-
-  const handleBackFromDetails = () => {
-      setSelectedTask(null);
-      if (window.innerWidth < 768) { // md breakpoint
-          setMobileView('list');
-      }
-  };
-
-  const handleLocationClick = (task: (typeof tasks)[0]) => {
+    setSelectedTaskId(task.id);
     if (task.coordinates) {
       setCurrentMapCenter(task.coordinates);
       setMapZoom(14);
-      if (window.innerWidth < 768) {
-        setMobileView('map');
-      }
     }
+  };
+
+  const handleViewDetails = (taskId: string) => {
+    router.push(`/task/${taskId}`);
   };
 
   const handleLocationFilterApply = () => {
@@ -230,10 +183,13 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
 
   const getLocationButtonLabel = () => {
     if (appliedLocation) {
-       if (appliedLocation.name === 'Your Location' && appliedTaskType === 'physical') {
-         return `Within ${appliedDistance}km`;
-       }
-       return appliedLocation.name;
+      if (
+        appliedLocation.name === 'Your Location' &&
+        appliedTaskType === 'physical'
+      ) {
+        return `Within ${appliedDistance}km`;
+      }
+      return appliedLocation.name;
     }
     if (appliedTaskType === 'physical') return 'In-person';
     if (appliedTaskType === 'online') return 'Remotely';
@@ -249,7 +205,10 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
     } else if (appliedSortBy === 'price-desc') {
       tasksToFilter.sort((a, b) => b.price - a.price);
     } else {
-       tasksToFilter.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      tasksToFilter.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
     }
 
     return tasksToFilter.filter(task => {
@@ -270,31 +229,32 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
         if (task.type !== appliedTaskType) return false;
       }
 
-      if (
-        appliedLocation &&
-        task.type === 'physical' &&
-        task.coordinates
-      ) {
+      if (appliedLocation && task.type === 'physical' && task.coordinates) {
         const [lat1, lon1] = appliedLocation.coordinates;
         const [lat2, lon2] = task.coordinates;
-        
+
         const R = 6371; // Radius of the Earth in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c; // Distance in km
 
         if (distance > appliedDistance) return false;
       }
-      
+
       if (appliedPrice !== 'any') {
         const priceValue = task.price;
         if (appliedPrice === '<5000' && priceValue >= 5000) return false;
-        if (appliedPrice === '5000-20000' && (priceValue < 5000 || priceValue > 20000))
+        if (
+          appliedPrice === '5000-20000' &&
+          (priceValue < 5000 || priceValue > 20000)
+        )
           return false;
         if (appliedPrice === '>20000' && priceValue <= 20000) return false;
       }
@@ -318,36 +278,15 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
     appliedNoOffersOnly,
     appliedSortBy,
   ]);
-  
-  const rightPanelContent = () => {
-    if (selectedTask) {
-      return (
-        <TaskDetails
-          task={selectedTask as any}
-          onBack={handleBackFromDetails}
-          onTaskUpdate={refreshTasks}
-        />
-      );
-    }
-    return (
-      <Map
-        tasks={filteredTasks}
-        onTaskSelect={handleTaskSelect}
-        center={currentMapCenter}
-        zoom={mapZoom}
-      />
-    );
-  };
 
   const isMobile = isClient && window.innerWidth < 768;
-
 
   return (
     <div className="flex flex-col h-screen bg-background">
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-           <div className="flex w-full items-center gap-2 py-4">
+          <div className="flex w-full items-center gap-2 py-4">
             <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -434,7 +373,11 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
                           const city = pakistaniCities.find(
                             c => c.name.toLowerCase() === value
                           );
-                          setPopoverLocation(city ? { name: city.name, coordinates: city.coordinates } : null);
+                          setPopoverLocation(
+                            city
+                              ? { name: city.name, coordinates: city.coordinates }
+                              : null
+                          );
                         }}
                         placeholder="Search city..."
                       />
@@ -459,7 +402,9 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
                         onValueChange={value => setPopoverDistance(value[0])}
                         max={MOCK_MAX_DISTANCE}
                         step={1}
-                        disabled={popoverTaskType !== 'physical' || !popoverLocation}
+                        disabled={
+                          popoverTaskType !== 'physical' || !popoverLocation
+                        }
                       />
                     </div>
                     <div className="flex justify-end gap-2 mt-2">
@@ -474,7 +419,7 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
                   </div>
                 </PopoverContent>
               </Popover>
-               <Popover
+              <Popover
                 open={isOtherFiltersPopoverOpen}
                 onOpenChange={setIsOtherFiltersPopoverOpen}
               >
@@ -494,34 +439,41 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
                       </h4>
                     </div>
                     <div className="grid gap-4">
-                          <Select value={appliedPrice} onValueChange={setAppliedPrice}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Price" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="any">Any Price</SelectItem>
-                                <SelectItem value="<5000">Under Rs5000</SelectItem>
-                                <SelectItem value="5000-20000">Rs5000 - Rs20000</SelectItem>
-                                <SelectItem value=">20000">Over Rs20000</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Select
-                              value={appliedSortBy}
-                              onValueChange={value => setAppliedSortBy(value as SortByType)}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Sort by" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="newest">Newest</SelectItem>
-                                <SelectItem value="price-asc">
-                                  Price: Low to High
-                                </SelectItem>
-                                <SelectItem value="price-desc">
-                                  Price: High to Low
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                      <Select
+                        value={appliedPrice}
+                        onValueChange={setAppliedPrice}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Price" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any Price</SelectItem>
+                          <SelectItem value="<5000">Under Rs5000</SelectItem>
+                          <SelectItem value="5000-20000">
+                            Rs5000 - Rs20000
+                          </SelectItem>
+                          <SelectItem value=">20000">Over Rs20000</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={appliedSortBy}
+                        onValueChange={value =>
+                          setAppliedSortBy(value as SortByType)
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Sort by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="newest">Newest</SelectItem>
+                          <SelectItem value="price-asc">
+                            Price: Low to High
+                          </SelectItem>
+                          <SelectItem value="price-desc">
+                            Price: High to Low
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label htmlFor="available-only">
@@ -569,13 +521,15 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
           </div>
         </div>
       </div>
-       <main className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[40%_60%] overflow-hidden">
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-[40%_60%] overflow-hidden">
         {/* Mobile view toggle */}
         <div className="md:hidden p-2 bg-card border-b flex justify-center">
           <div className="inline-flex rounded-md shadow-sm">
             <Button
-              onClick={() => { setMobileView('list'); setSelectedTask(null); }}
-              variant={mobileView === 'list' && !selectedTask ? 'secondary' : 'ghost'}
+              onClick={() => {
+                setMobileView('list');
+              }}
+              variant={mobileView === 'list' ? 'secondary' : 'ghost'}
               className="rounded-r-none"
             >
               <List className="mr-2 h-4 w-4" />
@@ -584,9 +538,8 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
             <Button
               onClick={() => {
                 setMobileView('map');
-                setSelectedTask(null);
               }}
-              variant={mobileView === 'map' && !selectedTask ? 'secondary' : 'ghost'}
+              variant={mobileView === 'map' ? 'secondary' : 'ghost'}
               className="rounded-l-none"
             >
               <MapIcon className="mr-2 h-4 w-4" />
@@ -599,7 +552,7 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
         <ScrollArea
           className={cn(
             'h-[calc(100vh-200px)] md:h-[calc(100vh-129px)]',
-            (isMobile && mobileView !== 'list') && 'hidden',
+            isMobile && mobileView !== 'list' && 'hidden',
             'md:block'
           )}
         >
@@ -610,7 +563,8 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
                   key={task.id}
                   task={task}
                   onSelect={() => handleTaskSelect(task)}
-                  isSelected={selectedTask?.id === task.id}
+                  onViewDetails={() => handleViewDetails(task.id)}
+                  isSelected={selectedTaskId === task.id}
                 />
               ))
             ) : (
@@ -620,15 +574,24 @@ export default function HomePageClient({ tasks: initialTasks }: HomePageClientPr
             )}
           </div>
         </ScrollArea>
-        {/* Map or Task Details */}
+        {/* Map */}
         <div
           className={cn(
-            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10', 
-            (isMobile && mobileView === 'list') && 'hidden',
+            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10',
+            isMobile && mobileView === 'list' && 'hidden',
             'md:block'
           )}
         >
-          {isClient ? rightPanelContent() : <Skeleton className="h-full w-full" />}
+          {isClient ? (
+            <Map
+              tasks={filteredTasks}
+              onTaskSelect={handleViewDetails}
+              center={currentMapCenter}
+              zoom={mapZoom}
+            />
+          ) : (
+            <Skeleton className="h-full w-full" />
+          )}
         </div>
       </main>
     </div>

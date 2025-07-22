@@ -25,8 +25,9 @@ interface TaskDetailsProps {
     description: string;
     postedBy: string;
   };
-  onBack: () => void;
+  onBack?: () => void;
   onTaskUpdate?: () => void;
+  isPage?: boolean;
 }
 
 interface Offer {
@@ -66,8 +67,8 @@ const StarRating = ({ rating, setRating }: { rating: number; setRating?: (rating
 };
 
 
-export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsProps) {
-  const { user, userProfile, settings } = useAuth();
+export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false }: TaskDetailsProps) {
+  const { user, userProfile, settings, addNotification } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const isOwner = user?.uid === task.postedById;
@@ -93,15 +94,6 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
-
-  const addNotification = async (userId: string, message: string, link: string) => {
-    await addDoc(collection(db, 'users', userId, 'notifications'), {
-        message,
-        link,
-        read: false,
-        createdAt: serverTimestamp()
-    });
-  }
 
   useEffect(() => {
     if (!task?.id) return;
@@ -190,7 +182,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                 transaction.update(taskRef, { offerCount: newOfferCount });
             });
             
-            await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/my-tasks`);
+            await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
 
 
             onTaskUpdate?.();
@@ -341,7 +333,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
             await deleteDoc(doc(db, 'tasks', task.id));
             toast({title: 'Task Cancelled', description: 'Your task has been successfully removed.'});
             onTaskUpdate?.();
-            onBack();
+            if(onBack) onBack();
+            else router.push('/my-tasks');
         } catch (error) {
             console.error("Error cancelling task: ", error);
             toast({ variant: 'destructive', title: 'Could not cancel task.' });
@@ -635,18 +628,26 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
     <>
     <ScrollArea className="h-full">
       <div className="p-4 md:p-6 space-y-6 bg-card text-card-foreground h-full">
-        <div className="flex justify-between items-center mb-4">
-            <Button
-              variant="ghost"
-              onClick={onBack}
-              className="pl-0"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Return to tasks
-            </Button>
-            {getStatusPill(task.status)}
-        </div>
+        {!isPage && onBack && (
+          <div className="flex justify-between items-center mb-4">
+              <Button
+                variant="ghost"
+                onClick={onBack}
+                className="pl-0"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Return to tasks
+              </Button>
+              {getStatusPill(task.status)}
+          </div>
+        )}
 
+        {isPage && (
+          <div className="flex justify-between items-center mb-4">
+            <span /> 
+            {getStatusPill(task.status)}
+          </div>
+        )}
 
         <div className="space-y-2">
           <h1 className="text-2xl md:text-3xl font-bold font-headline">{task.title}</h1>
@@ -743,9 +744,13 @@ export default function TaskDetails({ task, onBack, onTaskUpdate }: TaskDetailsP
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
-                            {isOwner ? (
-                              <p className="text-lg font-bold">{settings?.currencySymbol ?? 'Rs'}{offer.offerPrice}</p>
-                            ) : <div />}
+                             <div>
+                                {isOwner ? (
+                                  <p className="text-lg font-bold">{settings?.currencySymbol ?? 'Rs'}{offer.offerPrice}</p>
+                                ) : (
+                                  <p className="text-sm font-semibold">Made an offer</p>
+                                )}
+                              </div>
                             {isOwner && task.status === 'open' && (
                               <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
                                 {isAccepting === offer.id ? "Accepting..." : "Accept"}

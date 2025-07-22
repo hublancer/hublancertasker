@@ -39,7 +39,7 @@ interface Notification {
 
 
 const AppHeader = () => {
-  const { user, userProfile, settings, loading } = useAuth();
+  const { user, userProfile, settings, loading, playNotificationSound } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -52,11 +52,17 @@ const AppHeader = () => {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        
+        if (snapshot.docChanges().some(change => change.type === 'added') && notifications.length > 0) {
+            playNotificationSound();
+        }
+        
         setNotifications(notifs);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, playNotificationSound]);
 
   const handleLogout = async () => {
     await signOut(auth);

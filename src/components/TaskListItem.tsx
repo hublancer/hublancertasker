@@ -6,16 +6,19 @@ import { cn } from '@/lib/utils';
 import { MapPin, Calendar, Tag, Users } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useAuth } from '@/hooks/use-auth';
+import { Button } from './ui/button';
 
 interface TaskListItemProps {
   task: Task;
-  onSelect: (task: Task) => void;
+  onSelect: () => void;
+  onViewDetails: () => void;
   isSelected: boolean;
 }
 
 export default function TaskListItem({
   task,
   onSelect,
+  onViewDetails,
   isSelected,
 }: TaskListItemProps) {
   const isRemote = task.type === 'online';
@@ -27,7 +30,7 @@ export default function TaskListItem({
         'hover:shadow-md transition-shadow duration-200 cursor-pointer',
         isSelected ? 'border-primary' : ''
       )}
-      onClick={() => onSelect(task)}
+      onClick={onSelect}
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start gap-4">
@@ -59,8 +62,9 @@ export default function TaskListItem({
             </div>
           </div>
 
-          <div className="text-right flex flex-col items-end justify-between h-full">
+          <div className="text-right flex flex-col items-center justify-between h-full gap-2">
             <p className="text-xl font-bold text-primary">{settings?.currencySymbol ?? 'Rs'}{task.price}</p>
+            <Button size="sm" onClick={(e) => { e.stopPropagation(); onViewDetails(); }}>View</Button>
           </div>
         </div>
       </CardContent>

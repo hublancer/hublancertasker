@@ -47,7 +47,7 @@ interface Message {
 }
 
 function MessagesPageContent() {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, playMessageSound } = useAuth();
   const searchParams = useSearchParams();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -77,6 +77,10 @@ function MessagesPageContent() {
       );
       setConversations(convos);
 
+      if (snapshot.docChanges().some(change => change.type === 'modified') && conversations.length > 0) {
+        playMessageSound();
+      }
+
       const conversationIdFromUrl = searchParams.get('conversationId');
       if (conversationIdFromUrl) {
         const foundConvo = convos.find(c => c.id === conversationIdFromUrl);
@@ -90,6 +94,7 @@ function MessagesPageContent() {
     });
 
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, searchParams, selectedConversation]);
 
   useEffect(() => {
@@ -299,4 +304,3 @@ export default function MessagesPage() {
     </Suspense>
   )
 }
-    

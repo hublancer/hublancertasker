@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { MapPin, Calendar, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -32,20 +31,24 @@ export type Task = {
 
 interface TaskCardProps {
   task: Task;
-  onSelect?: (task: Task) => void;
+  onSelect?: () => void;
 }
 
 export default function TaskCard({ task, onSelect }: TaskCardProps) {
   const { settings } = useAuth();
 
-  const handleViewTask = () => {
+  const handleViewTask = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (onSelect) {
-      onSelect(task);
+      onSelect();
     }
   };
 
   return (
-    <Card className="flex flex-col hover:shadow-md transition-shadow duration-300">
+    <Card
+      className="flex flex-col hover:shadow-md transition-shadow duration-300 cursor-pointer"
+      onClick={handleViewTask}
+    >
       <CardHeader>
         <CardTitle className="font-headline text-lg leading-snug h-12">
           {task.title}
@@ -73,7 +76,10 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
         </div>
       </CardContent>
       <CardFooter className="flex justify-between items-center mt-auto pt-4">
-        <div className="text-xl font-bold text-primary">{settings?.currencySymbol ?? 'Rs'}{task.price}</div>
+        <div className="text-xl font-bold text-primary">
+          {settings?.currencySymbol ?? 'Rs'}
+          {task.price}
+        </div>
         <Button onClick={handleViewTask}>View Task</Button>
       </CardFooter>
     </Card>

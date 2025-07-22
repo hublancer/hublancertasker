@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useSound } from './use-sound';
 
 export interface UserProfile {
   uid: string;
@@ -30,15 +31,32 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   settings: PlatformSettings | null;
   loading: boolean;
+  addNotification: (userId: string, message: string, link: string) => Promise<void>;
+  playNewTaskSound: () => void;
+  playMessageSound: () => void;
+  playNotificationSound: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, userProfile: null, settings: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ 
+    user: null, 
+    userProfile: null, 
+    settings: null, 
+    loading: true,
+    addNotification: async () => {},
+    playNewTaskSound: () => {},
+    playMessageSound: () => {},
+    playNotificationSound: () => {},
+});
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [playNewTaskSound] = useSound('/sounds/new-task.mp3');
+  const [playMessageSound] = useSound('/sounds/new-message.mp3');
+  const [playNotificationSound] = useSound('/sounds/new-notification.mp3');
 
   useEffect(() => {
     // Listener for platform settings
@@ -55,11 +73,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (!currentUser) {
-        // If no user, stop loading. Profile will be null.
         setUserProfile(null);
         setLoading(false);
       }
-      // If there IS a user, the profile listener below will handle setting loading to false.
     });
 
     return () => {
@@ -69,28 +85,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    // If we have a user, set up a listener for their profile document
     if (user) {
-      setLoading(true); // Start loading while we fetch the profile
+      setLoading(true);
       const userDocRef = doc(db, 'users', user.uid);
       const profileUnsubscribe = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
           setUserProfile(doc.data() as UserProfile);
         } else {
-          setUserProfile(null); // User exists in Auth, but not in Firestore
+          setUserProfile(null);
         }
-        setLoading(false); // Stop loading once profile is fetched
+        setLoading(false); 
       }, (error) => {
           console.error("Error listening to user profile:", error);
           setUserProfile(null);
           setLoading(false);
       });
       return () => profileUnsubscribe();
+    } else {
+        setUserProfile(null);
+        setLoading(false);
     }
-  }, [user]); // This effect depends only on the user object
+  }, [user]);
+
+  const addNotification = useCallback(async (userId: string, message: string, link: string) => {
+    if (!userId) return;
+    try {
+        await addDoc(collection(db, 'users', userId, 'notifications'), {
+            message,
+            link,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.error("Error adding notification: ", error);
+    }
+  }, []);
+
+  const value = {
+      user,
+      userProfile,
+      loading,
+      settings,
+      addNotification,
+      playNewTaskSound,
+      playMessageSound,
+      playNotificationSound,
+  };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, settings }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
