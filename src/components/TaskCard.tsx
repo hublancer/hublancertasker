@@ -69,7 +69,7 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
         </div>
       </CardContent>
       <CardFooter className="flex justify-between items-center mt-auto pt-4">
-        <div className="text-xl font-bold text-primary">${task.price}</div>
+        <div className="text-xl font-bold text-primary">Rs{task.price}</div>
         <Button onClick={handleViewTask}>View Task</Button>
       </CardFooter>
     </Card>

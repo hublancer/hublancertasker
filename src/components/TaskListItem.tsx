@@ -50,7 +50,7 @@ export default function TaskListItem({
           </div>
 
           <div className="text-right flex flex-col items-end justify-between h-full">
-            <p className="text-xl font-bold text-primary">${task.price}</p>
+            <p className="text-xl font-bold text-primary">Rs{task.price}</p>
           </div>
         </div>
       </CardContent>

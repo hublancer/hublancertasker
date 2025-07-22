@@ -24,6 +24,7 @@ interface TaskDetailsProps {
     postedBy: string;
   };
   onBack: () => void;
+  onLocationClick?: (task: Task) => void;
 }
 
 interface Offer {
@@ -47,7 +48,7 @@ interface Question {
 }
 
 
-export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
+export default function TaskDetails({ task, onBack, onLocationClick }: TaskDetailsProps) {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const isOwner = user?.uid === task.postedById;
@@ -229,7 +230,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                     <p className="font-semibold text-center">Make an Offer</p>
                     <Input 
                         type="number" 
-                        placeholder="Your price ($)" 
+                        placeholder="Your price (Rs)" 
                         value={offerPrice}
                         onChange={(e) => setOfferPrice(e.target.value === '' ? '' : Number(e.target.value))}
                         disabled={isSubmittingOffer}
@@ -257,7 +258,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-4 flex"
+          className="mb-4 flex md:hidden"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Return to tasks
@@ -323,7 +324,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                 <p className="text-sm text-muted-foreground mb-1">
                   TASK BUDGET
                 </p>
-                <p className="text-3xl font-bold">${task.price}</p>
+                <p className="text-3xl font-bold">Rs{task.price}</p>
                 {renderActionButtons()}
               </CardContent>
             </Card>
@@ -361,7 +362,7 @@ export default function TaskDetails({ task, onBack }: TaskDetailsProps) {
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
-                        <p className="text-lg font-bold">${offer.offerPrice}</p>
+                        <p className="text-lg font-bold">Rs{offer.offerPrice}</p>
                         {isOwner && task.status === 'open' && (
                           <Button size="sm" onClick={() => handleAcceptOffer(offer)} disabled={isAccepting !== null}>
                             {isAccepting === offer.id ? "Accepting..." : "Accept"}

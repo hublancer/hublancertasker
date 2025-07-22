@@ -288,9 +288,9 @@ export default function PostTaskForm() {
                 name="budget"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Budget ($)</FormLabel>
+                    <FormLabel>Budget (Rs)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="100" {...field} value={field.value ?? ''} />
+                      <Input type="number" placeholder="5000" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

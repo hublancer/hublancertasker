@@ -127,7 +127,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         setMapZoom(6);
       }
     );
-  }, []);
+  }, [appliedDistance]);
 
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTask(task);
@@ -260,10 +260,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       
       if (appliedPrice !== 'any') {
         const priceValue = task.price;
-        if (appliedPrice === '<100' && priceValue >= 100) return false;
-        if (appliedPrice === '100-500' && (priceValue < 100 || priceValue > 500))
+        if (appliedPrice === '<5000' && priceValue >= 5000) return false;
+        if (appliedPrice === '5000-20000' && (priceValue < 5000 || priceValue > 20000))
           return false;
-        if (appliedPrice === '>500' && priceValue <= 500) return false;
+        if (appliedPrice === '>20000' && priceValue <= 20000) return false;
       }
       if (appliedAvailableOnly && task.status !== 'open') {
         return false;
@@ -298,7 +298,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     }
     return (
       <Map
-        tasks={filteredTasks}
+        tasks={filteredTasks.filter(task => task.type === 'physical' && task.coordinates)}
         onTaskSelect={handleTaskSelect}
         center={currentMapCenter}
         zoom={mapZoom}
@@ -307,9 +307,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const showList = !isMobile || mobileView === 'list';
-  const showMap = !isMobile || mobileView === 'map';
-  const showDetails = selectedTask && (!isMobile || mobileView === 'details');
 
 
   return (
@@ -317,8 +314,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-          <div className="flex items-center gap-2 py-4">
-            <div className="relative flex-grow">
+           <div className="flex flex-col sm:flex-row items-center gap-2 py-4">
+            <div className="relative flex-grow w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -327,7 +324,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <CategoryFilter
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
@@ -444,38 +441,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                   </div>
                 </PopoverContent>
               </Popover>
-              <div className="hidden md:flex items-center gap-2">
-                <Select value={appliedPrice} onValueChange={setAppliedPrice}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Price" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any Price</SelectItem>
-                    <SelectItem value="<100">Under $100</SelectItem>
-                    <SelectItem value="100-500">$100 - $500</SelectItem>
-                    <SelectItem value=">500">Over $500</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={appliedSortBy}
-                  onValueChange={value => setAppliedSortBy(value as SortByType)}
-                >
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest">Newest</SelectItem>
-                    <SelectItem value="price-asc">
-                      Price: Low to High
-                    </SelectItem>
-                    <SelectItem value="price-desc">
-                      Price: High to Low
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Popover
+               <Popover
                 open={isOtherFiltersPopoverOpen}
                 onOpenChange={setIsOtherFiltersPopoverOpen}
               >
@@ -495,16 +461,15 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                       </h4>
                     </div>
                     <div className="grid gap-4">
-                       <div className="md:hidden space-y-4">
                           <Select value={appliedPrice} onValueChange={setAppliedPrice}>
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Price" />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="any">Any Price</SelectItem>
-                                <SelectItem value="<100">Under $100</SelectItem>
-                                <SelectItem value="100-500">$100 - $500</SelectItem>
-                                <SelectItem value=">500">Over $500</SelectItem>
+                                <SelectItem value="<5000">Under Rs5000</SelectItem>
+                                <SelectItem value="5000-20000">Rs5000 - Rs20000</SelectItem>
+                                <SelectItem value=">20000">Over Rs20000</SelectItem>
                               </SelectContent>
                             </Select>
                             <Select
@@ -524,7 +489,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                                 </SelectItem>
                               </SelectContent>
                             </Select>
-                       </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label htmlFor="available-only">
