@@ -1,10 +1,11 @@
+
 'use client';
 
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import type { Task } from './TaskCard';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect } from 'react';
 import { Skeleton } from './ui/skeleton';
 
@@ -51,8 +52,27 @@ function MapBoundsUpdater({ tasks }: { tasks: (Task & { coordinates: [number, nu
   return null;
 }
 
-function MapControls() {
+function MapControls({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
   const map = useMap();
+
+  const handleRefresh = () => {
+    const physicalTasks = tasks.filter(task => task.type === 'physical');
+    if (physicalTasks.length > 0) {
+      const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates));
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                map.setView([position.coords.latitude, position.coords.longitude], INITIAL_ZOOM);
+            },
+            () => {
+                map.setView(DEFAULT_CENTER, INITIAL_ZOOM);
+            }
+        );
+    }
+  };
 
   return (
     <div className="leaflet-top leaflet-right">
@@ -74,6 +94,15 @@ function MapControls() {
           aria-label="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
+        </Button>
+        <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 bg-white"
+            onClick={handleRefresh}
+            aria-label="Refresh map"
+        >
+            <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -118,7 +147,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
         </Marker>
       ))}
       <MapViewUpdater center={center} zoom={zoom} />
-      <MapControls />
+      <MapControls tasks={tasks} />
       <MapBoundsUpdater tasks={physicalTasks} />
     </MapContainer>
   );
