@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Map as MapIcon, List, ChevronDown, MapPin, SlidersHorizontal } from 'lucide-react';
+import { Search, Map as MapIcon, List, MapPin, SlidersHorizontal } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
@@ -168,8 +168,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         task.type === 'physical' &&
         !task.location.toLowerCase().includes(appliedLocation.toLowerCase())
       ) {
-        // This is a naive implementation. A real app would use a geocoding API
-        // to filter by distance from the entered location.
         return false;
       }
       if (appliedPrice !== 'any') {
@@ -217,8 +215,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       <AppHeader />
       <div className="border-b">
         <div className="container mx-auto px-4">
-          <div className="flex flex-wrap items-center gap-2 py-4">
-            <div className="relative flex-grow min-w-[150px] sm:min-w-[200px]">
+           <div className="flex flex-wrap items-center gap-2 py-4">
+            <div className="relative flex-grow min-w-[150px] sm:flex-grow-[2]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search for a task"
@@ -228,8 +226,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
               />
             </div>
             
-            <div className="flex flex-grow-0 items-center gap-2">
-              <CategoryFilter 
+            <div className="flex flex-grow items-center gap-2">
+               <CategoryFilter 
                 selectedCategories={appliedCategories}
                 onApply={setAppliedCategories}
               />
@@ -241,7 +239,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto flex-grow-0 min-w-0 sm:min-w-auto justify-start text-left font-normal"
+                    className="w-full sm:w-auto justify-start text-left font-normal"
                   >
                     <MapPin className="sm:hidden h-4 w-4" />
                      <span className="truncate hidden sm:inline">{getLocationButtonLabel()}</span>
