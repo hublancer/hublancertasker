@@ -33,7 +33,7 @@ import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, addDoc, GeoPoint } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -61,7 +61,7 @@ export default function PostTaskForm() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [taskData, setTaskData] = useState<PostTaskFormValues | null>(null);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -138,7 +138,7 @@ export default function PostTaskForm() {
   function onSubmit(values: PostTaskFormValues) {
     if (user) {
       setLoading(true);
-      submitTask(values, user.uid, user.displayName || user.email!);
+      submitTask(values, user.uid, userProfile?.name || user.email!);
     } else {
       setTaskData(values);
       setShowSignUp(true);
@@ -152,6 +152,10 @@ export default function PostTaskForm() {
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, signUpData.email, signUpData.password);
         const newUser = userCredential.user;
+        
+        await updateProfile(newUser, {
+          displayName: signUpData.name
+        });
 
         await setDoc(doc(db, "users", newUser.uid), {
             uid: newUser.uid,
@@ -427,7 +431,7 @@ export default function PostTaskForm() {
               <Button variant="link" className="p-0 h-auto" onClick={() => {
                   setShowSignUp(false);
                   // In a real app, this would open a login form/dialog
-                  console.log("Login link clicked");
+                  router.push('/login');
               }}>
                 Login
               </Button>

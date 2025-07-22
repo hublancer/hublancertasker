@@ -35,7 +35,7 @@ export default function LoginPage() {
         title: "Logged in successfully!",
         description: "Welcome back.",
       });
-      router.push('/');
+      router.push('/my-tasks');
     } catch (err: any) {
       setError(err.message);
       toast({
@@ -104,4 +104,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
