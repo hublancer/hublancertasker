@@ -24,15 +24,29 @@ interface MapProps {
 const INITIAL_ZOOM = 10;
 const DEFAULT_CENTER: [number, number] = [51.505, -0.09];
 
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapBoundsUpdater({ tasks }: { tasks: (Task & { coordinates: [number, number] })[] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, map.getZoom() || INITIAL_ZOOM);
-  }, [center, map]);
+    if (tasks.length === 0) {
+      map.setView(DEFAULT_CENTER, 5); // Reset to a wide view if no tasks
+      return;
+    }
+
+    if (tasks.length === 1) {
+      map.setView(tasks[0].coordinates, INITIAL_ZOOM);
+      return;
+    }
+    
+    const bounds = new L.LatLngBounds(tasks.map(t => t.coordinates));
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+  }, [tasks, map]);
   return null;
 }
 
-function MapControls({ center }: { center: [number, number] }) {
+function MapControls() {
   const map = useMap();
 
   return (
@@ -56,15 +70,6 @@ function MapControls({ center }: { center: [number, number] }) {
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8 bg-white mt-2"
-          onClick={() => map.setView(center, INITIAL_ZOOM)}
-          aria-label="Refresh map view"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   );
@@ -79,7 +84,7 @@ const Map = ({ tasks, onTaskSelect }: MapProps) => {
     <MapContainer
       center={center}
       zoom={INITIAL_ZOOM}
-      scrollWheelZoom={false}
+      scrollWheelZoom={true}
       className="h-full w-full"
       zoomControl={false} // Disable default zoom control
     >
@@ -104,8 +109,8 @@ const Map = ({ tasks, onTaskSelect }: MapProps) => {
           </Popup>
         </Marker>
       ))}
-      <MapUpdater center={center} />
-      <MapControls center={center} />
+      <MapBoundsUpdater tasks={physicalTasks} />
+      <MapControls />
     </MapContainer>
   );
 };
