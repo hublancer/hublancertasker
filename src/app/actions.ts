@@ -5,7 +5,15 @@ import {
   type GenerateTaskDescriptionInput,
 } from '@/ai/flows/generate-task-description';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, serverTimestamp, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '@/lib/firebase'; // Ensure app is imported
+
+// This is a placeholder for a real client-side Firebase app instance
+// In a real app, you would initialize this once.
+const functions = getFunctions(app);
+const completeTaskFunction = httpsCallable(functions, 'completeTask');
+
 
 export async function generateTaskDescription(
   input: GenerateTaskDescriptionInput
@@ -63,4 +71,19 @@ export async function makeOffer(input: MakeOfferInput): Promise<{success: boolea
         console.error('Error making offer:', error);
         return { success: false, error: error.message };
     }
+}
+
+interface CompleteTaskInput {
+    taskId: string;
+}
+
+export async function completeTask(input: CompleteTaskInput): Promise<{ success: boolean; error?: string }> {
+  try {
+    const result = await completeTaskFunction({ taskId: input.taskId });
+    const data = result.data as { success: boolean; error?: string };
+    return data;
+  } catch (error: any) {
+    console.error('Error calling completeTask function:', error);
+    return { success: false, error: error.message || 'An unknown error occurred while calling the function.' };
+  }
 }

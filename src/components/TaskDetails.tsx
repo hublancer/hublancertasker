@@ -18,6 +18,7 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
+import { completeTask as completeTaskAction } from '@/app/actions';
 
 interface TaskDetailsProps {
   task: Task & {
@@ -383,53 +384,14 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
         setIsProcessing(true);
         try {
-            await runTransaction(db, async (transaction) => {
-                const commissionRate = settings?.commissionRate ?? 0.1;
-                const commission = task.price * commissionRate;
-                const taskerPayout = task.price - commission;
-
-                const taskRef = doc(db, 'tasks', task.id);
-                const taskerRef = doc(db, 'users', task.assignedToId!);
-                
-                // ALL READS FIRST
-                const taskerDoc = await transaction.get(taskerRef);
-                if (!taskerDoc.exists()) {
-                    throw new Error("Tasker not found!");
-                }
-                
-                // ALL WRITES SECOND
-                transaction.update(taskRef, { status: 'completed' });
-
-                const taskerData = taskerDoc.data();
-                const currentTaskerBalance = taskerData.wallet?.balance ?? 0;
-                const newTaskerBalance = currentTaskerBalance + taskerPayout;
-                transaction.update(taskerRef, { 'wallet.balance': newTaskerBalance });
-
-                const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId!, 'transactions'));
-                transaction.set(taskerTransactionRef, {
-                    amount: taskerPayout,
-                    type: 'earning',
-                    description: `Earning from task: ${task.title}`,
-                    taskId: task.id,
-                    timestamp: serverTimestamp(),
-                });
-
-                 const platformTransactionRef = doc(collection(db, 'platform_transactions'));
-                 transaction.set(platformTransactionRef, {
-                    amount: commission,
-                    type: 'commission',
-                    description: `Commission from task: ${task.title}`,
-                    taskId: task.id,
-                    taskPrice: task.price,
-                    commissionRate: commissionRate,
-                    timestamp: serverTimestamp(),
-                 })
-            });
-            
-            await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
-
-            toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
-            onTaskUpdate?.();
+            const result = await completeTaskAction({ taskId: task.id });
+            if (result.success) {
+                toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
+                await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
+                onTaskUpdate?.();
+            } else {
+                throw new Error(result.error || 'An unknown error occurred.');
+            }
         } catch (error: any) {
             console.error("Error completing task: ", error);
             toast({ variant: 'destructive', title: 'Could not complete task.', description: error.message });
