@@ -3,15 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, getDoc, writeBatch, serverTimestamp, FieldValue, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { approveWithdrawal, rejectWithdrawal } from '@/app/actions';
 import { useAuth } from '@/hooks/use-auth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 
 interface WithdrawalRequest {
     id: string;
@@ -46,26 +44,65 @@ export default function AdminWithdrawalsPage() {
         return () => unsubscribe();
     }, [toast]);
 
-    const handleApprove = async (id: string) => {
-        setProcessingId(id);
-        const result = await approveWithdrawal(id);
-        if (result.success) {
+    const handleApprove = async (req: WithdrawalRequest) => {
+        if (!req || !req.id || !req.userId) return;
+        setProcessingId(req.id);
+        
+        try {
+            const userRef = doc(db, 'users', req.userId);
+            const userDoc = await getDoc(userRef);
+            
+            if (!userDoc.exists() || (userDoc.data()?.wallet?.balance ?? 0) < req.amount) {
+                await updateDoc(doc(db, 'withdrawals', req.id), { 
+                    status: 'rejected', 
+                    processedAt: serverTimestamp(),
+                    rejectionReason: 'Insufficient funds'
+                });
+                toast({ variant: 'destructive', title: 'Error', description: 'Insufficient funds. Withdrawal rejected.' });
+                setProcessingId(null);
+                return;
+            }
+
+            const batch = writeBatch(db);
+            
+            // 1. Update the withdrawal request
+            const withdrawalRef = doc(db, 'withdrawals', req.id);
+            batch.update(withdrawalRef, { status: 'completed', processedAt: serverTimestamp() });
+            
+            // 2. Deduct funds from user's wallet
+            batch.update(userRef, { 'wallet.balance': FieldValue.increment(-req.amount) });
+            
+            // 3. Create a transaction record for the user
+            const transactionRef = doc(collection(db, 'users', req.userId, 'transactions'));
+            batch.set(transactionRef, {
+                amount: -req.amount,
+                type: 'withdrawal',
+                description: `Funds withdrawn to ${req.method}`,
+                timestamp: serverTimestamp(),
+            });
+            
+            await batch.commit();
+
             toast({ title: 'Success', description: 'Withdrawal has been processed.' });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error ?? 'Failed to approve withdrawal.' });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to approve withdrawal.' });
+        } finally {
+            setProcessingId(null);
         }
-        setProcessingId(null);
     };
 
     const handleReject = async (id: string) => {
+        if (!id) return;
         setProcessingId(id);
-        const result = await rejectWithdrawal(id);
-        if (result.success) {
+        try {
+            const withdrawalRef = doc(db, 'withdrawals', id);
+            await updateDoc(withdrawalRef, { status: 'rejected', processedAt: serverTimestamp() });
             toast({ title: 'Success', description: 'Withdrawal has been rejected.' });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error ?? 'Failed to reject withdrawal.' });
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to reject withdrawal.' });
+        } finally {
+            setProcessingId(null);
         }
-        setProcessingId(null);
     };
 
      if (loading) return <p>Loading withdrawal requests...</p>;
@@ -122,7 +159,7 @@ export default function AdminWithdrawalsPage() {
                                                 </div>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleApprove(req.id)}>Approve</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => handleApprove(req)}>Approve</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>

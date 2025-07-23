@@ -1,3 +1,4 @@
+
 'use client';
 
 import { type Task } from './TaskCard';
@@ -9,7 +10,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, GeoPoint } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, GeoPoint, getDoc, FieldValue } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -18,7 +19,6 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
-import { completeTask, makeOffer } from '@/app/actions';
 
 interface TaskDetailsProps {
   task: Task & {
@@ -164,22 +164,17 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         setEditingOffer(null);
         toast({ title: 'Offer updated successfully!' });
       } else {
-        const result = await makeOffer({
-            taskId: task.id,
+        // Create new offer
+        await addDoc(collection(db, 'tasks', task.id, 'offers'), {
             taskerId: user.uid,
             taskerName: userProfile.name || 'Anonymous Tasker',
             taskerAvatar: user.photoURL || '',
             offerPrice: Number(offerPrice),
             comment: offerComment,
-            postedById: task.postedById,
-            taskTitle: task.title,
+            createdAt: serverTimestamp(),
         });
-
-        if (result.success) {
-            toast({ title: "Offer submitted successfully!" });
-        } else {
-            throw new Error(result.error);
-        }
+        await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
+        toast({ title: "Offer submitted successfully!" });
       }
       setOfferComment('');
       setOfferPrice(task.price);
@@ -384,21 +379,61 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
     const handleCompleteTask = async () => {
         if (!isOwner || (task.status !== 'assigned' && task.status !== 'pending-completion') || !task.assignedToId) return;
-
         setIsProcessing(true);
-        const result = await completeTask(task.id);
-        if (result.success) {
-            toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
+        try {
+            const settingsDoc = await getDoc(doc(db, 'settings', 'platform'));
+            const commissionRate = settingsDoc.data()?.commissionRate ?? 0.1;
+
+            const taskerRef = doc(db, 'users', task.assignedToId);
+            const batch = writeBatch(db);
+
+            // 1. Calculate earnings and commission
+            const commission = task.price * commissionRate;
+            const taskerEarnings = task.price - commission;
+
+            // 2. Pay the tasker
+            batch.update(taskerRef, { 'wallet.balance': FieldValue.increment(taskerEarnings) });
+            
+            // 3. Create earning transaction for tasker
+            const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId, 'transactions'));
+            batch.set(taskerTransactionRef, {
+                amount: taskerEarnings,
+                type: 'earning',
+                description: `Earning from task: ${task.title}`,
+                taskId: task.id,
+                timestamp: serverTimestamp(),
+            });
+
+            // 4. Create commission transaction for platform
+            const platformTransactionRef = doc(collection(db, 'platform_transactions'));
+            batch.set(platformTransactionRef, {
+                amount: commission,
+                type: 'commission',
+                description: `Commission from task: ${task.title}`,
+                taskId: task.id,
+                taskPrice: task.price,
+                commissionRate: commissionRate,
+                timestamp: serverTimestamp(),
+            });
+
+            // 5. Update task status to 'completed'
+            const taskRef = doc(db, 'tasks', task.id);
+            batch.update(taskRef, { status: 'completed' });
+
+            await batch.commit();
+
+            toast({ title: 'Task Completed!', description: 'This task has been marked as completed.' });
             await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
             onTaskUpdate?.();
-        } else {
-             toast({
+        } catch (error: any) {
+            toast({
                 variant: 'destructive',
                 title: 'Completion Failed',
-                description: result.error,
+                description: error.message,
             });
+        } finally {
+            setIsProcessing(false);
         }
-        setIsProcessing(false);
     }
 
     const handleSubmitReview = async () => {
