@@ -11,7 +11,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogIn, LogOut, Wallet, Bell, Shield, Settings, MessageSquare } from 'lucide-react';
+import { Menu, Briefcase, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp, getDocs } from 'firebase/firestore';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
 interface Notification {
@@ -57,7 +57,12 @@ const AppHeader = () => {
     const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
         const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
         
-        if (snapshot.docChanges().some(change => change.type === 'added') && notifications.length > 0) {
+        // Check if there are new, unread notifications to trigger the sound
+        const newUnread = snapshot.docChanges().some(change => 
+            change.type === 'added' && !change.doc.data().read
+        );
+        
+        if (newUnread && notifications.length > 0) { // Avoid sound on initial load
             playNotificationSound();
         }
         
@@ -65,28 +70,35 @@ const AppHeader = () => {
     });
 
     // Unread messages listener
-    const lastReadTimestamp = userProfile?.lastMessageReadTimestamp || new Timestamp(0, 0);
-    const conversationsQuery = query(
-        collection(db, 'conversations'), 
-        where('participants', 'array-contains', user.uid),
-        where('lastMessageAt', '>', lastReadTimestamp)
-    );
+    const setupMessageListener = async () => {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const lastReadTimestamp = userDoc.data()?.lastMessageReadTimestamp || new Timestamp(0, 0);
 
-    const unsubscribeConversations = onSnapshot(conversationsQuery, (snapshot) => {
-        const newMessagesCount = snapshot.docs.filter(doc => doc.data().lastMessageAt > (userProfile?.lastMessageReadTimestamp || new Timestamp(0,0))).length;
-        if (newMessagesCount > unreadMessagesCount) {
-             playMessageSound();
-        }
-        setUnreadMessagesCount(snapshot.size);
-    });
+        const conversationsQuery = query(
+            collection(db, 'conversations'), 
+            where('participants', 'array-contains', user.uid),
+            where('lastMessageAt', '>', lastReadTimestamp)
+        );
+
+        const unsubscribeConversations = onSnapshot(conversationsQuery, (snapshot) => {
+            const hasNewMessages = snapshot.docChanges().some(change => change.type === 'added');
+            if (hasNewMessages) {
+                 playMessageSound();
+            }
+            setUnreadMessagesCount(snapshot.size);
+        });
+        return unsubscribeConversations;
+    }
+    
+    const messageUnsubscribePromise = setupMessageListener();
 
 
     return () => {
         unsubscribeNotifications();
-        unsubscribeConversations();
+        messageUnsubscribePromise.then(unsub => unsub());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userProfile, playNotificationSound, playMessageSound]);
+  }, [user, playNotificationSound, playMessageSound]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -175,9 +187,8 @@ const AppHeader = () => {
     }
 
     return (
-       <Button variant="default" size="icon" className="bg-accent hover:bg-accent/90" onClick={() => setIsLoginOpen(true)}>
-          <User className="h-5 w-5" />
-          <span className="sr-only">Profile</span>
+       <Button variant="default" size="sm" onClick={() => setIsLoginOpen(true)}>
+          Login
         </Button>
     )
   }

@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (docSnap.exists()) {
             const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
             setUserProfile(profileData);
-            sessionStorage.setItem('userProfile', JSON.stringify(profileData));
+            sessionStorage.setItem(`userProfile-${user.uid}`, JSON.stringify(profileData));
         }
     } catch (error) {
         console.error("Error revalidating profile:", error);
@@ -79,59 +79,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
-    // Attempt to load settings from cache first
-    const cachedSettings = sessionStorage.getItem('platformSettings');
-    if (cachedSettings) {
-        setSettings(JSON.parse(cachedSettings));
-    } else {
-        const settingsDocRef = doc(db, 'settings', 'platform');
-        getDoc(settingsDocRef).then((doc) => {
-            let platformSettings;
-            if (doc.exists()) {
-                platformSettings = doc.data() as PlatformSettings;
-            } else {
-                platformSettings = { commissionRate: 0.1, currencySymbol: 'Rs' };
-            }
-            setSettings(platformSettings);
-            sessionStorage.setItem('platformSettings', JSON.stringify(platformSettings));
-        });
-    }
+    const settingsDocRef = doc(db, 'settings', 'platform');
+    const settingsUnsubscribe = onSnapshot(settingsDocRef, (doc) => {
+        if (doc.exists()) {
+            setSettings(doc.data() as PlatformSettings);
+        } else {
+            // Default settings if none are in the database
+            setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
+        }
+    });
 
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
       if (currentUser) {
         setUser(currentUser);
-        // Attempt to load user profile from cache
-        const cachedProfile = sessionStorage.getItem('userProfile');
+        const cachedProfile = sessionStorage.getItem(`userProfile-${currentUser.uid}`);
         if (cachedProfile) {
-            const profile = JSON.parse(cachedProfile);
-            // Quick check to ensure cached profile belongs to current user
-            if (profile.uid === currentUser.uid) {
-                setUserProfile(profile);
-                setLoading(false);
-            } else {
-                // Mismatch, fetch from DB
-                await revalidateProfile();
-                setLoading(false);
-            }
-        } else {
-            // No cache, fetch from DB
-             await revalidateProfile();
-             setLoading(false);
+            setUserProfile(JSON.parse(cachedProfile));
         }
+
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+                setUserProfile(profileData);
+                sessionStorage.setItem(`userProfile-${currentUser.uid}`, JSON.stringify(profileData));
+            }
+            setLoading(false);
+        });
+
+        // Return a cleanup function for the user subscription
+        return () => {
+            userUnsubscribe();
+            authUnsubscribe();
+            settingsUnsubscribe();
+        }
+
       } else {
         setUser(null);
         setUserProfile(null);
-        sessionStorage.removeItem('userProfile');
         setLoading(false);
       }
     });
 
     return () => {
       authUnsubscribe();
+      settingsUnsubscribe();
     };
-  // We only want revalidateProfile to be created once per user, so we add it here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revalidateProfile]);
+  }, []);
 
 
   const addNotification = useCallback(async (userId: string, message: string, link: string) => {
