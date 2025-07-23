@@ -168,11 +168,20 @@ exports.completeTask = onCall(async (request) => {
     }
 });
 
+const ensureAdmin = async (uid: string) => {
+    const userDoc = await db.doc(`users/${uid}`).get();
+    if (!userDoc.exists || userDoc.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'You must be an admin to perform this action.');
+    }
+};
+
 
 exports.processDeposit = onCall(async (request) => {
-    if (request.auth?.token.role !== 'admin') {
-        throw new HttpsError('permission-denied', 'You must be an admin to process deposits.');
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in.');
     }
+    await ensureAdmin(request.auth.uid);
+
     const { depositId, approve } = request.data;
     if (!depositId) {
         throw new HttpsError('invalid-argument', 'The function must be called with a "depositId".');
@@ -224,9 +233,11 @@ exports.processDeposit = onCall(async (request) => {
 
 
 exports.processWithdrawal = onCall(async (request) => {
-    if (request.auth?.token.role !== 'admin') {
-        throw new HttpsError('permission-denied', 'You must be an admin to process withdrawals.');
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in.');
     }
+    await ensureAdmin(request.auth.uid);
+
     const { withdrawalId, approve } = request.data;
      if (!withdrawalId) {
         throw new HttpsError('invalid-argument', 'The function must be called with a "withdrawalId".');

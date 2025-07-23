@@ -71,7 +71,6 @@ interface CompleteTaskInput {
 export async function completeTask(input: CompleteTaskInput): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await completeTaskFunction({ taskId: input.taskId });
-    // The result from a callable function is in result.data
     return result.data as { success: boolean; error?: string };
   } catch (error: any) {
     console.error('Error calling completeTask function:', error);
