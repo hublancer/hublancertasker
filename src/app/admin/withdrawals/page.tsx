@@ -104,7 +104,7 @@ export default function AdminWithdrawalsPage() {
                                     <TableCell className="text-right space-x-2">
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button size="sm" disabled={!!processingId}>
+                                                <Button size="sm" disabled={!!processingId} variant="default">
                                                      {processingId === req.id ? 'Processing...' : 'Approve'}
                                                 </Button>
                                             </AlertDialogTrigger>

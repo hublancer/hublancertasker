@@ -190,6 +190,14 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
                 processedAt: FieldValue.serverTimestamp(),
                 rejectionReason: 'Insufficient funds'
             });
+            // We are not incrementing wallet balance back because we never deducted it.
+            // So we just reject the request.
+            toast({
+              variant: 'destructive',
+              title: 'Withdrawal Rejected',
+              description: 'User has insufficient funds.',
+            });
+             return { success: false, error: 'Insufficient funds.' };
         } else {
             // Sufficient funds, proceed with approval
             await userRef.update({ 'wallet.balance': FieldValue.increment(-withdrawalData.amount) });
