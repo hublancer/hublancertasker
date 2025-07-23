@@ -202,11 +202,7 @@ exports.processDeposit = onCall(async (request) => {
             }
 
             const userRef = db.doc(`users/${depositData.userId}`);
-            const userDoc = await transaction.get(userRef); 
-            if (!userDoc.exists) {
-                 throw new HttpsError('not-found', `User ${depositData.userId} not found.`);
-            }
-
+            
             // --- Phase 2: All Writes ---
             if (approve) {
                 // Update user's wallet
@@ -278,7 +274,13 @@ exports.processWithdrawal = onCall(async (request) => {
             // --- Phase 2: All Writes ---
             if (approve) {
                 if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
-                    throw new HttpsError('failed-precondition', 'User has insufficient funds for this withdrawal.');
+                    // If balance is insufficient, reject the request instead of throwing error.
+                    transaction.update(withdrawalRef, { 
+                        status: 'rejected', 
+                        processedAt: FieldValue.serverTimestamp(),
+                        rejectionReason: 'Insufficient funds'
+                    });
+                    return;
                 }
                 
                 // Update user's wallet
@@ -303,7 +305,7 @@ exports.processWithdrawal = onCall(async (request) => {
             }
         });
 
-        logger.info(`Withdrawal ${withdrawalId} has been ${approve ? 'approved' : 'rejected'}`);
+        logger.info(`Withdrawal ${withdrawalId} has been processed.`);
         return { success: true };
 
     } catch (error) {

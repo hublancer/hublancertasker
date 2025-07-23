@@ -102,8 +102,8 @@ export default function AdminDepositsPage() {
                                     <TableCell className="text-right space-x-2">
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button size="sm" disabled={processingId !== null}>
-                                                    {processingId === req.id ? '...' : 'Approve'}
+                                                <Button size="sm" disabled={!!processingId}>
+                                                    {processingId === req.id ? 'Processing...' : 'Approve'}
                                                 </Button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
@@ -127,8 +127,8 @@ export default function AdminDepositsPage() {
                                         </AlertDialog>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button size="sm" variant="destructive" disabled={processingId !== null}>
-                                                    {processingId === req.id ? '...' : 'Reject'}
+                                                <Button size="sm" variant="destructive" disabled={!!processingId}>
+                                                    {processingId === req.id ? 'Processing...' : 'Reject'}
                                                 </Button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
