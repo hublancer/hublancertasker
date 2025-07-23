@@ -82,7 +82,7 @@ export function WithdrawModal({ open, onOpenChange }: WithdrawModalProps) {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Amount to Withdraw</FormLabel>
-                                    <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                                    <FormControl><Input type="number" placeholder="0.00" {...field} value={field.value ?? ''} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -119,5 +119,3 @@ export function WithdrawModal({ open, onOpenChange }: WithdrawModalProps) {
         </Dialog>
     )
 }
-
-    
