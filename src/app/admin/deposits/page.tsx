@@ -38,9 +38,10 @@ export default function AdminDepositsPage() {
         }, (error) => {
             console.error("Error fetching deposit requests:", error);
             setLoading(false);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch deposit requests.' });
         });
         return () => unsubscribe();
-    }, []);
+    }, [toast]);
 
     const handleApprove = async (id: string) => {
         setProcessingId(id);

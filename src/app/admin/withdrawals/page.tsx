@@ -38,9 +38,10 @@ export default function AdminWithdrawalsPage() {
         }, (error) => {
             console.error("Error fetching withdrawal requests:", error);
             setLoading(false);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch withdrawal requests.' });
         });
         return () => unsubscribe();
-    }, []);
+    }, [toast]);
 
     const handleApprove = async (id: string) => {
         setProcessingId(id);

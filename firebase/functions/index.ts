@@ -191,6 +191,7 @@ exports.processDeposit = onCall(async (request) => {
     
     try {
         await db.runTransaction(async (transaction) => {
+            // --- Phase 1: All Reads ---
             const depositDoc = await transaction.get(depositRef);
             if (!depositDoc.exists) {
                 throw new HttpsError('not-found', 'Deposit request not found.');
@@ -200,19 +201,20 @@ exports.processDeposit = onCall(async (request) => {
                 throw new HttpsError('failed-precondition', 'Deposit is not in a pending state.');
             }
 
+            const userRef = db.doc(`users/${depositData.userId}`);
+            const userDoc = await transaction.get(userRef); 
+            if (!userDoc.exists) {
+                 throw new HttpsError('not-found', `User ${depositData.userId} not found.`);
+            }
+
+            // --- Phase 2: All Writes ---
             if (approve) {
-                const userRef = db.doc(`users/${depositData.userId}`);
-                // All reads must come before writes in a transaction.
-                const userDoc = await transaction.get(userRef); 
-                if (!userDoc.exists) {
-                     throw new HttpsError('not-found', `User ${depositData.userId} not found.`);
-                }
-                
-                // Now perform writes
+                // Update user's wallet
                 transaction.update(userRef, {
                     'wallet.balance': FieldValue.increment(depositData.amount)
                 });
 
+                // Create transaction record for user
                 const userTransactionRef = db.collection(`users/${depositData.userId}/transactions`).doc();
                 transaction.set(userTransactionRef, {
                     amount: depositData.amount,
@@ -220,6 +222,8 @@ exports.processDeposit = onCall(async (request) => {
                     description: `Funds deposited via ${depositData.gatewayName}`,
                     timestamp: FieldValue.serverTimestamp(),
                 });
+                
+                // Update deposit status
                 transaction.update(depositRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
             } else { // Reject
                 transaction.update(depositRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
@@ -254,8 +258,9 @@ exports.processWithdrawal = onCall(async (request) => {
     
     try {
         await db.runTransaction(async (transaction) => {
+            // --- Phase 1: All Reads ---
             const withdrawalDoc = await transaction.get(withdrawalRef);
-             if (!withdrawalDoc.exists) {
+            if (!withdrawalDoc.exists) {
                 throw new HttpsError('not-found', 'Withdrawal request not found.');
             }
             const withdrawalData = withdrawalDoc.data();
@@ -263,22 +268,25 @@ exports.processWithdrawal = onCall(async (request) => {
                 throw new HttpsError('failed-precondition', 'Withdrawal is not in a pending state.');
             }
 
-             const userRef = db.doc(`users/${withdrawalData.userId}`);
-             const userDoc = await transaction.get(userRef);
-             if (!userDoc.exists) {
+            const userRef = db.doc(`users/${withdrawalData.userId}`);
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) {
                  throw new HttpsError('not-found', 'User not found.');
-             }
-             const userData = userDoc.data();
+            }
+            const userData = userDoc.data();
 
+            // --- Phase 2: All Writes ---
             if (approve) {
                 if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
                     throw new HttpsError('failed-precondition', 'User has insufficient funds for this withdrawal.');
                 }
                 
+                // Update user's wallet
                 transaction.update(userRef, {
                     'wallet.balance': FieldValue.increment(-withdrawalData.amount)
                 });
                 
+                // Create transaction record for user
                 const userTransactionRef = db.collection(`users/${withdrawalData.userId}/transactions`).doc();
                 transaction.set(userTransactionRef, {
                     amount: -withdrawalData.amount,
@@ -286,7 +294,8 @@ exports.processWithdrawal = onCall(async (request) => {
                     description: `Funds withdrawn to ${withdrawalData.method}`,
                     timestamp: FieldValue.serverTimestamp(),
                 });
-
+                
+                // Update withdrawal status
                 transaction.update(withdrawalRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
 
             } else { // Reject
