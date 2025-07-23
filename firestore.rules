@@ -1,121 +1,74 @@
 
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Deny all reads and writes by default
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // Allow reading settings for all users
-    match /settings/platform {
-      allow read: if true;
-      allow write: if isAdmin(); // Only admins can change settings
-    }
-    
-    // Rules for the 'users' collection
+    // Users can read public profiles, but only write to their own.
+    // They cannot change their role or wallet from the client.
     match /users/{userId} {
-      // Anyone can read a user's public profile
-      allow read: if isSignedIn();
-      // A user can create their own profile document
-      allow create: if request.auth.uid == userId;
-      // A user can only update their own profile, but cannot change their role or wallet
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
       allow update: if request.auth.uid == userId
-                    && request.resource.data.role == resource.data.role
-                    && request.resource.data.wallet.balance == resource.data.wallet.balance;
-                    
-      // Rules for user subcollections
-      match /notifications/{notificationId} {
-        allow read, write: if request.auth.uid == userId;
-      }
-      match /transactions/{transactionId} {
-        allow read: if request.auth.uid == userId;
-        allow write: if false; // Only server can write transactions
-      }
+                    && !('role' in request.resource.data)
+                    && !('wallet' in request.resource.data);
     }
     
-    // Rules for the 'tasks' collection
+    // Anyone can read tasks. Authenticated users can create them.
+    // Only the owner can update/delete an open task.
     match /tasks/{taskId} {
-      // Anyone can read tasks
       allow read: if true;
-      // Authenticated users can create tasks
-      allow create: if isSignedIn() && request.resource.data.postedById == request.auth.uid;
-      // Only the owner can update a task if it's open. Admins can always update.
-      allow update: if isSignedIn() && (
-                      (resource.data.postedById == request.auth.uid && resource.data.status == 'open') 
-                      || isAdmin()
-                    );
-      // Only the owner can delete a task if it's open. Admins can always delete.
-      allow delete: if isSignedIn() && (
-                      (resource.data.postedById == request.auth.uid && resource.data.status == 'open') 
-                      || isAdmin()
-                    );
-                    
-      // Rules for task subcollections
-      match /offers/{offerId} {
-        allow read: if true;
-        // Authenticated users can create offers
-        allow create: if isSignedIn() && request.resource.data.taskerId == request.auth.uid;
-        // Only the offer owner can update/delete their offer
-        allow update, delete: if isSignedIn() && resource.data.taskerId == request.auth.uid;
-      }
-      match /questions/{questionId} {
-        allow read: if true;
-        allow create: if isSignedIn();
-        allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById == request.auth.uid);
-      }
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
+    }
+
+    // Task subcollections
+    match /tasks/{taskId}/{collection}/{docId} {
+        // Users can create offers and questions.
+        allow create: if request.auth != null;
+        // Only the offer creator can update/delete their offer.
+        allow update, delete: if collection == 'offers' && request.auth.uid == resource.data.taskerId;
     }
     
-    // Rules for conversations
+    // Conversations can only be read by participants.
     match /conversations/{conversationId} {
-       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
-       allow create: if isSignedIn();
-       
-       match /messages/{messageId} {
-         allow read, create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-       }
+      allow read, write: if request.auth.uid in resource.data.participants;
+    }
+    
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
     }
 
-    // Rules for reviews
+    // Users can access their own notifications and transactions.
+    match /users/{userId}/{subcollection}/{docId} {
+        allow read, write, create, delete: if request.auth.uid == userId;
+    }
+    
+    // Platform settings are read-only for clients.
+    match /settings/platform {
+        allow read: if request.auth != null;
+        allow write: if false; // Only admin SDK
+    }
+    
+    // Reviews can be created by authenticated users.
     match /reviews/{reviewId} {
-        allow read: if true;
-        allow create: if isSignedIn() && request.resource.data.clientId == request.auth.uid;
+      allow create: if request.auth != null;
+      allow read: if true;
     }
     
-    // Rules for payment gateways
+    // Payment gateways are read-only for clients.
     match /paymentGateways/{gatewayId} {
-        allow read: if isSignedIn();
-        allow write: if isAdmin(); // Only admins can manage gateways
+      allow read: if request.auth != null;
     }
     
-    // Rules for deposit/withdrawal requests
+    // Users can manage their own deposit/withdrawal requests.
     match /deposits/{depositId} {
-        allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isAdmin();
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow read: if request.auth.uid == resource.data.userId;
     }
-    
     match /withdrawals/{withdrawalId} {
-        allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isAdmin();
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow read: if request.auth.uid == resource.data.userId;
     }
     
-    // Rules for platform transactions (read-only for admins)
-    match /platform_transactions/{transactionId} {
-      allow read: if isAdmin();
-      allow write: if false; // Server only
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
   }
 }
