@@ -256,7 +256,7 @@ exports.processWithdrawal = onCall(async (request) => {
         await db.runTransaction(async (transaction) => {
             // --- Phase 1: All Reads ---
             const withdrawalDoc = await transaction.get(withdrawalRef);
-            if (!withdrawalDoc.exists) {
+             if (!withdrawalDoc.exists) {
                 throw new HttpsError('not-found', 'Withdrawal request not found.');
             }
             const withdrawalData = withdrawalDoc.data();
@@ -275,31 +275,31 @@ exports.processWithdrawal = onCall(async (request) => {
             if (approve) {
                 if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
                     // If balance is insufficient, reject the request instead of throwing error.
+                    // This is a valid write operation within the transaction.
                     transaction.update(withdrawalRef, { 
                         status: 'rejected', 
                         processedAt: FieldValue.serverTimestamp(),
                         rejectionReason: 'Insufficient funds'
                     });
-                    return;
+                    // We don't throw an error here, just complete the transaction with a rejection.
+                } else {
+                    // Update user's wallet
+                    transaction.update(userRef, {
+                        'wallet.balance': FieldValue.increment(-withdrawalData.amount)
+                    });
+                    
+                    // Create transaction record for user
+                    const userTransactionRef = db.collection(`users/${withdrawalData.userId}/transactions`).doc();
+                    transaction.set(userTransactionRef, {
+                        amount: -withdrawalData.amount,
+                        type: 'withdrawal',
+                        description: `Funds withdrawn to ${withdrawalData.method}`,
+                        timestamp: FieldValue.serverTimestamp(),
+                    });
+                    
+                    // Update withdrawal status
+                    transaction.update(withdrawalRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
                 }
-                
-                // Update user's wallet
-                transaction.update(userRef, {
-                    'wallet.balance': FieldValue.increment(-withdrawalData.amount)
-                });
-                
-                // Create transaction record for user
-                const userTransactionRef = db.collection(`users/${withdrawalData.userId}/transactions`).doc();
-                transaction.set(userTransactionRef, {
-                    amount: -withdrawalData.amount,
-                    type: 'withdrawal',
-                    description: `Funds withdrawn to ${withdrawalData.method}`,
-                    timestamp: FieldValue.serverTimestamp(),
-                });
-                
-                // Update withdrawal status
-                transaction.update(withdrawalRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
-
             } else { // Reject
                 transaction.update(withdrawalRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
             }
