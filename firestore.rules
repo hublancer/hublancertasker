@@ -1,52 +1,98 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if the user is the owner of a document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
 
-    // Admins can do anything
-    match /{document=**} {
-      allow read, write: if isAdmin();
-    }
-
-    // Rules for non-admin users
+    // Users can read any profile, but only write to their own.
+    // They cannot change their own role or wallet from the client.
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId && !('wallet' in request.resource.data) && !('role' in request.resource.data);
+      allow read;
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId) && !('role' in request.resource.data) && !('wallet' in request.resource.data);
+      
+      // Sub-collections for users (notifications, transactions)
+      match /{collection}/{docId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
     }
 
+    // Tasks can be read by anyone.
+    // Authenticated users can create tasks.
+    // The owner can update/delete a task only if it's still 'open'.
     match /tasks/{taskId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
-      allow delete: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
-    }
-    
-    match /tasks/{taskId}/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    
-    match /conversations/{conversationId} {
-        allow read, update: if request.auth.uid in resource.data.participants;
-        allow create: if request.auth.uid in request.resource.data.participants;
+      allow read;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && isOwner(resource.data.postedById) && resource.data.status == 'open';
+
+      // Offers can be created by any authenticated user.
+      // The person who made the offer can update/delete it.
+      match /offers/{offerId} {
+        allow read;
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && isOwner(request.resource.data.taskerId);
+      }
+      
+      // Questions can be created by any authenticated user.
+      match /questions/{questionId} {
+          allow read;
+          allow create: if isAuthenticated();
+          // The owner of the task can answer (update) the question
+          allow update: if isAuthenticated() && isOwner(get(/databases/$(database)/documents/tasks/$(taskId)).data.postedById);
+      }
     }
 
-    match /conversations/{conversationId}/{document=**} {
-        allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+    // Reviews can be read by anyone.
+    // Authenticated users can create reviews.
+    match /reviews/{reviewId} {
+      allow read;
+      allow create: if isAuthenticated();
+    }
+    
+    // Conversations can be read/written by participants.
+    // The query in AppHeader needs list access.
+    match /conversations/{conversationId} {
+      allow get, list: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      match /messages/{messageId} {
+        allow read, create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      }
+    }
+
+    // Allow admins to manage these collections
+    // The client-side queries in the admin pages need read (list) access
+    match /deposits/{depositId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /withdrawals/{withdrawalId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Platform settings and payment gateways should be managed from the server/console
+    // Or by an admin role (if checking role becomes reliable)
+    match /settings/{docId} {
+      allow read; // Clients need to read settings
+      allow write: if false; // Prevent client-side writes
     }
     
     match /paymentGateways/{gatewayId} {
-        allow read: if request.auth != null;
+        allow read; // Clients need to read gateways for deposit modal
+        allow write: if false; // Prevent client-side writes
     }
 
-    match /settings/platform {
-      allow read: if true;
+    // Platform-wide transaction records should only be created from the server
+    match /platform_transactions/{transactionId} {
+      allow read, write: if false;
     }
   }
 }
