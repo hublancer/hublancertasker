@@ -129,10 +129,7 @@ exports.completeTask = onCall(async (request) => {
             transaction.update(taskRef, { status: 'completed' });
 
             // 2. Update tasker's wallet
-            const taskerData = taskerDoc.data();
-            const currentTaskerBalance = taskerData?.wallet?.balance ?? 0;
-            const newTaskerBalance = currentTaskerBalance + taskerPayout;
-            transaction.update(taskerRef, { 'wallet.balance': newTaskerBalance });
+            transaction.update(taskerRef, { 'wallet.balance': FieldValue.increment(taskerPayout) });
             
             // 3. Add transaction record for tasker
             const taskerTransactionRef = db.collection(`users/${taskData.assignedToId}/transactions`).doc();
@@ -256,7 +253,7 @@ exports.processWithdrawal = onCall(async (request) => {
         await db.runTransaction(async (transaction) => {
             // --- Phase 1: All Reads ---
             const withdrawalDoc = await transaction.get(withdrawalRef);
-             if (!withdrawalDoc.exists) {
+            if (!withdrawalDoc.exists) {
                 throw new HttpsError('not-found', 'Withdrawal request not found.');
             }
             const withdrawalData = withdrawalDoc.data();
@@ -274,14 +271,11 @@ exports.processWithdrawal = onCall(async (request) => {
             // --- Phase 2: All Writes ---
             if (approve) {
                 if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
-                    // If balance is insufficient, reject the request instead of throwing error.
-                    // This is a valid write operation within the transaction.
                     transaction.update(withdrawalRef, { 
                         status: 'rejected', 
                         processedAt: FieldValue.serverTimestamp(),
                         rejectionReason: 'Insufficient funds'
                     });
-                    // We don't throw an error here, just complete the transaction with a rejection.
                 } else {
                     // Update user's wallet
                     transaction.update(userRef, {

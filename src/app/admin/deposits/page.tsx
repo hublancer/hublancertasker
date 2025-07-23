@@ -110,7 +110,7 @@ export default function AdminDepositsPage() {
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Confirm Deposit Approval</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Are you sure you want to approve this deposit?
+                                                        Are you sure you want to approve this deposit? This will add funds to the user's wallet.
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <div className="my-4 space-y-2 text-sm text-foreground text-left p-2 bg-muted rounded-md">
