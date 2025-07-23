@@ -1,44 +1,94 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read;
-      // User can only update their own doc, and cannot change their role or wallet
-      allow update: if request.auth.uid == userId
-                    && request.resource.data.role == resource.data.role
-                    && request.resource.data.wallet.balance == resource.data.wallet.balance;
-      
-      // Allow users to access their own notifications and transactions
-      match /notifications/{notificationId} {
-        allow read, write: if request.auth.uid == userId;
-      }
-      match /transactions/{transactionId} {
-        allow read: if request.auth.uid == userId;
-        allow write: if false; // Only backend can write
-      }
+  
+    // Default deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    match /tasks/{taskId} {
-      allow read;
+    // Users can read public profiles, but only edit their own.
+    // They cannot change their own role or wallet from the client.
+    match /users/{userId} {
+      allow read: if true;
+      allow update: if request.auth != null && request.auth.uid == userId
+                    && !('role' in request.resource.data)
+                    && !('wallet' in request.resource.data);
       allow create: if request.auth != null;
-      // Only owner can update/delete, and only if task is open
-      allow update, delete: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
-
-      // Allow authenticated users to make offers/ask questions
-       match /{subcollection}/{docId} {
-        allow read, write: if request.auth != null;
-      }
     }
     
-    match /conversations/{conversationId} {
-        // Allow a user to list conversations they are part of, and read/write to them.
-        allow list: if request.auth.uid in resource.data.participants;
-        allow read, write: if request.auth.uid in resource.data.participants;
+    // Notifications and transactions are private to each user.
+    match /users/{userId}/{collection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Admin-related collections should not be client-writable
-    match /{collection}/{id} 
-      where collection in ['deposits', 'withdrawals', 'platform_transactions', 'paymentGateways', 'settings', 'reviews'] {
+    // Anyone can see tasks. Authenticated users can create them.
+    // Only the owner can update/delete a task, and only if it's still 'open'.
+    match /tasks/{taskId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null 
+                         && resource.data.postedById == request.auth.uid
+                         && resource.data.status == 'open';
+    }
+
+    // Users can create offers and questions on any task.
+    // Only the user who made the offer/question can update/delete it.
+    match /tasks/{taskId}/{collection}/{docId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Platform settings are read-only for clients.
+    match /settings/platform {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Payment gateways are read-only for clients.
+    match /paymentGateways/{gatewayId} {
+        allow read: if true;
+        allow write: if false; // Only admin actions can modify
+    }
+    
+    // Users can create their own deposit/withdrawal requests.
+    // They cannot read other users' requests.
+    match /deposits/{depositId} {
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+        allow write: if false; // Only admin actions can modify
+    }
+    
+    match /withdrawals/{withdrawalId} {
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+        allow write: if false; // Only admin actions can modify
+    }
+
+    // Users can read/write to conversations they are a part of.
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
+    }
+    
+    // Users can write messages in conversations they are a part of.
+    // Anyone in the conversation can read all messages.
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow read: if request.auth != null && get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
+      allow create: if request.auth != null && get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
+    }
+
+    // Users can read reviews.
+    // Authenticated users can create reviews.
+    match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+    }
+    
+    // Platform transactions are private.
+    match /platform_transactions/{transactionId} {
         allow read, write: if false;
     }
   }
