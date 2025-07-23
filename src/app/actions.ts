@@ -6,7 +6,8 @@ import {
 } from '@/ai/flows/generate-task-description';
 import { db } from '@/lib/firebase-admin'; // Use admin db for server actions
 import { revalidatePath } from 'next/cache';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export async function generateTaskDescription(
   input: GenerateTaskDescriptionInput
@@ -184,33 +185,25 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
         }
 
         if ((userDoc.data()?.wallet?.balance ?? 0) < withdrawalData.amount) {
-            // Not enough funds, so reject it
             await withdrawalRef.update({ 
                 status: 'rejected', 
                 processedAt: FieldValue.serverTimestamp(),
                 rejectionReason: 'Insufficient funds'
             });
-            // We are not incrementing wallet balance back because we never deducted it.
-            // So we just reject the request.
-            toast({
-              variant: 'destructive',
-              title: 'Withdrawal Rejected',
-              description: 'User has insufficient funds.',
-            });
-             return { success: false, error: 'Insufficient funds.' };
-        } else {
-            // Sufficient funds, proceed with approval
-            await userRef.update({ 'wallet.balance': FieldValue.increment(-withdrawalData.amount) });
-            
-            await db.collection(`users/${withdrawalData.userId}/transactions`).add({
-                amount: -withdrawalData.amount,
-                type: 'withdrawal',
-                description: `Funds withdrawn to ${withdrawalData.method}`,
-                timestamp: FieldValue.serverTimestamp(),
-            });
-            
-            await withdrawalRef.update({ status: 'completed', processedAt: FieldValue.serverTimestamp() });
-        }
+             return { success: false, error: 'Insufficient funds. Withdrawal rejected.' };
+        } 
+        
+        // Sufficient funds, proceed with approval
+        await userRef.update({ 'wallet.balance': FieldValue.increment(-withdrawalData.amount) });
+        
+        await db.collection(`users/${withdrawalData.userId}/transactions`).add({
+            amount: -withdrawalData.amount,
+            type: 'withdrawal',
+            description: `Funds withdrawn to ${withdrawalData.method}`,
+            timestamp: FieldValue.serverTimestamp(),
+        });
+        
+        await withdrawalRef.update({ status: 'completed', processedAt: FieldValue.serverTimestamp() });
         
         revalidatePath('/admin/withdrawals');
         revalidatePath('/wallet');
