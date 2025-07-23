@@ -1,74 +1,45 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can read public profiles, but only write to their own.
-    // They cannot change their role or wallet from the client.
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+      allow read;
+      // User can only update their own doc, and cannot change their role or wallet
       allow update: if request.auth.uid == userId
-                    && !('role' in request.resource.data)
-                    && !('wallet' in request.resource.data);
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.wallet.balance == resource.data.wallet.balance;
+      
+      // Allow users to access their own notifications and transactions
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+      match /transactions/{transactionId} {
+        allow read: if request.auth.uid == userId;
+        allow write: if false; // Only backend can write
+      }
     }
-    
-    // Anyone can read tasks. Authenticated users can create them.
-    // Only the owner can update/delete an open task.
+
     match /tasks/{taskId} {
-      allow read: if true;
+      allow read;
       allow create: if request.auth != null;
+      // Only owner can update/delete, and only if task is open
       allow update, delete: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
-    }
 
-    // Task subcollections
-    match /tasks/{taskId}/{collection}/{docId} {
-        // Users can create offers and questions.
-        allow create: if request.auth != null;
-        // Only the offer creator can update/delete their offer.
-        allow update, delete: if collection == 'offers' && request.auth.uid == resource.data.taskerId;
+      // Allow authenticated users to make offers/ask questions
+       match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null;
+      }
     }
     
-    // Conversations can only be read by participants.
     match /conversations/{conversationId} {
-      allow read, write: if request.auth.uid in resource.data.participants;
-    }
-    
-    match /conversations/{conversationId}/messages/{messageId} {
-      allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        // Allow a user to list conversations they are part of, and read/write to them.
+        allow list: if request.auth.uid in resource.data.participants;
+        allow read, write: if request.auth.uid in resource.data.participants;
     }
 
-    // Users can access their own notifications and transactions.
-    match /users/{userId}/{subcollection}/{docId} {
-        allow read, write, create, delete: if request.auth.uid == userId;
+    // Admin-related collections should not be client-writable
+    match /{collection}/{id} 
+      where collection in ['deposits', 'withdrawals', 'platform_transactions', 'paymentGateways', 'settings', 'reviews'] {
+        allow read, write: if false;
     }
-    
-    // Platform settings are read-only for clients.
-    match /settings/platform {
-        allow read: if request.auth != null;
-        allow write: if false; // Only admin SDK
-    }
-    
-    // Reviews can be created by authenticated users.
-    match /reviews/{reviewId} {
-      allow create: if request.auth != null;
-      allow read: if true;
-    }
-    
-    // Payment gateways are read-only for clients.
-    match /paymentGateways/{gatewayId} {
-      allow read: if request.auth != null;
-    }
-    
-    // Users can manage their own deposit/withdrawal requests.
-    match /deposits/{depositId} {
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow read: if request.auth.uid == resource.data.userId;
-    }
-    match /withdrawals/{withdrawalId} {
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow read: if request.auth.uid == resource.data.userId;
-    }
-    
   }
 }
