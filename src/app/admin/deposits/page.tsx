@@ -22,7 +22,7 @@ interface DepositRequest {
     createdAt: Timestamp;
 }
 
-export function DepositRequests() {
+export default function AdminDepositsPage() {
     const { settings } = useAuth();
     const { toast } = useToast();
     const [requests, setRequests] = useState<DepositRequest[]>([]);

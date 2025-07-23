@@ -22,7 +22,7 @@ interface WithdrawalRequest {
     createdAt: Timestamp;
 }
 
-export function WithdrawalRequests() {
+export default function AdminWithdrawalsPage() {
     const { settings } = useAuth();
     const { toast } = useToast();
     const [requests, setRequests] = useState<WithdrawalRequest[]>([]);
