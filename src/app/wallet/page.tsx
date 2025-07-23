@@ -14,7 +14,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { DepositModal } from '@/components/wallet/DepositModal';
 import { WithdrawModal } from '@/components/wallet/WithdrawModal';
-import { Separator } from '@/components/ui/separator';
+import { LoginDialog } from '@/components/LoginDialog';
+
 
 interface Transaction {
     id: string;
@@ -35,13 +36,14 @@ interface PendingRequest {
 
 
 export default function WalletPage() {
-    const { user, userProfile, settings } = useAuth();
+    const { user, userProfile, settings, loading: authLoading } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [pendingDeposits, setPendingDeposits] = useState<PendingRequest[]>([]);
     const [pendingWithdrawals, setPendingWithdrawals] = useState<PendingRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+    const [isLoginOpen, setIsLoginOpen] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -61,6 +63,7 @@ export default function WalletPage() {
         const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
             const trans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
             setTransactions(trans);
+            setLoading(false);
         }, (error) => {
             console.error("Error fetching transactions:", error);
             setLoading(false)
@@ -74,7 +77,6 @@ export default function WalletPage() {
             setPendingDeposits(reqs);
         }, (error) => {
             console.error("Error fetching pending deposits:", error);
-            setLoading(false)
         });
         unsubscribers.push(unsubscribeDeposits);
         
@@ -85,16 +87,14 @@ export default function WalletPage() {
             setPendingWithdrawals(reqs);
         }, (error) => {
             console.error("Error fetching pending withdrawals:", error);
-            setLoading(false)
         });
         unsubscribers.push(unsubscribeWithdrawals);
 
-        setLoading(false);
 
         return () => unsubscribers.forEach(unsub => unsub());
     }, [user]);
     
-    if (loading) {
+    if (authLoading || loading) {
         return (
             <div className="flex flex-col min-h-screen bg-background">
                 <AppHeader />
@@ -107,7 +107,14 @@ export default function WalletPage() {
         return (
              <div className="flex flex-col min-h-screen bg-background">
                 <AppHeader />
-                <div className="text-center p-8">Please log in to view your wallet.</div>
+                 <main className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                    <h2 className="text-2xl font-bold mb-2">View Your Wallet</h2>
+                    <p className="text-muted-foreground mb-4">
+                        You need to be logged in to view your wallet.
+                    </p>
+                    <Button onClick={() => setIsLoginOpen(true)}>Login</Button>
+                </main>
+                <LoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
             </div>
         )
     }

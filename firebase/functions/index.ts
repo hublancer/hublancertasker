@@ -7,7 +7,7 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import { onDocumentCreated, onDocumentDeleted, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -120,7 +120,7 @@ exports.completeTask = onCall(async (request) => {
             }
 
             // --- All reads are done and validated. Now, perform calculations and writes. ---
-            const commissionRate = settingsDoc.exists ? (settingsDoc.data()?.commissionRate ?? 0.1) : 0.1;
+            const commissionRate = settingsDoc.exists() ? (settingsDoc.data()?.commissionRate ?? 0.1) : 0.1;
             const taskPrice = taskData.price;
             const commission = taskPrice * commissionRate;
             const taskerPayout = taskPrice - commission;
@@ -187,9 +187,9 @@ exports.processDeposit = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'The function must be called with a "depositId".');
     }
 
+    const depositRef = db.doc(`deposits/${depositId}`);
+    
     try {
-        const depositRef = db.doc(`deposits/${depositId}`);
-        
         await db.runTransaction(async (transaction) => {
             const depositDoc = await transaction.get(depositRef);
             if (!depositDoc.exists) {
@@ -202,6 +202,13 @@ exports.processDeposit = onCall(async (request) => {
 
             if (approve) {
                 const userRef = db.doc(`users/${depositData.userId}`);
+                // All reads must come before writes in a transaction.
+                const userDoc = await transaction.get(userRef); 
+                if (!userDoc.exists) {
+                     throw new HttpsError('not-found', `User ${depositData.userId} not found.`);
+                }
+                
+                // Now perform writes
                 transaction.update(userRef, {
                     'wallet.balance': FieldValue.increment(depositData.amount)
                 });
@@ -213,9 +220,9 @@ exports.processDeposit = onCall(async (request) => {
                     description: `Funds deposited via ${depositData.gatewayName}`,
                     timestamp: FieldValue.serverTimestamp(),
                 });
-                 transaction.update(depositRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
-            } else {
-                 transaction.update(depositRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
+                transaction.update(depositRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
+            } else { // Reject
+                transaction.update(depositRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
             }
         });
 
@@ -243,9 +250,9 @@ exports.processWithdrawal = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'The function must be called with a "withdrawalId".');
     }
 
+    const withdrawalRef = db.doc(`withdrawals/${withdrawalId}`);
+    
     try {
-        const withdrawalRef = db.doc(`withdrawals/${withdrawalId}`);
-        
         await db.runTransaction(async (transaction) => {
             const withdrawalDoc = await transaction.get(withdrawalRef);
              if (!withdrawalDoc.exists) {
@@ -262,7 +269,6 @@ exports.processWithdrawal = onCall(async (request) => {
                  throw new HttpsError('not-found', 'User not found.');
              }
              const userData = userDoc.data();
-
 
             if (approve) {
                 if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
