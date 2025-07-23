@@ -85,7 +85,7 @@ export async function completeTask(taskId: string): Promise<{ success: boolean; 
             transaction.get(taskerRef)
         ]);
 
-        if (!taskerDoc.exists) {
+        if (!taskerDoc.exists()) {
             throw new Error('Tasker not found.');
         }
         
@@ -170,8 +170,14 @@ export async function approveDeposit(depositId: string): Promise<{ success: bool
 
 export async function rejectDeposit(depositId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const depositRef = doc(db, 'deposits', depositId);
-    await updateDoc(depositRef, { status: 'rejected', processedAt: serverTimestamp() });
+    await runTransaction(db, async (transaction) => {
+      const depositRef = doc(db, 'deposits', depositId);
+      const depositDoc = await transaction.get(depositRef);
+      if (!depositDoc.exists() || depositDoc.data()?.status !== 'pending') {
+          throw new Error('Deposit request not found or not pending.');
+      }
+      transaction.update(depositRef, { status: 'rejected', processedAt: serverTimestamp() });
+    });
     revalidatePath('/admin/deposits');
     return { success: true };
   } catch (error: any) {
@@ -204,9 +210,6 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
                     processedAt: serverTimestamp(),
                     rejectionReason: 'Insufficient funds'
                 });
-                // Note: We'll still return success: true from the action, 
-                // as the transaction itself succeeded, even if it was a rejection.
-                // The UI will update based on the new status.
             } else {
                 // Sufficient funds, proceed with approval
                 transaction.update(userRef, { 'wallet.balance': FieldValue.increment(-withdrawalData.amount) });
@@ -235,8 +238,14 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
 
 export async function rejectWithdrawal(withdrawalId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const withdrawalRef = doc(db, 'withdrawals', withdrawalId);
-    await updateDoc(withdrawalRef, { status: 'rejected', processedAt: serverTimestamp() });
+    await runTransaction(db, async (transaction) => {
+        const withdrawalRef = doc(db, 'withdrawals', withdrawalId);
+        const withdrawalDoc = await transaction.get(withdrawalRef);
+        if (!withdrawalDoc.exists() || withdrawalDoc.data()?.status !== 'pending') {
+          throw new Error('Withdrawal is not pending or does not exist.');
+        }
+        transaction.update(withdrawalRef, { status: 'rejected', processedAt: serverTimestamp() });
+    });
     revalidatePath('/admin/withdrawals');
     return { success: true };
   } catch (error: any) {
