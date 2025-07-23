@@ -1,91 +1,52 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Default deny all reads/writes
-    match /{document=**} {
-      allow read, write: if false;
+    // Helper function to check for admin role
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Allow authenticated users to read/write their own user data,
-    // but not change their role or wallet balance.
-    // Allow any authenticated user to read any user's profile.
+    // Admins can do anything
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Rules for non-admin users
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId
-                   && !('wallet' in request.resource.data)
-                   && !('role' in request.resource.data);
-      
-      // Allow authenticated users to manage their own notifications and transactions
-      match /notifications/{notificationId} {
-        allow read, write: if request.auth.uid == userId;
-      }
-      match /transactions/{transactionId} {
-        allow read, write: if request.auth.uid == userId;
-      }
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId && !('wallet' in request.resource.data) && !('role' in request.resource.data);
     }
 
-    // Anyone can read tasks. Authenticated users can create tasks.
-    // Only the owner can update a task if it's open.
-    // Only the owner can delete a task.
     match /tasks/{taskId} {
       allow read: if true;
       allow create: if request.auth != null;
       allow update: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
-      allow delete: if request.auth.uid == resource.data.postedById;
-      
-      // Allow authenticated users to create offers and questions.
-      match /offers/{offerId} {
-        allow read, write, create, delete: if request.auth != null;
-      }
-      match /questions/{questionId} {
-         allow read, write, create: if request.auth != null;
-      }
+      allow delete: if request.auth.uid == resource.data.postedById && resource.data.status == 'open';
     }
     
-    // Allow authenticated users to read their own conversations.
+    match /tasks/{taskId}/{document=**} {
+        allow read, write: if request.auth != null;
+    }
+    
     match /conversations/{conversationId} {
-       allow read, write: if request.auth.uid in resource.data.participants;
-       
-       // Allow participants to read/write messages in their conversation.
-       match /messages/{messageId} {
-         allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-       }
+        allow read, update: if request.auth.uid in resource.data.participants;
+        allow create: if request.auth.uid in request.resource.data.participants;
+    }
+
+    match /conversations/{conversationId}/{document=**} {
+        allow read, write: if request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
     }
     
-    // Allow authenticated users to read payment gateways.
     match /paymentGateways/{gatewayId} {
-      allow read: if request.auth != null;
+        allow read: if request.auth != null;
     }
-    
-    // Allow any authenticated user to create deposit and withdrawal requests.
-    match /deposits/{depositId} {
-      allow create: if request.auth != null;
-      allow read: if request.auth.uid == resource.data.userId;
-    }
-    
-    match /withdrawals/{withdrawalId} {
-      allow create: if request.auth != null;
-      allow read: if request.auth.uid == resource.data.userId;
-    }
-    
-    // Allow authenticated users to submit reviews.
-    match /reviews/{reviewId} {
-      allow create: if request.auth != null;
-      allow read: if true;
-    }
-    
-    // Allow any authenticated user to read platform settings.
+
     match /settings/platform {
-      allow read: if request.auth != null;
-    }
-    
-    // Admin-related collections are locked down from client access.
-    // All operations on these must be done via server-side logic (Admin SDK).
-    match /platform_transactions/{transactionId} {
-      allow read, write: if false;
+      allow read: if true;
     }
   }
 }
