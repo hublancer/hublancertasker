@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
 interface Notification {
