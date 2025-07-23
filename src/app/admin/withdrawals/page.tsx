@@ -111,12 +111,12 @@ export default function AdminWithdrawalsPage() {
                                                     <AlertDialogTitle>Confirm Withdrawal Approval</AlertDialogTitle>
                                                     <AlertDialogDescription>
                                                         Are you sure you want to approve this withdrawal? This will send funds to the user.
-                                                        <ul className="mt-4 space-y-1 text-sm text-foreground">
-                                                            <li><strong>User:</strong> {req.userName}</li>
-                                                            <li><strong>Amount:</strong> {settings?.currencySymbol}{req.amount.toFixed(2)}</li>
-                                                            <li><strong>Method:</strong> {req.method}</li>
-                                                        </ul>
                                                     </AlertDialogDescription>
+                                                    <ul className="mt-4 space-y-1 text-sm text-foreground text-left">
+                                                        <li><strong>User:</strong> {req.userName}</li>
+                                                        <li><strong>Amount:</strong> {settings?.currencySymbol}{req.amount.toFixed(2)}</li>
+                                                        <li><strong>Method:</strong> {req.method}</li>
+                                                    </ul>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
