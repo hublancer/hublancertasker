@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { approveWithdrawal, rejectWithdrawal } from '@/app/actions';
 import { useAuth } from '@/hooks/use-auth';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface WithdrawalRequest {
     id: string;
@@ -99,12 +100,49 @@ export default function AdminWithdrawalsPage() {
                                     <TableCell><pre className="text-xs whitespace-pre-wrap font-sans">{req.details}</pre></TableCell>
                                     <TableCell>{req.createdAt.toDate().toLocaleString()}</TableCell>
                                     <TableCell className="text-right space-x-2">
-                                        <Button size="sm" onClick={() => handleApprove(req.id)} disabled={processingId === req.id}>
-                                            {processingId === req.id ? '...' : 'Approve'}
-                                        </Button>
-                                        <Button size="sm" variant="destructive" onClick={() => handleReject(req.id)} disabled={processingId === req.id}>
-                                            {processingId === req.id ? '...' : 'Reject'}
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="sm" disabled={processingId !== null}>
+                                                    {processingId === req.id ? '...' : 'Approve'}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Withdrawal Approval</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to approve this withdrawal? This will send funds to the user.
+                                                        <ul className="mt-4 space-y-1 text-sm text-foreground">
+                                                            <li><strong>User:</strong> {req.userName}</li>
+                                                            <li><strong>Amount:</strong> {settings?.currencySymbol}{req.amount.toFixed(2)}</li>
+                                                            <li><strong>Method:</strong> {req.method}</li>
+                                                        </ul>
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleApprove(req.id)}>Approve</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="sm" variant="destructive" disabled={processingId !== null}>
+                                                    {processingId === req.id ? '...' : 'Reject'}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Withdrawal Rejection</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to reject this withdrawal request? This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleReject(req.id)}>Reject</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </TableCell>
                                 </TableRow>
                             ))

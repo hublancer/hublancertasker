@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { approveDeposit, rejectDeposit } from '@/app/actions';
 import { useAuth } from '@/hooks/use-auth';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface DepositRequest {
     id: string;
@@ -99,12 +100,50 @@ export default function AdminDepositsPage() {
                                     <TableCell className="font-mono">{req.trxId}</TableCell>
                                     <TableCell>{req.createdAt.toDate().toLocaleString()}</TableCell>
                                     <TableCell className="text-right space-x-2">
-                                        <Button size="sm" onClick={() => handleApprove(req.id)} disabled={processingId === req.id}>
-                                            {processingId === req.id ? '...' : 'Approve'}
-                                        </Button>
-                                        <Button size="sm" variant="destructive" onClick={() => handleReject(req.id)} disabled={processingId === req.id}>
-                                             {processingId === req.id ? '...' : 'Reject'}
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="sm" disabled={processingId !== null}>
+                                                    {processingId === req.id ? '...' : 'Approve'}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Deposit Approval</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to approve this deposit?
+                                                        <ul className="mt-4 space-y-1 text-sm text-foreground">
+                                                            <li><strong>User:</strong> {req.userName}</li>
+                                                            <li><strong>Amount:</strong> {settings?.currencySymbol}{req.amount.toFixed(2)}</li>
+                                                            <li><strong>Gateway:</strong> {req.gatewayName}</li>
+                                                            <li><strong>TRX ID:</strong> {req.trxId}</li>
+                                                        </ul>
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleApprove(req.id)}>Approve</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="sm" variant="destructive" disabled={processingId !== null}>
+                                                    {processingId === req.id ? '...' : 'Reject'}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Deposit Rejection</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to reject this deposit? This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleReject(req.id)}>Reject</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </TableCell>
                                 </TableRow>
                             ))
