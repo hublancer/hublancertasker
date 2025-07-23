@@ -10,7 +10,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, GeoPoint, getDoc, FieldValue } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, GeoPoint, getDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -256,8 +256,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
       // Deduct funds from client's wallet
       const clientRef = doc(db, 'users', task.postedById);
-      const newClientBalance = (userProfile.wallet?.balance ?? 0) - offer.offerPrice;
-      batch.update(clientRef, { 'wallet.balance': newClientBalance });
+      batch.update(clientRef, { 'wallet.balance': increment(-offer.offerPrice) });
 
       // Add transaction record for client
       const clientTransactionRef = doc(collection(db, 'users', task.postedById, 'transactions'));
@@ -392,7 +391,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             const taskerEarnings = task.price - commission;
 
             // 2. Pay the tasker
-            batch.update(taskerRef, { 'wallet.balance': FieldValue.increment(taskerEarnings) });
+            batch.update(taskerRef, { 'wallet.balance': increment(taskerEarnings) });
             
             // 3. Create earning transaction for tasker
             const taskerTransactionRef = doc(collection(db, 'users', task.assignedToId, 'transactions'));

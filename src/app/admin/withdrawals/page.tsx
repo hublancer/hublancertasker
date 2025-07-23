@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, getDoc, writeBatch, serverTimestamp, FieldValue, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, getDoc, writeBatch, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -70,7 +70,7 @@ export default function AdminWithdrawalsPage() {
             batch.update(withdrawalRef, { status: 'completed', processedAt: serverTimestamp() });
             
             // 2. Deduct funds from user's wallet
-            batch.update(userRef, { 'wallet.balance': FieldValue.increment(-req.amount) });
+            batch.update(userRef, { 'wallet.balance': increment(-req.amount) });
             
             // 3. Create a transaction record for the user
             const transactionRef = doc(collection(db, 'users', req.userId, 'transactions'));

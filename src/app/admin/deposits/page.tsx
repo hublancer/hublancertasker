@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, updateDoc, writeBatch, FieldValue, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { increment } from 'firebase/firestore';
 
 interface DepositRequest {
     id: string;
@@ -55,7 +56,7 @@ export default function AdminDepositsPage() {
 
             // 2. Update the user's wallet balance
             const userRef = doc(db, 'users', req.userId);
-            batch.update(userRef, { 'wallet.balance': FieldValue.increment(req.amount) });
+            batch.update(userRef, { 'wallet.balance': increment(req.amount) });
 
             // 3. Create a transaction record for the user
             const transactionRef = doc(collection(db, 'users', req.userId, 'transactions'));
