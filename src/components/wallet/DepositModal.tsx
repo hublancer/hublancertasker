@@ -28,11 +28,7 @@ const depositSchema = z.object({
     amount: z.coerce.number().positive('Amount must be positive'),
     gatewayId: z.string().min(1, 'Please select a payment method'),
     trxId: z.string().optional(),
-}).refine(data => {
-    // This is a simplified check. We'll find the selected gateway later.
-    // A proper implementation would check the type inside the component.
-    return true; 
-}, {});
+});
 
 type DepositFormValues = z.infer<typeof depositSchema>;
 
@@ -50,7 +46,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
 
     const form = useForm<DepositFormValues>({
         resolver: zodResolver(depositSchema),
-        defaultValues: { amount: '' as any, gatewayId: '' }
+        defaultValues: {
+            amount: undefined,
+            gatewayId: '',
+            trxId: '',
+        }
     });
 
     useEffect(() => {
@@ -147,7 +147,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Amount</FormLabel>
-                                    <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                                    <FormControl><Input type="number" placeholder="0.00" {...field} value={field.value ?? ''} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -160,7 +160,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Transaction ID (TRXID)</FormLabel>
-                                        <FormControl><Input placeholder="Enter your payment transaction ID" {...field} /></FormControl>
+                                        <FormControl><Input placeholder="Enter your payment transaction ID" {...field} value={field.value ?? ''} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}

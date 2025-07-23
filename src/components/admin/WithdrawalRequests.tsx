@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -30,10 +30,13 @@ export function WithdrawalRequests() {
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     useEffect(() => {
-        const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));
+        const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawalRequest));
             setRequests(reqs);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching withdrawal requests:", error);
             setLoading(false);
         });
         return () => unsubscribe();
@@ -45,7 +48,7 @@ export function WithdrawalRequests() {
         if (result.success) {
             toast({ title: 'Success', description: 'Withdrawal has been processed.' });
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            toast({ variant: 'destructive', title: 'Error', description: result.error ?? 'Failed to approve withdrawal.' });
         }
         setProcessingId(null);
     };
@@ -56,7 +59,7 @@ export function WithdrawalRequests() {
         if (result.success) {
             toast({ title: 'Success', description: 'Withdrawal has been rejected.' });
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            toast({ variant: 'destructive', title: 'Error', description: result.error ?? 'Failed to reject withdrawal.' });
         }
         setProcessingId(null);
     };
@@ -89,10 +92,10 @@ export function WithdrawalRequests() {
                         ) : (
                             requests.map(req => (
                                 <TableRow key={req.id}>
-                                    <TableCell>{req.userName}</TableCell>
+                                    <TableCell>{req.userName || req.userId}</TableCell>
                                     <TableCell>{settings?.currencySymbol}{req.amount.toFixed(2)}</TableCell>
                                     <TableCell>{req.method}</TableCell>
-                                    <TableCell><pre className="text-xs">{req.details}</pre></TableCell>
+                                    <TableCell><pre className="text-xs whitespace-pre-wrap font-sans">{req.details}</pre></TableCell>
                                     <TableCell>{req.createdAt.toDate().toLocaleString()}</TableCell>
                                     <TableCell className="text-right space-x-2">
                                         <Button size="sm" onClick={() => handleApprove(req.id)} disabled={processingId === req.id}>

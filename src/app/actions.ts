@@ -7,10 +7,8 @@ import {
 import { db } from '@/lib/firebase';
 import { addDoc, collection, doc, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebase'; // Ensure app is imported
+import { app } from '@/lib/firebase'; 
 
-// This is a placeholder for a real client-side Firebase app instance
-// In a real app, you would initialize this once.
 const functions = getFunctions(app);
 const completeTaskFunction = httpsCallable(functions, 'completeTask');
 const processDepositFunction = httpsCallable(functions, 'processDeposit');
@@ -42,14 +40,6 @@ interface MakeOfferInput {
 
 export async function makeOffer(input: MakeOfferInput): Promise<{success: boolean, error?: string}> {
     try {
-        // The offer creation will be handled directly on the client, 
-        // and the offerCount will be updated via a Cloud Function.
-        // This action can now focus on things like notifications.
-        
-        // 1. Create the new offer document (This logic is now primarily in TaskDetails, 
-        // but could be kept here if you want the server to do it. For now, we assume
-        // the client does this and the cloud function handles the count).
-
         const offersCollectionRef = collection(db, 'tasks', input.taskId, 'offers');
         await addDoc(offersCollectionRef, {
             taskerId: input.taskerId,
@@ -60,7 +50,6 @@ export async function makeOffer(input: MakeOfferInput): Promise<{success: boolea
             createdAt: serverTimestamp(),
         });
 
-        // 2. Add notification (outside the transaction)
          await addDoc(collection(db, 'users', input.postedById, 'notifications'), {
             message: `${input.taskerName} made an offer on your task "${input.taskTitle}"`,
             link: `/task/${input.taskId}`,
@@ -82,47 +71,51 @@ interface CompleteTaskInput {
 export async function completeTask(input: CompleteTaskInput): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await completeTaskFunction({ taskId: input.taskId });
-    const data = result.data as { success: boolean; error?: string };
-    return data;
+    // The result from a callable function is in result.data
+    return result.data as { success: boolean; error?: string };
   } catch (error: any) {
     console.error('Error calling completeTask function:', error);
     return { success: false, error: error.message || 'An unknown error occurred while calling the function.' };
   }
 }
 
-
 export async function approveDeposit(depositId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await processDepositFunction({ depositId, approve: true });
-    return { success: (result.data as any).success };
+    return result.data as { success: boolean, error?: string };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Error approving deposit:', error);
+    return { success: false, error: error.message || 'An unknown error occurred.' };
   }
 }
 
 export async function rejectDeposit(depositId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await processDepositFunction({ depositId, approve: false });
-    return { success: (result.data as any).success };
+    return result.data as { success: boolean, error?: string };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Error rejecting deposit:', error);
+    return { success: false, error: error.message || 'An unknown error occurred.' };
   }
 }
 
 export async function approveWithdrawal(withdrawalId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await processWithdrawalFunction({ withdrawalId, approve: true });
-    return { success: (result.data as any).success };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+     return result.data as { success: boolean, error?: string };
+  } catch (error: any)
+   {
+    console.error('Error approving withdrawal:', error);
+    return { success: false, error: error.message || 'An unknown error occurred.' };
   }
 }
 
 export async function rejectWithdrawal(withdrawalId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await processWithdrawalFunction({ withdrawalId, approve: false });
-    return { success: (result.data as any).success };
+    return result.data as { success: boolean, error?: string };
   } catch (error: any) {
-    return { success: false, error: error.message };
+     console.error('Error rejecting withdrawal:', error);
+    return { success: false, error: error.message || 'An unknown error occurred.' };
   }
 }

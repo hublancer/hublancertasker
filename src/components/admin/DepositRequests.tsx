@@ -3,10 +3,9 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { approveDeposit, rejectDeposit } from '@/app/actions';
@@ -31,10 +30,13 @@ export function DepositRequests() {
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     useEffect(() => {
-        const q = query(collection(db, 'deposits'), where('status', '==', 'pending'));
+        const q = query(collection(db, 'deposits'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DepositRequest));
             setRequests(reqs);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching deposit requests:", error);
             setLoading(false);
         });
         return () => unsubscribe();
@@ -46,7 +48,7 @@ export function DepositRequests() {
         if (result.success) {
             toast({ title: 'Success', description: 'Deposit has been approved.' });
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            toast({ variant: 'destructive', title: 'Error', description: result.error ?? 'Failed to approve deposit.' });
         }
         setProcessingId(null);
     };
@@ -57,7 +59,7 @@ export function DepositRequests() {
         if (result.success) {
             toast({ title: 'Success', description: 'Deposit has been rejected.' });
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            toast({ variant: 'destructive', title: 'Error', description: result.error ?? 'Failed to reject deposit.' });
         }
         setProcessingId(null);
     };
@@ -90,7 +92,7 @@ export function DepositRequests() {
                         ) : (
                             requests.map(req => (
                                 <TableRow key={req.id}>
-                                    <TableCell>{req.userName}</TableCell>
+                                    <TableCell>{req.userName || req.userId}</TableCell>
                                     <TableCell>{settings?.currencySymbol}{req.amount.toFixed(2)}</TableCell>
                                     <TableCell>{req.gatewayName}</TableCell>
                                     <TableCell className="font-mono">{req.trxId}</TableCell>

@@ -61,7 +61,10 @@ export default function WalletPage() {
         const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
             const trans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
             setTransactions(trans);
-        }, () => setLoading(false));
+        }, (error) => {
+            console.error("Error fetching transactions:", error);
+            setLoading(false)
+        });
         unsubscribers.push(unsubscribeTransactions);
         
         // Listener for pending deposits
@@ -69,7 +72,10 @@ export default function WalletPage() {
         const unsubscribeDeposits = onSnapshot(depositsQuery, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
             setPendingDeposits(reqs);
-        }, () => setLoading(false));
+        }, (error) => {
+            console.error("Error fetching pending deposits:", error);
+            setLoading(false)
+        });
         unsubscribers.push(unsubscribeDeposits);
         
         // Listener for pending withdrawals
@@ -77,7 +83,10 @@ export default function WalletPage() {
         const unsubscribeWithdrawals = onSnapshot(withdrawalsQuery, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
             setPendingWithdrawals(reqs);
-        }, () => setLoading(false));
+        }, (error) => {
+            console.error("Error fetching pending withdrawals:", error);
+            setLoading(false)
+        });
         unsubscribers.push(unsubscribeWithdrawals);
 
         setLoading(false);
@@ -185,7 +194,7 @@ export default function WalletPage() {
                         <Card>
                              <CardHeader>
                                 <CardTitle>Transaction History</CardTitle>
-                                <CardDescription>A record of your recent wallet activity.</CardDescription>
+                                <CardDescription>A record of your completed wallet activity.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <Table>
