@@ -167,3 +167,124 @@ exports.completeTask = onCall(async (request) => {
         throw new HttpsError('internal', 'An unexpected error occurred while completing the task.');
     }
 });
+
+
+exports.processDeposit = onCall(async (request) => {
+    if (request.auth?.token.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'You must be an admin to process deposits.');
+    }
+    const { depositId, approve } = request.data;
+    if (!depositId) {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "depositId".');
+    }
+
+    try {
+        const depositRef = db.doc(`deposits/${depositId}`);
+        
+        await db.runTransaction(async (transaction) => {
+            const depositDoc = await transaction.get(depositRef);
+            if (!depositDoc.exists) {
+                throw new HttpsError('not-found', 'Deposit request not found.');
+            }
+            const depositData = depositDoc.data();
+            if (!depositData || depositData.status !== 'pending') {
+                throw new HttpsError('failed-precondition', 'Deposit is not in a pending state.');
+            }
+
+            if (approve) {
+                const userRef = db.doc(`users/${depositData.userId}`);
+                transaction.update(userRef, {
+                    'wallet.balance': FieldValue.increment(depositData.amount)
+                });
+
+                const userTransactionRef = db.collection(`users/${depositData.userId}/transactions`).doc();
+                transaction.set(userTransactionRef, {
+                    amount: depositData.amount,
+                    type: 'deposit',
+                    description: `Funds deposited via ${depositData.gatewayName}`,
+                    timestamp: FieldValue.serverTimestamp(),
+                });
+                 transaction.update(depositRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
+            } else {
+                 transaction.update(depositRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
+            }
+        });
+
+        logger.info(`Deposit ${depositId} has been ${approve ? 'approved' : 'rejected'}`);
+        return { success: true };
+
+    } catch (error) {
+         logger.error(`Error processing deposit ${depositId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An unexpected error occurred while processing the deposit.');
+    }
+});
+
+
+exports.processWithdrawal = onCall(async (request) => {
+    if (request.auth?.token.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'You must be an admin to process withdrawals.');
+    }
+    const { withdrawalId, approve } = request.data;
+     if (!withdrawalId) {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "withdrawalId".');
+    }
+
+    try {
+        const withdrawalRef = db.doc(`withdrawals/${withdrawalId}`);
+        
+        await db.runTransaction(async (transaction) => {
+            const withdrawalDoc = await transaction.get(withdrawalRef);
+             if (!withdrawalDoc.exists) {
+                throw new HttpsError('not-found', 'Withdrawal request not found.');
+            }
+            const withdrawalData = withdrawalDoc.data();
+            if (!withdrawalData || withdrawalData.status !== 'pending') {
+                throw new HttpsError('failed-precondition', 'Withdrawal is not in a pending state.');
+            }
+
+             const userRef = db.doc(`users/${withdrawalData.userId}`);
+             const userDoc = await transaction.get(userRef);
+             if (!userDoc.exists) {
+                 throw new HttpsError('not-found', 'User not found.');
+             }
+             const userData = userDoc.data();
+
+
+            if (approve) {
+                if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
+                    throw new HttpsError('failed-precondition', 'User has insufficient funds for this withdrawal.');
+                }
+                
+                transaction.update(userRef, {
+                    'wallet.balance': FieldValue.increment(-withdrawalData.amount)
+                });
+                
+                const userTransactionRef = db.collection(`users/${withdrawalData.userId}/transactions`).doc();
+                transaction.set(userTransactionRef, {
+                    amount: -withdrawalData.amount,
+                    type: 'withdrawal',
+                    description: `Funds withdrawn to ${withdrawalData.method}`,
+                    timestamp: FieldValue.serverTimestamp(),
+                });
+
+                transaction.update(withdrawalRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
+
+            } else { // Reject
+                transaction.update(withdrawalRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
+            }
+        });
+
+        logger.info(`Withdrawal ${withdrawalId} has been ${approve ? 'approved' : 'rejected'}`);
+        return { success: true };
+
+    } catch (error) {
+         logger.error(`Error processing withdrawal ${withdrawalId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An unexpected error occurred while processing the withdrawal.');
+    }
+});

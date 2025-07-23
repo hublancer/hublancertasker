@@ -4,18 +4,18 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import AppHeader from '@/components/AppHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ArrowDownLeft, ArrowUpRight, DollarSign } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
+import { Button } from '@/components/ui/button';
+import { DepositModal } from '@/components/wallet/DepositModal';
+import { WithdrawModal } from '@/components/wallet/WithdrawModal';
 
 interface Transaction {
     id: string;
@@ -27,14 +27,10 @@ interface Transaction {
 
 export default function WalletPage() {
     const { user, userProfile, settings } = useAuth();
-    const { toast } = useToast();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
-
-    const [depositAmount, setDepositAmount] = useState('');
-    const [withdrawAmount, setWithdrawAmount] = useState('');
-    const [isDepositing, setIsDepositing] = useState(false);
-    const [isWithdrawing, setIsWithdrawing] = useState(false);
+    const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+    const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -55,88 +51,7 @@ export default function WalletPage() {
 
         return () => unsubscribe();
     }, [user]);
-
-    const handleDeposit = async () => {
-        if (!user || !depositAmount || Number(depositAmount) <= 0) {
-            toast({ variant: 'destructive', title: 'Invalid amount' });
-            return;
-        }
-        setIsDepositing(true);
-
-        try {
-            await runTransaction(db, async (transaction) => {
-                const userRef = doc(db, 'users', user.uid);
-                const userDoc = await transaction.get(userRef);
-
-                if (!userDoc.exists()) throw "User not found";
-                
-                const currentBalance = userDoc.data().wallet?.balance ?? 0;
-                const newBalance = currentBalance + Number(depositAmount);
-
-                transaction.update(userRef, { 'wallet.balance': newBalance });
-                
-                const newTransactionRef = doc(collection(db, 'users', user.uid, 'transactions'));
-                transaction.set(newTransactionRef, {
-                    amount: Number(depositAmount),
-                    type: 'deposit',
-                    description: 'Funds deposited to wallet',
-                    timestamp: serverTimestamp(),
-                });
-            });
-
-            toast({ title: 'Deposit Successful', description: `${settings?.currencySymbol ?? 'Rs'}${depositAmount} has been added to your wallet.` });
-            setDepositAmount('');
-        } catch (error) {
-            console.error('Deposit error: ', error);
-            toast({ variant: 'destructive', title: 'Deposit Failed' });
-        } finally {
-            setIsDepositing(false);
-        }
-    };
     
-    const handleWithdraw = async () => {
-        if (!user || !userProfile || !withdrawAmount || Number(withdrawAmount) <= 0) {
-            toast({ variant: 'destructive', title: 'Invalid amount' });
-            return;
-        }
-
-        if (Number(withdrawAmount) > (userProfile.wallet?.balance ?? 0)) {
-            toast({ variant: 'destructive', title: 'Insufficient balance' });
-            return;
-        }
-        setIsWithdrawing(true);
-
-        try {
-             await runTransaction(db, async (transaction) => {
-                const userRef = doc(db, 'users', user.uid);
-                const userDoc = await transaction.get(userRef);
-
-                if (!userDoc.exists()) throw "User not found";
-                
-                const currentBalance = userDoc.data().wallet?.balance ?? 0;
-                const newBalance = currentBalance - Number(withdrawAmount);
-
-                transaction.update(userRef, { 'wallet.balance': newBalance });
-                
-                const newTransactionRef = doc(collection(db, 'users', user.uid, 'transactions'));
-                transaction.set(newTransactionRef, {
-                    amount: -Number(withdrawAmount),
-                    type: 'withdrawal',
-                    description: 'Funds withdrawn from wallet',
-                    timestamp: serverTimestamp(),
-                });
-            });
-            toast({ title: 'Withdrawal Successful', description: `${settings?.currencySymbol ?? 'Rs'}${withdrawAmount} has been withdrawn from your wallet.` });
-            setWithdrawAmount('');
-        } catch (error) {
-            console.error('Withdrawal error: ', error);
-            toast({ variant: 'destructive', title: 'Withdrawal Failed' });
-        } finally {
-            setIsWithdrawing(false);
-        }
-    };
-
-
     if (loading) {
         return (
             <div className="flex flex-col min-h-screen bg-background">
@@ -164,7 +79,6 @@ export default function WalletPage() {
                 return <ArrowDownLeft className="h-5 w-5 text-green-500" />;
             case 'withdrawal':
             case 'payment':
-                return <ArrowUpRight className="h-5 w-5 text-red-500" />;
             case 'commission':
                  return <ArrowUpRight className="h-5 w-5 text-red-500" />;
             default:
@@ -173,6 +87,7 @@ export default function WalletPage() {
     };
 
     return (
+        <>
         <div className="flex flex-col min-h-screen bg-background">
             <AppHeader />
             <main className="flex-1 container mx-auto py-12 px-4 md:px-6">
@@ -216,7 +131,7 @@ export default function WalletPage() {
                                                 </TableCell>
                                                 <TableCell>{t.timestamp?.toDate().toLocaleDateString()}</TableCell>
                                                 <TableCell className={cn("text-right font-mono", t.amount > 0 ? 'text-green-600' : 'text-red-600')}>
-                                                    {t.amount > 0 ? `+${currencySymbol}${t.amount.toFixed(2)}` : `-${currencySymbol}${Math.abs(t.amount).toFixed(2)}`}
+                                                    {t.amount > 0 ? `+${currencySymbol}${t.amount.toFixed(2)}` : `${currencySymbol}${t.amount.toFixed(2)}`}
                                                 </TableCell>
                                             </TableRow>
                                         )) : (
@@ -235,34 +150,20 @@ export default function WalletPage() {
                                 <CardTitle>Deposit Funds</CardTitle>
                                 <CardDescription>Add money to your wallet.</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <Input 
-                                    type="number" 
-                                    placeholder={`Amount in ${currencySymbol}`} 
-                                    value={depositAmount}
-                                    onChange={(e) => setDepositAmount(e.target.value)}
-                                    disabled={isDepositing}
-                                />
-                                <Button className="w-full" onClick={handleDeposit} disabled={isDepositing}>
-                                    {isDepositing ? 'Processing...' : 'Deposit'}
+                            <CardContent>
+                                <Button className="w-full" onClick={() => setIsDepositModalOpen(true)}>
+                                    Deposit
                                 </Button>
                             </CardContent>
                         </Card>
                          <Card>
                             <CardHeader>
                                 <CardTitle>Withdraw Funds</CardTitle>
-                                <CardDescription>Transfer money to your bank account.</CardDescription>
+                                <CardDescription>Request a withdrawal to your account.</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <Input 
-                                    type="number" 
-                                    placeholder={`Amount in ${currencySymbol}`}
-                                    value={withdrawAmount}
-                                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                                    disabled={isWithdrawing}
-                                />
-                                <Button variant="outline" className="w-full" onClick={handleWithdraw} disabled={isWithdrawing}>
-                                     {isWithdrawing ? 'Processing...' : 'Withdraw'}
+                            <CardContent>
+                                <Button variant="outline" className="w-full" onClick={() => setIsWithdrawModalOpen(true)}>
+                                     Withdraw
                                 </Button>
                             </CardContent>
                         </Card>
@@ -270,5 +171,9 @@ export default function WalletPage() {
                 </div>
             </main>
         </div>
+        <DepositModal open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen} />
+        <WithdrawModal open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen} />
+
+        </>
     );
 }

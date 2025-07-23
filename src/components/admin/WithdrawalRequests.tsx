@@ -1,0 +1,113 @@
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { approveWithdrawal, rejectWithdrawal } from '@/app/actions';
+import { useAuth } from '@/hooks/use-auth';
+
+interface WithdrawalRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    amount: number;
+    method: string;
+    details: string;
+    status: 'pending' | 'completed' | 'rejected';
+    createdAt: Timestamp;
+}
+
+export function WithdrawalRequests() {
+    const { settings } = useAuth();
+    const { toast } = useToast();
+    const [requests, setRequests] = useState<WithdrawalRequest[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [processingId, setProcessingId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawalRequest));
+            setRequests(reqs);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const handleApprove = async (id: string) => {
+        setProcessingId(id);
+        const result = await approveWithdrawal(id);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Withdrawal has been processed.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setProcessingId(null);
+    };
+
+    const handleReject = async (id: string) => {
+        setProcessingId(id);
+        const result = await rejectWithdrawal(id);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Withdrawal has been rejected.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setProcessingId(null);
+    };
+
+     if (loading) return <p>Loading withdrawal requests...</p>;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Pending Withdrawal Requests</CardTitle>
+                <CardDescription>Review and process withdrawal requests from users.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Method</TableHead>
+                            <TableHead>Details</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {requests.length === 0 ? (
+                             <TableRow>
+                                <TableCell colSpan={6} className="text-center h-24">No pending requests.</TableCell>
+                            </TableRow>
+                        ) : (
+                            requests.map(req => (
+                                <TableRow key={req.id}>
+                                    <TableCell>{req.userName}</TableCell>
+                                    <TableCell>{settings?.currencySymbol}{req.amount.toFixed(2)}</TableCell>
+                                    <TableCell>{req.method}</TableCell>
+                                    <TableCell><pre className="text-xs">{req.details}</pre></TableCell>
+                                    <TableCell>{req.createdAt.toDate().toLocaleString()}</TableCell>
+                                    <TableCell className="text-right space-x-2">
+                                        <Button size="sm" onClick={() => handleApprove(req.id)} disabled={processingId === req.id}>
+                                            {processingId === req.id ? '...' : 'Approve'}
+                                        </Button>
+                                        <Button size="sm" variant="destructive" onClick={() => handleReject(req.id)} disabled={processingId === req.id}>
+                                            {processingId === req.id ? '...' : 'Reject'}
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}

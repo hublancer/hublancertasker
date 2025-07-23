@@ -5,7 +5,7 @@ import {
   type GenerateTaskDescriptionInput,
 } from '@/ai/flows/generate-task-description';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, doc, runTransaction, serverTimestamp, getDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase'; // Ensure app is imported
 
@@ -13,6 +13,8 @@ import { app } from '@/lib/firebase'; // Ensure app is imported
 // In a real app, you would initialize this once.
 const functions = getFunctions(app);
 const completeTaskFunction = httpsCallable(functions, 'completeTask');
+const processDepositFunction = httpsCallable(functions, 'processDeposit');
+const processWithdrawalFunction = httpsCallable(functions, 'processWithdrawal');
 
 
 export async function generateTaskDescription(
@@ -85,5 +87,42 @@ export async function completeTask(input: CompleteTaskInput): Promise<{ success:
   } catch (error: any) {
     console.error('Error calling completeTask function:', error);
     return { success: false, error: error.message || 'An unknown error occurred while calling the function.' };
+  }
+}
+
+
+export async function approveDeposit(depositId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const result = await processDepositFunction({ depositId, approve: true });
+    return { success: (result.data as any).success };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function rejectDeposit(depositId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const result = await processDepositFunction({ depositId, approve: false });
+    return { success: (result.data as any).success };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function approveWithdrawal(withdrawalId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const result = await processWithdrawalFunction({ withdrawalId, approve: true });
+    return { success: (result.data as any).success };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function rejectWithdrawal(withdrawalId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const result = await processWithdrawalFunction({ withdrawalId, approve: false });
+    return { success: (result.data as any).success };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }
