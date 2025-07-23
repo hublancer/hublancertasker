@@ -187,13 +187,13 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
             const withdrawalDoc = await transaction.get(withdrawalRef);
 
             if (!withdrawalDoc.exists() || withdrawalDoc.data()?.status !== 'pending') {
-                throw new Error('Withdrawal is not pending.');
+                throw new Error('Withdrawal is not pending or does not exist.');
             }
             const withdrawalData = withdrawalDoc.data();
             const userRef = doc(db, `users/${withdrawalData.userId}`);
             const userDoc = await transaction.get(userRef);
 
-            if (!userDoc.exists) {
+            if (!userDoc.exists()) {
                 throw new Error('User not found.');
             }
 
@@ -204,6 +204,9 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
                     processedAt: serverTimestamp(),
                     rejectionReason: 'Insufficient funds'
                 });
+                // Note: We'll still return success: true from the action, 
+                // as the transaction itself succeeded, even if it was a rejection.
+                // The UI will update based on the new status.
             } else {
                 // Sufficient funds, proceed with approval
                 transaction.update(userRef, { 'wallet.balance': FieldValue.increment(-withdrawalData.amount) });
@@ -224,7 +227,7 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
         revalidatePath('/wallet');
         return { success: true };
     } catch (error: any) {
-        console.error('Error approving withdrawal:', error);
+        console.error('Error processing withdrawal:', error);
         return { success: false, error: error.message };
     }
 }
