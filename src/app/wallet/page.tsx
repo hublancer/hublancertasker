@@ -36,7 +36,7 @@ interface PendingRequest {
 
 
 export default function WalletPage() {
-    const { user, userProfile, settings, loading: authLoading } = useAuth();
+    const { user, userProfile, settings, loading: authLoading, revalidateProfile } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [pendingDeposits, setPendingDeposits] = useState<PendingRequest[]>([]);
     const [pendingWithdrawals, setPendingWithdrawals] = useState<PendingRequest[]>([]);
@@ -134,6 +134,14 @@ export default function WalletPage() {
                 return <DollarSign className="h-5 w-5 text-muted-foreground" />;
         }
     };
+    
+    const handleDepositSuccess = () => {
+        revalidateProfile();
+    }
+
+    const handleWithdrawalSuccess = () => {
+        revalidateProfile();
+    }
 
     const hasPendingRequests = pendingDeposits.length > 0 || pendingWithdrawals.length > 0;
 
@@ -263,8 +271,8 @@ export default function WalletPage() {
                 </div>
             </main>
         </div>
-        <DepositModal open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen} />
-        <WithdrawModal open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen} />
+        <DepositModal open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen} onSuccess={handleDepositSuccess} />
+        <WithdrawModal open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen} onSuccess={handleWithdrawalSuccess} />
 
         </>
     );

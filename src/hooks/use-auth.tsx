@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
@@ -36,6 +37,7 @@ interface AuthContextType {
   playNewTaskSound: () => void;
   playMessageSound: () => void;
   playNotificationSound: () => void;
+  revalidateProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -47,6 +49,7 @@ const AuthContext = createContext<AuthContextType>({
     playNewTaskSound: () => {},
     playMessageSound: () => {},
     playNotificationSound: () => {},
+    revalidateProfile: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -58,51 +61,78 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [playNewTaskSound] = useSound({ frequency: 300, type: 'triangle' });
   const [playMessageSound] = useSound({ frequency: 440, type: 'sine' });
   const [playNotificationSound] = useSound({ frequency: 520, type: 'square', duration: 0.2 });
+  
+  const revalidateProfile = useCallback(async () => {
+    if (!user) return;
+    try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+            setUserProfile(profileData);
+            sessionStorage.setItem('userProfile', JSON.stringify(profileData));
+        }
+    } catch (error) {
+        console.error("Error revalidating profile:", error);
+    }
+  }, [user]);
+
 
   useEffect(() => {
-    const settingsDocRef = doc(db, 'settings', 'platform');
-    const unsubscribeSettings = onSnapshot(settingsDocRef, (doc) => {
-      if (doc.exists()) {
-        setSettings(doc.data() as PlatformSettings);
-      } else {
-        setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
-      }
-    });
+    // Attempt to load settings from cache first
+    const cachedSettings = sessionStorage.getItem('platformSettings');
+    if (cachedSettings) {
+        setSettings(JSON.parse(cachedSettings));
+    } else {
+        const settingsDocRef = doc(db, 'settings', 'platform');
+        getDoc(settingsDocRef).then((doc) => {
+            let platformSettings;
+            if (doc.exists()) {
+                platformSettings = doc.data() as PlatformSettings;
+            } else {
+                platformSettings = { commissionRate: 0.1, currencySymbol: 'Rs' };
+            }
+            setSettings(platformSettings);
+            sessionStorage.setItem('platformSettings', JSON.stringify(platformSettings));
+        });
+    }
 
-    const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        // Attempt to load user profile from cache
+        const cachedProfile = sessionStorage.getItem('userProfile');
+        if (cachedProfile) {
+            const profile = JSON.parse(cachedProfile);
+            // Quick check to ensure cached profile belongs to current user
+            if (profile.uid === currentUser.uid) {
+                setUserProfile(profile);
+                setLoading(false);
+            } else {
+                // Mismatch, fetch from DB
+                await revalidateProfile();
+                setLoading(false);
+            }
+        } else {
+            // No cache, fetch from DB
+             await revalidateProfile();
+             setLoading(false);
+        }
       } else {
         setUser(null);
         setUserProfile(null);
+        sessionStorage.removeItem('userProfile');
         setLoading(false);
       }
     });
 
     return () => {
-      unsubscribeSettings();
       authUnsubscribe();
     };
-  }, []);
+  // We only want revalidateProfile to be created once per user, so we add it here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revalidateProfile]);
 
-  useEffect(() => {
-    if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
-      const profileUnsubscribe = onSnapshot(userDocRef, (doc) => {
-        if (doc.exists()) {
-          setUserProfile({ uid: doc.id, ...doc.data() } as UserProfile);
-        } else {
-          setUserProfile(null);
-        }
-        setLoading(false); 
-      }, (error) => {
-          console.error("Error listening to user profile:", error);
-          setUserProfile(null);
-          setLoading(false);
-      });
-      return () => profileUnsubscribe();
-    }
-  }, [user]);
 
   const addNotification = useCallback(async (userId: string, message: string, link: string) => {
     if (!userId) return;
@@ -127,6 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       playNewTaskSound,
       playMessageSound,
       playNotificationSound,
+      revalidateProfile,
   };
 
   return (

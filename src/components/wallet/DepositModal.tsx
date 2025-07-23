@@ -35,9 +35,10 @@ type DepositFormValues = z.infer<typeof depositSchema>;
 interface DepositModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onSuccess: () => void;
 }
 
-export function DepositModal({ open, onOpenChange }: DepositModalProps) {
+export function DepositModal({ open, onOpenChange, onSuccess }: DepositModalProps) {
     const { user, userProfile } = useAuth();
     const { toast } = useToast();
     const [gateways, setGateways] = useState<PaymentGateway[]>([]);
@@ -94,6 +95,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 // Handle automatic gateway logic here
                 toast({ title: 'Automatic Gateway', description: 'This would redirect to the payment provider.' });
             }
+            onSuccess();
             onOpenChange(false);
             form.reset();
             setSelectedGateway(null);
@@ -176,5 +178,3 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         </Dialog>
     )
 }
-
-    

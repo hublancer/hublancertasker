@@ -26,9 +26,10 @@ type WithdrawFormValues = z.infer<typeof withdrawSchema>;
 interface WithdrawModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onSuccess: () => void;
 }
 
-export function WithdrawModal({ open, onOpenChange }: WithdrawModalProps) {
+export function WithdrawModal({ open, onOpenChange, onSuccess }: WithdrawModalProps) {
     const { user, userProfile } = useAuth();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,6 +58,7 @@ export function WithdrawModal({ open, onOpenChange }: WithdrawModalProps) {
                 createdAt: serverTimestamp(),
             });
             toast({ title: 'Request Submitted', description: 'Your withdrawal request has been submitted for processing.' });
+            onSuccess();
             onOpenChange(false);
             form.reset();
 
