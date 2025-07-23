@@ -8,10 +8,14 @@ import { db } from '@/lib/firebase';
 import { addDoc, collection, doc, runTransaction, serverTimestamp, getDoc, updateDoc, writeBatch, FieldValue } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase';
-import { HttpsError } from 'firebase/functions';
 
 const functions = getFunctions(app);
+
+// Callable Functions
 const completeTaskFunction = httpsCallable(functions, 'completeTask');
+const processDepositFunction = httpsCallable(functions, 'processDeposit');
+const processWithdrawalFunction = httpsCallable(functions, 'processWithdrawal');
+
 
 export async function generateTaskDescription(
   input: GenerateTaskDescriptionInput
@@ -69,20 +73,13 @@ interface CompleteTaskInput {
 export async function completeTask(input: CompleteTaskInput): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await completeTaskFunction({ taskId: input.taskId });
-    // This assumes the callable function returns a { success: boolean, error?: string } structure
     return (result.data as any) || { success: true };
   } catch (error: any) {
     console.error('Error calling completeTask function:', error);
-    return { success: false, error: error.message || 'An unknown error occurred while calling the function.' };
+    const errorMessage = error.message || 'An unknown error occurred while calling the function.';
+    return { success: false, error: errorMessage };
   }
 }
-
-// NOTE: The following actions are now handled by Cloud Functions.
-// These client-side functions now just invoke the corresponding Cloud Function.
-
-const processDepositFunction = httpsCallable(functions, 'processDeposit');
-const processWithdrawalFunction = httpsCallable(functions, 'processWithdrawal');
-
 
 export async function approveDeposit(depositId: string): Promise<{ success: boolean; error?: string }> {
   try {
@@ -108,7 +105,8 @@ export async function approveWithdrawal(withdrawalId: string): Promise<{ success
   try {
     const result = await processWithdrawalFunction({ withdrawalId, approve: true });
     return (result.data as any) || { success: true };
-  } catch (error: any) {
+  } catch (error: any)
+ {
     console.error('Error approving withdrawal:', error);
     return { success: false, error: error.message || 'An unknown error occurred.' };
   }

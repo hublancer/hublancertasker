@@ -69,7 +69,6 @@ exports.decrementOfferCount = onDocumentDeleted(
   }
 );
 
-
 exports.completeTask = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to complete a task.');
@@ -83,48 +82,48 @@ exports.completeTask = onCall(async (request) => {
     }
 
     try {
+        const taskRef = db.doc(`tasks/${taskId}`);
+        
         await db.runTransaction(async (transaction) => {
-            const taskRef = db.doc(`tasks/${taskId}`);
-            const settingsRef = db.doc('settings/platform');
-            
-            // --- Perform all reads first ---
             const taskDoc = await transaction.get(taskRef);
-            const settingsDoc = await transaction.get(settingsRef);
-
             if (!taskDoc.exists) {
                 throw new HttpsError('not-found', 'Task not found.');
             }
 
             const taskData = taskDoc.data();
             if (!taskData) {
-                throw new HttpsError('internal', 'Task data is missing.');
-            }
-             if (!taskData.assignedToId) {
-                throw new HttpsError('failed-precondition', 'Task has no one assigned to it.');
+                 throw new HttpsError('internal', 'Task data is missing.');
             }
 
-            const taskerRef = db.doc(`users/${taskData.assignedToId}`);
-            const taskerDoc = await transaction.get(taskerRef);
-
-            // --- Validate data from reads ---
             if (taskData.postedById !== clientId) {
                 throw new HttpsError('permission-denied', 'You are not the owner of this task.');
             }
-            
+
             if (taskData.status !== 'assigned' && taskData.status !== 'pending-completion') {
                  throw new HttpsError('failed-precondition', `Task cannot be completed from its current state: ${taskData.status}`);
             }
+            
+            if (!taskData.assignedToId) {
+                throw new HttpsError('failed-precondition', 'Task has no one assigned to it.');
+            }
+
+            const settingsRef = db.doc('settings/platform');
+            const taskerRef = db.doc(`users/${taskData.assignedToId}`);
+            
+            const [settingsDoc, taskerDoc] = await Promise.all([
+                transaction.get(settingsRef),
+                transaction.get(taskerRef)
+            ]);
 
             if (!taskerDoc.exists) {
                 throw new HttpsError('not-found', 'Tasker not found.');
             }
-
-            // --- All reads are done and validated. Now, perform calculations and writes. ---
+            
             const commissionRate = settingsDoc.exists() ? (settingsDoc.data()?.commissionRate ?? 0.1) : 0.1;
             const taskPrice = taskData.price;
             const commission = taskPrice * commissionRate;
             const taskerPayout = taskPrice - commission;
-            
+
             // 1. Update task status
             transaction.update(taskRef, { status: 'completed' });
 
@@ -156,6 +155,7 @@ exports.completeTask = onCall(async (request) => {
 
         logger.info(`Task ${taskId} completed successfully by user ${clientId}.`);
         return { success: true };
+
     } catch (error) {
         logger.error(`Error completing task ${taskId}:`, error);
         if (error instanceof HttpsError) {
@@ -164,6 +164,7 @@ exports.completeTask = onCall(async (request) => {
         throw new HttpsError('internal', 'An unexpected error occurred while completing the task.');
     }
 });
+
 
 const ensureAdmin = async (uid: string) => {
     const userDoc = await db.doc(`users/${uid}`).get();
@@ -181,33 +182,22 @@ exports.processDeposit = onCall(async (request) => {
 
     const { depositId, approve } = request.data;
     if (!depositId) {
-        throw new HttpsError('invalid-argument', 'The function must be called with a "depositId".');
+        throw new HttpsError('invalid-argument', 'The function must be called with "depositId".');
     }
 
     const depositRef = db.doc(`deposits/${depositId}`);
     
     try {
-        await db.runTransaction(async (transaction) => {
-            // --- Phase 1: All Reads ---
-            const depositDoc = await transaction.get(depositRef);
-            if (!depositDoc.exists) {
-                throw new HttpsError('not-found', 'Deposit request not found.');
-            }
-            const depositData = depositDoc.data();
-            if (!depositData || depositData.status !== 'pending') {
-                throw new HttpsError('failed-precondition', 'Deposit is not in a pending state.');
-            }
+        if (approve) {
+            await db.runTransaction(async (transaction) => {
+                const depositDoc = await transaction.get(depositRef);
+                if (!depositDoc.exists || depositDoc.data()?.status !== 'pending') {
+                    throw new HttpsError('failed-precondition', 'Deposit request not found or not pending.');
+                }
+                const depositData = depositDoc.data();
+                const userRef = db.doc(`users/${depositData.userId}`);
 
-            const userRef = db.doc(`users/${depositData.userId}`);
-            
-            // --- Phase 2: All Writes ---
-            if (approve) {
-                // Update user's wallet
-                transaction.update(userRef, {
-                    'wallet.balance': FieldValue.increment(depositData.amount)
-                });
-
-                // Create transaction record for user
+                transaction.update(userRef, { 'wallet.balance': FieldValue.increment(depositData.amount) });
                 const userTransactionRef = db.collection(`users/${depositData.userId}/transactions`).doc();
                 transaction.set(userTransactionRef, {
                     amount: depositData.amount,
@@ -215,14 +205,12 @@ exports.processDeposit = onCall(async (request) => {
                     description: `Funds deposited via ${depositData.gatewayName}`,
                     timestamp: FieldValue.serverTimestamp(),
                 });
-                
-                // Update deposit status
                 transaction.update(depositRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
-            } else { // Reject
-                transaction.update(depositRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
-            }
-        });
-
+            });
+        } else { // Reject
+            await depositRef.update({ status: 'rejected', processedAt: FieldValue.serverTimestamp() });
+        }
+        
         logger.info(`Deposit ${depositId} has been ${approve ? 'approved' : 'rejected'}`);
         return { success: true };
 
@@ -250,39 +238,28 @@ exports.processWithdrawal = onCall(async (request) => {
     const withdrawalRef = db.doc(`withdrawals/${withdrawalId}`);
     
     try {
-        await db.runTransaction(async (transaction) => {
-            // --- Phase 1: All Reads ---
-            const withdrawalDoc = await transaction.get(withdrawalRef);
-            if (!withdrawalDoc.exists) {
-                throw new HttpsError('not-found', 'Withdrawal request not found.');
-            }
-            const withdrawalData = withdrawalDoc.data();
-            if (!withdrawalData || withdrawalData.status !== 'pending') {
-                throw new HttpsError('failed-precondition', 'Withdrawal is not in a pending state.');
-            }
+        if (approve) {
+            await db.runTransaction(async (transaction) => {
+                const withdrawalDoc = await transaction.get(withdrawalRef);
+                if (!withdrawalDoc.exists || withdrawalDoc.data()?.status !== 'pending') {
+                    throw new HttpsError('failed-precondition', 'Withdrawal is not pending.');
+                }
+                const withdrawalData = withdrawalDoc.data();
+                const userRef = db.doc(`users/${withdrawalData.userId}`);
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists) {
+                    throw new HttpsError('not-found', 'User not found.');
+                }
 
-            const userRef = db.doc(`users/${withdrawalData.userId}`);
-            const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists) {
-                 throw new HttpsError('not-found', 'User not found.');
-            }
-            const userData = userDoc.data();
-
-            // --- Phase 2: All Writes ---
-            if (approve) {
-                if ((userData?.wallet?.balance ?? 0) < withdrawalData.amount) {
+                if ((userDoc.data()?.wallet?.balance ?? 0) < withdrawalData.amount) {
+                    // Reject if insufficient funds
                     transaction.update(withdrawalRef, { 
                         status: 'rejected', 
                         processedAt: FieldValue.serverTimestamp(),
                         rejectionReason: 'Insufficient funds'
                     });
                 } else {
-                    // Update user's wallet
-                    transaction.update(userRef, {
-                        'wallet.balance': FieldValue.increment(-withdrawalData.amount)
-                    });
-                    
-                    // Create transaction record for user
+                    transaction.update(userRef, { 'wallet.balance': FieldValue.increment(-withdrawalData.amount) });
                     const userTransactionRef = db.collection(`users/${withdrawalData.userId}/transactions`).doc();
                     transaction.set(userTransactionRef, {
                         amount: -withdrawalData.amount,
@@ -290,14 +267,12 @@ exports.processWithdrawal = onCall(async (request) => {
                         description: `Funds withdrawn to ${withdrawalData.method}`,
                         timestamp: FieldValue.serverTimestamp(),
                     });
-                    
-                    // Update withdrawal status
                     transaction.update(withdrawalRef, { status: 'completed', processedAt: FieldValue.serverTimestamp() });
                 }
-            } else { // Reject
-                transaction.update(withdrawalRef, { status: 'rejected', processedAt: FieldValue.serverTimestamp() });
-            }
-        });
+            });
+        } else { // Reject
+            await withdrawalRef.update({ status: 'rejected', processedAt: FieldValue.serverTimestamp() });
+        }
 
         logger.info(`Withdrawal ${withdrawalId} has been processed.`);
         return { success: true };
@@ -307,6 +282,6 @@ exports.processWithdrawal = onCall(async (request) => {
         if (error instanceof HttpsError) {
             throw error;
         }
-        throw new HttpsError('internal', 'An unexpected error occurred while processing the withdrawal.');
+        throw new HttpsError('internal', 'An unexpected error occurred during withdrawal processing.');
     }
 });
