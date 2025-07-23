@@ -18,7 +18,7 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
-import { completeTask as completeTaskAction } from '@/app/actions';
+import { completeTask, makeOffer } from '@/app/actions';
 
 interface TaskDetailsProps {
   task: Task & {
@@ -164,19 +164,22 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         setEditingOffer(null);
         toast({ title: 'Offer updated successfully!' });
       } else {
-         // The Cloud Function will trigger to update the offer count
-        await addDoc(collection(db, 'tasks', task.id, 'offers'), {
+        const result = await makeOffer({
+            taskId: task.id,
             taskerId: user.uid,
             taskerName: userProfile.name || 'Anonymous Tasker',
             taskerAvatar: user.photoURL || '',
             offerPrice: Number(offerPrice),
             comment: offerComment,
-            createdAt: serverTimestamp(),
+            postedById: task.postedById,
+            taskTitle: task.title,
         });
-        
-        await addNotification(task.postedById, `${userProfile.name} made an offer on your task "${task.title}"`, `/task/${task.id}`);
 
-        toast({ title: "Offer submitted successfully!" });
+        if (result.success) {
+            toast({ title: "Offer submitted successfully!" });
+        } else {
+            throw new Error(result.error);
+        }
       }
       setOfferComment('');
       setOfferPrice(task.price);
@@ -383,25 +386,19 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         if (!isOwner || (task.status !== 'assigned' && task.status !== 'pending-completion') || !task.assignedToId) return;
 
         setIsProcessing(true);
-        try {
-            const result = await completeTaskAction({ taskId: task.id });
-            if (result.success) {
-                toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
-                await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
-                onTaskUpdate?.();
-            } else {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Completion Failed',
-                    description: result.error,
-                });
-            }
-        } catch (error: any) {
-            console.error("Error completing task: ", error);
-            toast({ variant: 'destructive', title: 'Could not complete task.', description: error.message });
-        } finally {
-            setIsProcessing(false);
+        const result = await completeTask(task.id);
+        if (result.success) {
+            toast({title: 'Task Completed!', description: 'This task has been marked as completed.'});
+            await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
+            onTaskUpdate?.();
+        } else {
+             toast({
+                variant: 'destructive',
+                title: 'Completion Failed',
+                description: result.error,
+            });
         }
+        setIsProcessing(false);
     }
 
     const handleSubmitReview = async () => {

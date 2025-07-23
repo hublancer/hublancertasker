@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { approveWithdrawal, rejectWithdrawal } from '@/app/actions';
 import { useAuth } from '@/hooks/use-auth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 
 interface WithdrawalRequest {
     id: string;
@@ -21,6 +22,7 @@ interface WithdrawalRequest {
     details: string;
     status: 'pending' | 'completed' | 'rejected';
     createdAt: Timestamp;
+    rejectionReason?: string;
 }
 
 export default function AdminWithdrawalsPage() {
