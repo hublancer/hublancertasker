@@ -112,13 +112,13 @@ export default function AdminDepositsPage() {
                                                     <AlertDialogDescription>
                                                         Are you sure you want to approve this deposit?
                                                     </AlertDialogDescription>
-                                                    <ul className="mt-4 space-y-1 text-sm text-foreground text-left">
-                                                        <li><strong>User:</strong> {req.userName}</li>
-                                                        <li><strong>Amount:</strong> {settings?.currencySymbol}{req.amount.toFixed(2)}</li>
-                                                        <li><strong>Gateway:</strong> {req.gatewayName}</li>
-                                                        <li><strong>TRX ID:</strong> {req.trxId}</li>
-                                                    </ul>
                                                 </AlertDialogHeader>
+                                                <div className="my-4 space-y-2 text-sm text-foreground text-left p-2 bg-muted rounded-md">
+                                                    <p><strong>User:</strong> {req.userName}</p>
+                                                    <p><strong>Amount:</strong> {settings?.currencySymbol}{req.amount.toFixed(2)}</p>
+                                                    <p><strong>Gateway:</strong> {req.gatewayName}</p>
+                                                    <p><strong>TRX ID:</strong> {req.trxId}</p>
+                                                </div>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction onClick={() => handleApprove(req.id)}>Approve</AlertDialogAction>
