@@ -4,18 +4,17 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, Timestamp } from 'firebase/firestore';
 import AppHeader from '@/components/AppHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowDownLeft, ArrowUpRight, DollarSign } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, DollarSign, Hourglass } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { DepositModal } from '@/components/wallet/DepositModal';
 import { WithdrawModal } from '@/components/wallet/WithdrawModal';
+import { Separator } from '@/components/ui/separator';
 
 interface Transaction {
     id: string;
@@ -25,9 +24,21 @@ interface Transaction {
     timestamp: Timestamp;
 }
 
+interface PendingRequest {
+    id: string;
+    amount: number;
+    status: 'pending';
+    createdAt: Timestamp;
+    gatewayName?: string; // For deposits
+    method?: string; // For withdrawals
+}
+
+
 export default function WalletPage() {
     const { user, userProfile, settings } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [pendingDeposits, setPendingDeposits] = useState<PendingRequest[]>([]);
+    const [pendingWithdrawals, setPendingWithdrawals] = useState<PendingRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -38,18 +49,40 @@ export default function WalletPage() {
             return;
         }
 
-        const q = query(
+        let unsubscribers: (() => void)[] = [];
+
+        setLoading(true);
+
+        // Listener for completed transactions
+        const transactionsQuery = query(
             collection(db, 'users', user.uid, 'transactions'),
             orderBy('timestamp', 'desc')
         );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
             const trans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
             setTransactions(trans);
-            setLoading(false);
-        });
+        }, () => setLoading(false));
+        unsubscribers.push(unsubscribeTransactions);
+        
+        // Listener for pending deposits
+        const depositsQuery = query(collection(db, 'deposits'), where('userId', '==', user.uid), where('status', '==', 'pending'));
+        const unsubscribeDeposits = onSnapshot(depositsQuery, (snapshot) => {
+            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
+            setPendingDeposits(reqs);
+        }, () => setLoading(false));
+        unsubscribers.push(unsubscribeDeposits);
+        
+        // Listener for pending withdrawals
+        const withdrawalsQuery = query(collection(db, 'withdrawals'), where('userId', '==', user.uid), where('status', '==', 'pending'));
+        const unsubscribeWithdrawals = onSnapshot(withdrawalsQuery, (snapshot) => {
+            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
+            setPendingWithdrawals(reqs);
+        }, () => setLoading(false));
+        unsubscribers.push(unsubscribeWithdrawals);
 
-        return () => unsubscribe();
+        setLoading(false);
+
+        return () => unsubscribers.forEach(unsub => unsub());
     }, [user]);
     
     if (loading) {
@@ -86,6 +119,8 @@ export default function WalletPage() {
         }
     };
 
+    const hasPendingRequests = pendingDeposits.length > 0 || pendingWithdrawals.length > 0;
+
     return (
         <>
         <div className="flex flex-col min-h-screen bg-background">
@@ -106,6 +141,47 @@ export default function WalletPage() {
                                 <p className="text-4xl font-bold">{currencySymbol}{userProfile?.wallet?.balance.toFixed(2) ?? '0.00'}</p>
                             </CardContent>
                         </Card>
+
+                        {hasPendingRequests && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Pending Requests</CardTitle>
+                                    <CardDescription>These requests are awaiting admin approval.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {pendingDeposits.length > 0 && (
+                                        <div className="space-y-2">
+                                            <h4 className="font-semibold">Deposits</h4>
+                                            {pendingDeposits.map(req => (
+                                                 <div key={req.id} className="flex justify-between items-center text-sm p-2 rounded-md bg-muted/50">
+                                                    <div className="flex items-center gap-2">
+                                                        <Hourglass className="h-4 w-4 text-muted-foreground" />
+                                                        <span>Deposit via {req.gatewayName}</span>
+                                                    </div>
+                                                    <span className="font-mono">{currencySymbol}{req.amount.toFixed(2)}</span>
+                                                 </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                     {pendingWithdrawals.length > 0 && (
+                                        <div className="mt-4 space-y-2">
+                                            <h4 className="font-semibold">Withdrawals</h4>
+                                            {pendingWithdrawals.map(req => (
+                                                 <div key={req.id} className="flex justify-between items-center text-sm p-2 rounded-md bg-muted/50">
+                                                    <div className="flex items-center gap-2">
+                                                        <Hourglass className="h-4 w-4 text-muted-foreground" />
+                                                        <span>Withdrawal to {req.method}</span>
+                                                    </div>
+                                                     <span className="font-mono">{currencySymbol}{req.amount.toFixed(2)}</span>
+                                                 </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+
                         <Card>
                              <CardHeader>
                                 <CardTitle>Transaction History</CardTitle>
@@ -177,3 +253,5 @@ export default function WalletPage() {
         </>
     );
 }
+
+    

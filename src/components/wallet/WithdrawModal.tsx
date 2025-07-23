@@ -35,7 +35,7 @@ export function WithdrawModal({ open, onOpenChange }: WithdrawModalProps) {
 
     const form = useForm<WithdrawFormValues>({
         resolver: zodResolver(withdrawSchema),
-        defaultValues: { amount: undefined, method: '', details: '' }
+        defaultValues: { amount: '' as any, method: '', details: '' }
     });
 
     const onSubmit = async (data: WithdrawFormValues) => {
@@ -119,3 +119,5 @@ export function WithdrawModal({ open, onOpenChange }: WithdrawModalProps) {
         </Dialog>
     )
 }
+
+    

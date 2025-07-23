@@ -50,7 +50,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
 
     const form = useForm<DepositFormValues>({
         resolver: zodResolver(depositSchema),
-        defaultValues: { amount: undefined, gatewayId: '' }
+        defaultValues: { amount: '' as any, gatewayId: '' }
     });
 
     useEffect(() => {
@@ -176,3 +176,5 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         </Dialog>
     )
 }
+
+    
