@@ -97,6 +97,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
   
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const [reportReason, setReportReason] = useState("");
+  const [isReporting, setIsReporting] = useState(false);
+
   useEffect(() => {
     if (!task?.id) return;
     setOffers([]);
@@ -489,6 +492,44 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         }
     }
 
+    const handleReportTask = async () => {
+        if (!user || !userProfile) {
+            setIsLoginOpen(true);
+            return;
+        }
+        if (!reportReason) {
+            toast({ variant: 'destructive', title: 'Please provide a reason for the report.' });
+            return;
+        }
+        setIsReporting(true);
+        try {
+            await addDoc(collection(db, 'reports'), {
+                taskId: task.id,
+                reporterId: user.uid,
+                reporterName: userProfile.name,
+                reason: reportReason,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            });
+
+            // Find an admin to notify
+            const adminsQuery = query(collection(db, 'users'), where('role', '==', 'admin'));
+            const adminSnapshot = await getDocs(adminsQuery);
+            if (!adminSnapshot.empty) {
+                const adminId = adminSnapshot.docs[0].id;
+                await addNotification(adminId, `Task "${task.title}" has been reported.`, `/admin/disputes`);
+            }
+            
+            toast({ title: 'Task Reported', description: 'Thank you, an admin will review this task shortly.' });
+            setReportReason(''); // Clear reason after submit
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Failed to report task.', description: error.message });
+        } finally {
+            setIsReporting(false);
+        }
+    };
+
+
   const handleEditOffer = (offer: Offer) => {
     setEditingOffer(offer);
     setOfferPrice(offer.offerPrice);
@@ -786,9 +827,33 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 {renderReviewForm()}
               </CardContent>
             </Card>
-            <Button variant="outline" className="w-full">
-              Report this task
-            </Button>
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                        Report this task
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Report Task</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Please provide a reason for reporting this task. An admin will review it shortly.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <Textarea
+                        placeholder="Enter reason here..."
+                        value={reportReason}
+                        onChange={(e) => setReportReason(e.target.value)}
+                        className="my-4"
+                    />
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleReportTask} disabled={isReporting || !reportReason}>
+                            {isReporting ? 'Submitting...' : 'Submit Report'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
         
