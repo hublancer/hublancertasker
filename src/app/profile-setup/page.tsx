@@ -194,8 +194,11 @@ export default function ProfileSetupPage() {
               )}
               
               <div className="flex justify-end gap-2">
+                 <Button type="button" variant="outline" onClick={() => router.push('/kyc')} disabled={isSubmitting}>
+                    Go to KYC
+                 </Button>
                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : 'Save and Continue'}
+                    {isSubmitting ? 'Saving...' : 'Save Profile'}
                  </Button>
               </div>
             </form>
