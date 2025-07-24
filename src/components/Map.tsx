@@ -6,7 +6,7 @@ import type { Task } from './TaskCard';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -51,11 +51,17 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
 
 function MapControls() {
   const map = useMap();
-  const physicalTasks = useMap().eachLayer(l => l instanceof L.Marker).getLayers();
 
   const handleRefresh = () => {
-    if (physicalTasks.length > 0) {
-        const bounds = L.latLngBounds(physicalTasks.map(marker => (marker as L.Marker).getLatLng()));
+    const markers: L.Marker[] = [];
+    map.eachLayer((layer) => {
+        if (layer instanceof L.Marker) {
+            markers.push(layer);
+        }
+    });
+
+    if (markers.length > 0) {
+        const bounds = L.latLngBounds(markers.map(marker => marker.getLatLng()));
         if (bounds.isValid()) {
             map.fitBounds(bounds, { padding: [50, 50] });
         }
@@ -102,7 +108,7 @@ function MapControls() {
 
 const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
   const { settings } = useAuth();
-  const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
+  const physicalTasks = useMemo(() => tasks.filter(task => task.type === 'physical' && task.coordinates), [tasks]);
   
   return (
     <>
