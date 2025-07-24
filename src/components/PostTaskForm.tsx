@@ -59,11 +59,11 @@ const formSchema = z.object({
   coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
 }).refine(data => {
     if (data.taskType === 'physical') {
-        return !!data.location;
+        return !!data.coordinates;
     }
     return true;
 }, {
-    message: 'Location is required for physical tasks.',
+    message: 'Location is required for physical tasks. Please use the button to set a location.',
     path: ['location'],
 });
 
@@ -211,7 +211,8 @@ export default function PostTaskForm() {
         const { latitude, longitude } = position.coords;
         const coords: [number, number] = [latitude, longitude];
         form.setValue('coordinates', { lat: latitude, lng: longitude });
-        form.setValue('location', 'Current Location'); 
+        form.setValue('location', 'Current Location');
+        form.clearErrors('location');
         setMapCenter(coords);
         setMarkerPosition(coords);
         setMapZoom(13);
@@ -234,6 +235,7 @@ export default function PostTaskForm() {
   const handleMarkerDragEnd = (newPosition: [number, number]) => {
     form.setValue('coordinates', { lat: newPosition[0], lng: newPosition[1] });
     form.setValue('location', 'Custom Location');
+    form.clearErrors('location');
     setMarkerPosition(newPosition);
     setMapCenter(newPosition);
   };
@@ -426,41 +428,12 @@ export default function PostTaskForm() {
                     <FormItem>
                       <FormLabel>Location</FormLabel>
                       <FormControl>
-                          <div className="flex gap-2">
-                            <Select 
-                                onValueChange={(value) => {
-                                  const city = pakistaniCities.find(c => c.name === value);
-                                  if (city) {
-                                      field.onChange(city.name);
-                                      form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
-                                      setMapCenter(city.coordinates);
-                                      setMarkerPosition(city.coordinates);
-                                      setMapZoom(11);
-                                  } else {
-                                      field.onChange('');
-                                      form.setValue('coordinates', undefined);
-                                      setMarkerPosition(null);
-                                  }
-                                }}
-                                value={field.value}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a city" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {pakistaniCities.map(city => (
-                                    <SelectItem key={city.name} value={city.name}>
-                                      {city.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Button type="button" variant="outline" onClick={handleUseCurrentLocation}>
-                                  <LocateFixed className="mr-2 h-4 w-4" />
-                                  Use current location
-                              </Button>
-                          </div>
+                          <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="w-full">
+                              <LocateFixed className="mr-2 h-4 w-4" />
+                              Use current location and/or adjust pin on map
+                          </Button>
                       </FormControl>
+                      <FormDescription>Click the button to set your location, then drag the pin on the map to refine it.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
