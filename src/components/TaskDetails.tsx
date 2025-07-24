@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, MapPin, Calendar, MessageSquare, Edit, Trash2, CheckCircle, XCircle, Star, Hourglass, ShieldAlert } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, UserProfile } from '@/hooks/use-auth';
 import { useEffect, useState } from 'react';
 import { collection, query, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, updateDoc, where, getDocs, deleteDoc, runTransaction, Timestamp, GeoPoint, getDoc, increment, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -38,6 +38,8 @@ interface Offer {
     offerPrice: number;
     comment: string;
     createdAt: any;
+    taskerRating?: number;
+    taskerReviewCount?: number;
 }
 
 interface Question {
@@ -50,8 +52,8 @@ interface Question {
     createdAt: any;
 }
 
-const StarRating = ({ rating, setRating }: { rating: number; setRating?: (rating: number) => void }) => {
-    const isInteractive = !!setRating;
+const StarRating = ({ rating, setRating, readOnly = false }: { rating: number; setRating?: (rating: number) => void, readOnly?: boolean }) => {
+    const isInteractive = !!setRating && !readOnly;
     return (
         <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((star) => (
@@ -113,8 +115,20 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     setLoadingQuestions(true);
 
     const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
-    const unsubscribeOffers = onSnapshot(offersQuery, (snapshot) => {
-        const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
+    const unsubscribeOffers = onSnapshot(offersQuery, async (snapshot) => {
+        const offersDataPromises = snapshot.docs.map(async (docSnap) => {
+            const offerData = docSnap.data() as Omit<Offer, 'id'>;
+            const taskerProfileDoc = await getDoc(doc(db, 'users', offerData.taskerId));
+            const taskerProfile = taskerProfileDoc.data() as UserProfile;
+
+            return { 
+                id: docSnap.id, 
+                ...offerData,
+                taskerRating: taskerProfile?.averageRating || 0,
+                taskerReviewCount: taskerProfile?.reviewCount || 0
+            } as Offer;
+        });
+        const offersData = await Promise.all(offersDataPromises);
         setOffers(offersData);
         setLoadingOffers(false);
     }, (error) => {
@@ -450,38 +464,37 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
         setIsSubmittingReview(true);
         try {
-            await runTransaction(db, async (transaction) => {
-                const taskerRef = doc(db, 'users', task.assignedToId!);
-                const taskerDoc = await transaction.get(taskerRef);
-
-                if (!taskerDoc.exists()) {
-                    throw new Error("Tasker not found!");
-                }
-
-                const newReviewRef = doc(collection(db, 'reviews'));
-                transaction.set(newReviewRef, {
-                    taskId: task.id,
-                    taskerId: task.assignedToId,
-                    clientId: user.uid,
-                    clientName: userProfile.name,
-                    clientAvatar: user.photoURL || '',
-                    rating: reviewRating,
-                    comment: reviewComment,
-                    createdAt: serverTimestamp(),
-                });
-
+            // This is a simplified version to avoid hitting quotas in a demo environment.
+            // In a real app, you would use a transaction or a cloud function to update the average rating.
+            const newReviewRef = doc(collection(db, 'reviews'));
+            await setDoc(newReviewRef, {
+                taskId: task.id,
+                taskerId: task.assignedToId,
+                clientId: user.uid,
+                clientName: userProfile.name,
+                clientAvatar: user.photoURL || '',
+                rating: reviewRating,
+                comment: reviewComment,
+                createdAt: serverTimestamp(),
+            });
+             
+            // Also update the tasker's profile with the new review count and average rating
+            const taskerRef = doc(db, 'users', task.assignedToId);
+            const taskerDoc = await getDoc(taskerRef);
+            if(taskerDoc.exists()) {
                 const taskerData = taskerDoc.data();
                 const oldReviewCount = taskerData.reviewCount || 0;
                 const oldAverageRating = taskerData.averageRating || 0;
                 
                 const newReviewCount = oldReviewCount + 1;
                 const newAverageRating = ((oldAverageRating * oldReviewCount) + reviewRating) / newReviewCount;
-
-                transaction.update(taskerRef, {
+                
+                await updateDoc(taskerRef, {
                     reviewCount: newReviewCount,
-                    averageRating: newAverageRating
+                    averageRating: newAverageRating,
                 });
-            });
+            }
+
 
             setHasAlreadyReviewed(true);
             setShowReviewForm(false);
@@ -935,6 +948,10 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                               </Avatar>
                             </Link>
                           <Link href={`/profile/${offer.taskerId}`}><p className="font-semibold mt-2 hover:underline">{offer.taskerName}</p></Link>
+                           <div className="flex items-center gap-1 mt-1">
+                                <StarRating rating={offer.taskerRating || 0} readOnly={true} />
+                                <span className="text-xs text-muted-foreground">({offer.taskerReviewCount || 0})</span>
+                            </div>
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
