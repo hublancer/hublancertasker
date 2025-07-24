@@ -106,6 +106,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
                 setUserProfile(profileData);
                 sessionStorage.setItem(`userProfile-${currentUser.uid}`, JSON.stringify(profileData));
+            } else {
+                 // This can happen if a user signs in with Google for the first time
+                 // The register/login page logic handles creating the doc.
+                 console.log("User doc doesn't exist yet for UID:", currentUser.uid);
             }
             setLoading(false);
         });

@@ -157,7 +157,7 @@ function ConversationPageContent() {
             <div className="flex items-center gap-3">
                 <Avatar>
                     <AvatarImage src={partner.avatar} data-ai-hint="person face" />
-                    <AvatarFallback>{partner.name?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{partner.name?.slice(0,2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div>
                     <p className="font-semibold">{partner.name}</p>
@@ -190,7 +190,7 @@ function ConversationPageContent() {
                         <Avatar className="h-8 w-8">
                         <AvatarImage src={partner.avatar} data-ai-hint="person face" />
                         <AvatarFallback>
-                            {partner.name?.charAt(0)}
+                            {partner.name?.slice(0,2).toUpperCase()}
                         </AvatarFallback>
                         </Avatar>
                     )}

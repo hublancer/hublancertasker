@@ -51,8 +51,8 @@ export default function AdminUsersPage() {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
-                       <AvatarImage src={user.photoURL || 'https://placehold.co/40x40.png'} alt="Avatar" />
-                      <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
+                       <AvatarImage src={user.photoURL || ''} alt="Avatar" />
+                      <AvatarFallback>{user.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="grid gap-0.5">
                       <p className="font-medium">{user.name}</p>

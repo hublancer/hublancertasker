@@ -120,8 +120,8 @@ export default function ProfilePage() {
                         <CardContent className="p-8">
                            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
                              <Avatar className="h-32 w-32">
-                                <AvatarImage src={profile.photoURL || `https://placehold.co/128x128.png`}  data-ai-hint="person face" />
-                                <AvatarFallback className="text-4xl">{profile.name?.charAt(0)}</AvatarFallback>
+                                <AvatarImage src={profile.photoURL || ''}  data-ai-hint="person face" />
+                                <AvatarFallback className="text-4xl">{profile.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <div className="text-center md:text-left">
                                 <h1 className="text-3xl font-bold font-headline">{profile.name}</h1>
@@ -170,8 +170,8 @@ export default function ProfilePage() {
                                             <CardContent className="p-6">
                                                 <div className="flex items-start gap-4">
                                                     <Avatar>
-                                                        <AvatarImage src={review.clientAvatar || `https://placehold.co/40x40.png`} data-ai-hint="person face" />
-                                                        <AvatarFallback>{review.clientName.charAt(0)}</AvatarFallback>
+                                                        <AvatarImage src={review.clientAvatar || ''} data-ai-hint="person face" />
+                                                        <AvatarFallback>{review.clientName.slice(0, 2).toUpperCase()}</AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
                                                         <div className="flex justify-between items-center">

@@ -733,10 +733,10 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 <div className="flex items-start p-3 rounded-lg bg-muted/50">
                     <Avatar className="h-10 w-10 mr-3">
                     <AvatarImage
-                        src="https://placehold.co/40x40.png"
+                        src=""
                         data-ai-hint="person face"
                     />
-                    <AvatarFallback>{task.postedBy.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{task.postedBy.slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
                     <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
@@ -805,11 +805,11 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                             <Link href={`/profile/${offer.taskerId}`}>
                               <Avatar className="h-12 w-12 cursor-pointer">
                                 <AvatarImage
-                                  src={offer.taskerAvatar || 'https://placehold.co/40x40.png'}
+                                  src={offer.taskerAvatar || ''}
                                   data-ai-hint="person face"
                                 />
                                 <AvatarFallback>
-                                  {offer.taskerName.charAt(0)}
+                                  {offer.taskerName.slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                             </Link>
@@ -877,10 +877,10 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
                             <AvatarImage
-                              src={q.userAvatar || 'https://placehold.co/40x40.png'}
+                              src={q.userAvatar || ''}
                               data-ai-hint="person face"
                             />
-                            <AvatarFallback>{q.userName.charAt(0)}</AvatarFallback>
+                            <AvatarFallback>{q.userName.slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <p className="font-semibold text-sm">{q.userName}</p>
                         </div>

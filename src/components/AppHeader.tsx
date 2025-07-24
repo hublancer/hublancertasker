@@ -132,8 +132,8 @@ const AppHeader = () => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user.photoURL || 'https://placehold.co/40x40.png'} alt="User avatar" data-ai-hint="person face" />
-                <AvatarFallback>{userProfile?.email?.[0].toUpperCase()}</AvatarFallback>
+                <AvatarImage src={user.photoURL || userProfile?.photoURL || ''} alt="User avatar" data-ai-hint="person face" />
+                <AvatarFallback>{userProfile?.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>

@@ -8,7 +8,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { db, auth } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 
 import AppHeader from '@/components/AppHeader';
@@ -25,7 +24,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const profileSetupSchema = z.object({
-  photo: z.any().optional(),
   bio: z.string().max(300, 'Bio cannot exceed 300 characters.').optional(),
   skills: z.array(z.string()).optional(),
 });
@@ -37,7 +35,6 @@ export default function ProfileSetupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const form = useForm<ProfileSetupFormValues>({
     resolver: zodResolver(profileSetupSchema),
@@ -57,40 +54,14 @@ export default function ProfileSetupPage() {
     }
   }, [user, userProfile, authLoading, router, form]);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPhotoPreview(URL.createObjectURL(file));
-    }
-  };
-
   const onSubmit = async (data: ProfileSetupFormValues) => {
     if (!user) return;
     setIsSubmitting(true);
 
     try {
-      let photoURL = userProfile?.photoURL || user.photoURL;
-
-      // 1. Upload photo if it exists
-      if (data.photo && data.photo.length > 0) {
-        const storage = getStorage();
-        const photoRef = ref(storage, `profile-photos/${user.uid}`);
-        const file = data.photo[0];
-        const snapshot = await uploadBytes(photoRef, file);
-        photoURL = await getDownloadURL(snapshot.ref);
-      }
-
-      // 2. Update Auth profile
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, {
-            photoURL: photoURL
-        });
-      }
-
-      // 3. Update Firestore document
+      // Update Firestore document
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, {
-        photoURL: photoURL,
         bio: data.bio,
         skills: data.skills,
       });
@@ -135,19 +106,19 @@ export default function ProfileSetupPage() {
           <CardHeader>
             <CardTitle className="text-2xl">Set Up Your Profile</CardTitle>
             <CardDescription>
-              Add a photo and some details to help people get to know you.
+              Add some details to help people get to know you.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <div className="flex items-center gap-6">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={photoPreview || userProfile?.photoURL || 'https://placehold.co/96x96.png'} data-ai-hint="person face" />
-                  <AvatarFallback>{userProfile?.name?.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={userProfile?.photoURL || ''} data-ai-hint="person face" />
+                  <AvatarFallback className="text-3xl">{userProfile?.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                    <Label htmlFor="picture">Profile Photo</Label>
-                    <Input id="picture" type="file" accept="image/*" {...form.register('photo')} onChange={handlePhotoChange} />
+                <div>
+                    <h3 className="text-xl font-bold">{userProfile?.name}</h3>
+                    <p className="text-muted-foreground">{userProfile?.email}</p>
                 </div>
               </div>
 

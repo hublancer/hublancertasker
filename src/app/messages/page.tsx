@@ -151,7 +151,7 @@ function MessagesPageContent() {
                       src={partner.avatar}
                       data-ai-hint="person face"
                     />
-                    <AvatarFallback>{partner.name?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{partner.name?.slice(0,2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>
