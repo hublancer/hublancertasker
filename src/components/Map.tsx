@@ -48,6 +48,10 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
   useEffect(() => {
     if (center) {
       map.setView(center, zoom);
+      // Invalidate size to fix rendering issues, especially on mobile.
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
     }
   }, [center, zoom, map]);
   return null;
@@ -76,8 +80,8 @@ function MapControls() {
 
 
   return (
-    <div className="leaflet-bottom leaflet-right">
-      <div className="leaflet-control leaflet-bar flex flex-col gap-px mb-2 mr-2">
+    <div className="leaflet-top leaflet-right">
+      <div className="leaflet-control leaflet-bar flex flex-col gap-px mt-2 mr-2">
         <Button
           variant="outline"
           size="icon"
