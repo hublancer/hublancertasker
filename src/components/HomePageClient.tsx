@@ -55,15 +55,6 @@ type TaskTypeFilter = 'all' | 'physical' | 'online';
 type SortByType = 'newest' | 'price-asc' | 'price-desc';
 type LocationFilterMode = 'city' | 'current';
 
-const getZoomFromDistance = (distance: number) => {
-  if (distance <= 1) return 14;
-  if (distance <= 5) return 12;
-  if (distance <= 15) return 11;
-  if (distance <= 35) return 10;
-  if (distance <= 70) return 9;
-  return 8;
-};
-
 export default function HomePageClient({ tasks }: HomePageClientProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
@@ -127,13 +118,13 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         setPopoverLocationFilterMode('current');
         setAppliedCurrentLocation([latitude, longitude]);
         setCurrentMapCenter([latitude, longitude]);
-        setMapZoom(getZoomFromDistance(popoverDistance));
+        setMapZoom(13);
       },
       () => {
         alert('Could not get your location.');
       }
     );
-  }, [popoverDistance]);
+  }, []);
 
   useEffect(() => {
     handleUseCurrentLocation();
@@ -166,7 +157,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     ) {
       setAppliedCity(null);
       setCurrentMapCenter(appliedCurrentLocation);
-      setMapZoom(getZoomFromDistance(popoverDistance));
+      setMapZoom(13);
     } else {
       setAppliedCity(null);
       setCurrentMapCenter(pakistaniCities[0].coordinates);
@@ -607,19 +598,20 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Map */}
         <div
           className={cn(
-            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10 rounded-lg overflow-hidden',
-            isMobile && mobileView === 'list' && 'hidden',
+            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10',
+            'border rounded-lg', 
+            isMobile && mobileView !== 'map' && 'hidden',
             'md:block'
           )}
         >
-          {
+          {(!isMobile || mobileView === 'map') && (
             <Map
               tasks={tasks}
               onTaskSelect={handleViewDetails}
               center={currentMapCenter}
               zoom={mapZoom}
             />
-          }
+          )}
         </div>
       </main>
     </div>

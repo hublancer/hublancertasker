@@ -48,7 +48,6 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
   useEffect(() => {
     if (center) {
       map.setView(center, zoom);
-      // Invalidate size to fix rendering issues, especially on mobile.
       setTimeout(() => {
         map.invalidateSize();
       }, 100);
