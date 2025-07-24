@@ -69,8 +69,6 @@ export default function ProfileSetupPage() {
         bio: data.bio,
         phone: data.phone,
         skills: data.skills,
-        isVerified: userProfile?.isVerified || false,
-        kycStatus: userProfile?.kycStatus || 'none',
       });
 
       await revalidateProfile();
