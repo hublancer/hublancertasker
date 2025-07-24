@@ -193,6 +193,34 @@ const AppHeader = () => {
     )
   }
 
+  const renderNotificationBell = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
+                      {unreadNotificationsCount}
+                  </span>
+              )}
+          </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-80" align="end">
+          <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {notifications.length === 0 ? (
+              <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
+          ) : (
+              notifications.map(n => (
+                  <DropdownMenuItem key={n.id} className={cn(!n.read && 'font-bold')} onSelect={() => handleMarkAsRead(n.id)} asChild>
+                      <Link href={n.link}>{n.message}</Link>
+                  </DropdownMenuItem>
+              ))
+          )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const desktopHeader = (
     <div className="mr-4 hidden md:flex">
       <Link href="/" className="mr-6 flex items-center space-x-2">
@@ -278,6 +306,7 @@ const AppHeader = () => {
           <span className="font-bold font-headline text-lg">Hublancer</span>
         </Link>
         <div className="flex items-center space-x-2">
+           {user && renderNotificationBell()}
            {renderProfileButton()}
         </div>
       </div>
@@ -300,37 +329,16 @@ const AppHeader = () => {
                     </Link>
                   </Button>
               )}
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="relative">
-                        <Bell className="h-5 w-5" />
-                        {unreadNotificationsCount > 0 && (
-                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-                                {unreadNotificationsCount}
-                            </span>
-                        )}
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80" align="end">
-                    <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {notifications.length === 0 ? (
-                        <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
-                    ) : (
-                        notifications.map(n => (
-                            <DropdownMenuItem key={n.id} className={cn(!n.read && 'font-bold')} onSelect={() => handleMarkAsRead(n.id)} asChild>
-                                <Link href={n.link}>{n.message}</Link>
-                            </DropdownMenuItem>
-                        ))
-                    )}
-                </DropdownMenuContent>
-            </DropdownMenu>
+             {renderNotificationBell()}
+            
+            {!isMobile && (
               <Button
                 asChild
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 <Link href="/post-task">Post a Task</Link>
               </Button>
+            )}
             {renderProfileButton()}
           </div>
         </div>

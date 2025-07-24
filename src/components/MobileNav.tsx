@@ -10,6 +10,7 @@ import { useMediaQuery } from '@/hooks/use-media-query';
 export function MobileNav() {
     const pathname = usePathname();
     const isMobile = useMediaQuery('(max-width: 767px)');
+     const isAdminPage = pathname.startsWith('/admin');
 
     const navItems = [
         { href: '/', label: 'Browse', icon: Compass },
@@ -19,7 +20,7 @@ export function MobileNav() {
         { href: '/my-tasks', label: 'My Tasks', icon: Briefcase },
     ];
 
-    if (!isMobile) {
+    if (!isMobile || isAdminPage) {
         return null;
     }
 
