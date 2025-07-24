@@ -6,8 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { db, storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import AppHeader from '@/components/AppHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -22,15 +21,8 @@ import { useRouter } from 'next/navigation';
 
 const kycSchema = z.object({
   fullName: z.string().min(3, 'Full name must be at least 3 characters long.'),
-  cnic: z.string().regex(/^\d{5}-\d{7}-\d{1}$/, 'Please enter a valid CNIC (e.g., 12345-1234567-1).'),
+  cnic: z.string().length(15, 'Please enter a valid 13-digit CNIC.'),
   dob: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Please enter a valid date."}),
-  cnicPhoto: z.any()
-    .refine(files => files?.length === 1, "CNIC photo is required.")
-    .refine(files => files?.[0]?.size <= 5000000, `Max file size is 5MB.`)
-    .refine(
-      files => ["image/jpeg", "image/png"].includes(files?.[0]?.type),
-      ".jpg and .png files are accepted."
-    ),
 });
 
 type KycFormValues = z.infer<typeof kycSchema>;
@@ -52,7 +44,6 @@ export default function KycPage() {
   const [kycData, setKycData] = useState<KycSubmission | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   const form = useForm<KycFormValues>({
     resolver: zodResolver(kycSchema),
@@ -60,11 +51,8 @@ export default function KycPage() {
       fullName: '',
       cnic: '',
       dob: '',
-      cnicPhoto: undefined,
     },
   });
-  const cnicPhotoRef = form.register("cnicPhoto");
-
 
   useEffect(() => {
     if (loading) return;
@@ -90,19 +78,8 @@ export default function KycPage() {
   const onSubmit = async (data: KycFormValues) => {
     if (!user || !userProfile) return;
     setIsSubmitting(true);
-    setUploadProgress(0);
 
     try {
-      const photoFile = data.cnicPhoto[0];
-      const storageRef = ref(storage, `kyc-photos/${user.uid}/${photoFile.name}`);
-      
-      // Simulate progress for better UX
-      setUploadProgress(30);
-      const snapshot = await uploadBytes(storageRef, photoFile);
-      setUploadProgress(70);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      setUploadProgress(100);
-
       const kycDocRef = doc(db, 'kycSubmissions', user.uid);
       const userDocRef = doc(db, 'users', user.uid);
 
@@ -110,7 +87,6 @@ export default function KycPage() {
         fullName: data.fullName,
         cnic: data.cnic,
         dob: data.dob,
-        cnicPhotoUrl: downloadURL,
         userId: user.uid,
         userName: userProfile.name,
         status: 'pending' as const,
@@ -120,7 +96,7 @@ export default function KycPage() {
       await setDoc(kycDocRef, submissionData, { merge: true });
       await updateDoc(userDocRef, { kycStatus: 'pending' });
 
-      setKycData({ ...submissionData, submittedAt: new Date() });
+      setKycData({ ...submissionData, submittedAt: new Date(), cnicPhotoUrl: '' }); // cnicPhotoUrl is not used anymore
       toast({ title: 'KYC Submitted', description: 'Your information has been sent for review.' });
       router.push('/');
 
@@ -130,6 +106,19 @@ export default function KycPage() {
         setIsSubmitting(false);
     }
   };
+
+  const handleCnicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    let formattedValue = value;
+    if (value.length > 5) {
+      formattedValue = `${value.slice(0, 5)}-${value.slice(5)}`;
+    }
+    if (value.length > 12) {
+      formattedValue = `${value.slice(0, 5)}-${value.slice(5, 12)}-${value.slice(12, 13)}`;
+    }
+    form.setValue('cnic', formattedValue);
+  };
+
 
   const renderStatus = () => {
     if (!kycData) {
@@ -201,7 +190,12 @@ export default function KycPage() {
                     <FormItem>
                       <FormLabel>CNIC Number</FormLabel>
                       <FormControl>
-                        <Input placeholder="XXXXX-XXXXXXX-X" {...field} disabled={isFormDisabled} />
+                        <Input 
+                          placeholder="XXXXX-XXXXXXX-X" 
+                          {...field} 
+                          onChange={handleCnicChange}
+                          maxLength={15}
+                          disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -220,21 +214,6 @@ export default function KycPage() {
                     </FormItem>
                   )}
                 />
-                 <FormField
-                  control={form.control}
-                  name="cnicPhoto"
-                  render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>CNIC Photo</FormLabel>
-                        <FormControl>
-                            <Input type="file" {...cnicPhotoRef} disabled={isFormDisabled} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {isSubmitting && <Progress value={uploadProgress} className="w-full" />}
 
                 <Button type="submit" disabled={isFormDisabled}>
                    {isSubmitting ? 'Submitting...' : kycData?.status === 'pending' ? 'Submitted for Review' : kycData?.status === 'approved' ? 'Verified' : 'Submit for Verification'}
