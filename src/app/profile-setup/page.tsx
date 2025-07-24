@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
@@ -60,7 +60,6 @@ export default function ProfileSetupPage() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      form.setValue('photo', file);
       setPhotoPreview(URL.createObjectURL(file));
     }
   };
@@ -70,20 +69,23 @@ export default function ProfileSetupPage() {
     setIsSubmitting(true);
 
     try {
-      let photoURL = user.photoURL;
+      let photoURL = userProfile?.photoURL || user.photoURL;
 
       // 1. Upload photo if it exists
-      if (data.photo) {
+      if (data.photo && data.photo.length > 0) {
         const storage = getStorage();
         const photoRef = ref(storage, `profile-photos/${user.uid}`);
-        const snapshot = await uploadBytes(photoRef, data.photo);
+        const file = data.photo[0];
+        const snapshot = await uploadBytes(photoRef, file);
         photoURL = await getDownloadURL(snapshot.ref);
       }
 
       // 2. Update Auth profile
-      await updateProfile(user, {
-        photoURL: photoURL
-      });
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, {
+            photoURL: photoURL
+        });
+      }
 
       // 3. Update Firestore document
       const userDocRef = doc(db, 'users', user.uid);
@@ -145,7 +147,7 @@ export default function ProfileSetupPage() {
                 </Avatar>
                 <div className="grid w-full max-w-sm items-center gap-1.5">
                     <Label htmlFor="picture">Profile Photo</Label>
-                    <Input id="picture" type="file" accept="image/*" onChange={handlePhotoChange} />
+                    <Input id="picture" type="file" accept="image/*" {...form.register('photo')} onChange={handlePhotoChange} />
                 </div>
               </div>
 
