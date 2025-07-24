@@ -9,7 +9,8 @@ import AppHeader from '@/components/AppHeader';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Star, MessageSquare } from 'lucide-react';
+import { Star, MessageSquare, CheckCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Review {
     id: string;
@@ -54,26 +55,9 @@ export default function ProfilePage() {
             }
         };
 
-        const fetchReviews = async () => {
-            if (profile?.accountType !== 'tasker') {
-                 setReviews([]);
-                 return;
-            };
-
-            const q = query(
-                collection(db, 'reviews'),
-                where('taskerId', '==', userId),
-                orderBy('createdAt', 'desc')
-            );
-            const querySnapshot = await getDocs(q);
-            const reviewsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
-            setReviews(reviewsData);
-        };
-
         const fetchData = async () => {
             setLoading(true);
             await fetchProfile();
-            // Fetch reviews after profile is loaded to check account type
             setLoading(false);
         }
 
@@ -133,22 +117,48 @@ export default function ProfilePage() {
             <main className="flex-1">
                 <div className="container mx-auto py-12 px-4 md:px-6 max-w-4xl">
                     <Card>
-                        <CardContent className="p-8 text-center">
-                            <Avatar className="h-32 w-32 mx-auto">
+                        <CardContent className="p-8">
+                           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+                             <Avatar className="h-32 w-32">
                                 <AvatarImage src={profile.photoURL || `https://placehold.co/128x128.png`}  data-ai-hint="person face" />
                                 <AvatarFallback className="text-4xl">{profile.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <h1 className="text-3xl font-bold font-headline mt-4">{profile.name}</h1>
-                            <p className="text-muted-foreground mt-1 capitalize">{profile.accountType}</p>
+                            <div className="text-center md:text-left">
+                                <h1 className="text-3xl font-bold font-headline">{profile.name}</h1>
+                                <p className="text-muted-foreground mt-1 capitalize">{profile.accountType}</p>
 
-                            {profile.accountType === 'tasker' && (
-                                <div className="flex items-center justify-center gap-2 mt-4">
-                                    <StarRating rating={profile.averageRating || 0} />
-                                    <span className="text-muted-foreground">({profile.reviewCount || 0} reviews)</span>
-                                </div>
-                            )}
+                                {profile.accountType === 'tasker' && (
+                                    <div className="flex items-center justify-center md:justify-start gap-2 mt-4">
+                                        <StarRating rating={profile.averageRating || 0} />
+                                        <span className="text-muted-foreground">({profile.reviewCount || 0} reviews)</span>
+                                    </div>
+                                )}
+
+                                {profile.bio && (
+                                    <p className="mt-4 text-muted-foreground max-w-prose">{profile.bio}</p>
+                                )}
+                            </div>
+                           </div>
                         </CardContent>
                     </Card>
+
+                    {profile.accountType === 'tasker' && profile.skills && profile.skills.length > 0 && (
+                        <div className="mt-8">
+                            <h2 className="text-2xl font-bold font-headline mb-4">Skills</h2>
+                            <Card>
+                                <CardContent className="p-6">
+                                    <div className="flex flex-wrap gap-2">
+                                        {profile.skills.map(skill => (
+                                            <Badge key={skill} variant="secondary" className="text-base">
+                                                <CheckCircle className="mr-2 h-4 w-4 text-primary" />
+                                                {skill}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
                     {profile.accountType === 'tasker' && (
                         <div className="mt-8">
@@ -190,4 +200,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-

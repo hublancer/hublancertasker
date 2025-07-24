@@ -13,9 +13,11 @@ export interface UserProfile {
   accountType: 'client' | 'tasker';
   role?: 'client' | 'tasker' | 'admin';
   name?: string;
+  photoURL?: string;
+  bio?: string;
+  skills?: string[];
   averageRating?: number;
   reviewCount?: number;
-  photoURL?: string;
   wallet?: {
     balance: number;
   };

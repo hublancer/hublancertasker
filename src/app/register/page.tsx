@@ -13,7 +13,7 @@ import AppHeader from '@/components/AppHeader';
 import { SignUpForm, SignUpFormValues } from '@/components/SignUpForm';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { setDoc, doc } from 'firebase/firestore';
+import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -36,18 +36,19 @@ export default function RegisterPage() {
                 uid: user.uid,
                 email: data.email,
                 accountType: data.accountType,
-                role: data.accountType,
+                role: data.accountType, // Default role is same as account type
                 name: data.name,
                 wallet: {
                   balance: 0,
-                }
+                },
+                createdAt: serverTimestamp(),
             });
 
             toast({
                 title: "Account Created!",
-                description: "You have been successfully registered.",
+                description: "Let's set up your profile.",
             });
-            router.push('/my-tasks');
+            router.push('/profile-setup');
 
         } catch (error: any) {
             toast({
