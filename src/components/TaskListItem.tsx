@@ -50,14 +50,6 @@ export default function TaskListItem({
                 <span>{task.category}</span>
               </div>
             </div>
-            <div className="mt-2 text-sm">
-                <span className="inline-flex items-center">
-                    <Users className="mr-1.5 h-4 w-4 text-muted-foreground"/>
-                    <span className="text-muted-foreground">
-                        {task.offers} {task.offers === 1 ? 'offer' : 'offers'}
-                    </span>
-                </span>
-            </div>
           </div>
 
           <div className="text-right flex flex-col items-center justify-between h-full gap-2">
