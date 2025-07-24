@@ -11,12 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface KycRequest {
     userId: string;
     userName: string;
     fullName: string;
     cnic: string;
+    cnicPhotoUrl: string;
     status: 'pending' | 'approved' | 'rejected';
     submittedAt: any;
 }
@@ -96,6 +98,7 @@ export default function AdminKycPage() {
                             <TableHead>User</TableHead>
                             <TableHead>Full Name</TableHead>
                             <TableHead>CNIC</TableHead>
+                             <TableHead>CNIC Photo</TableHead>
                             <TableHead>Submitted At</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -103,7 +106,7 @@ export default function AdminKycPage() {
                     <TableBody>
                         {requests.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center h-24">No pending KYC requests.</TableCell>
+                                <TableCell colSpan={6} className="text-center h-24">No pending KYC requests.</TableCell>
                             </TableRow>
                         ) : (
                             requests.map(req => (
@@ -115,6 +118,11 @@ export default function AdminKycPage() {
                                     </TableCell>
                                     <TableCell>{req.fullName}</TableCell>
                                     <TableCell className="font-mono">{req.cnic}</TableCell>
+                                    <TableCell>
+                                        <a href={req.cnicPhotoUrl} target="_blank" rel="noopener noreferrer">
+                                            <Button variant="link">View Photo</Button>
+                                        </a>
+                                    </TableCell>
                                     <TableCell>{req.submittedAt.toDate().toLocaleString()}</TableCell>
                                     <TableCell className="text-right space-x-2">
                                         <Button size="sm" onClick={() => handleApprove(req)} disabled={!!processingId}>

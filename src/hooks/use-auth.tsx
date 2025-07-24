@@ -4,7 +4,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc, query, where } from 'firebase/firestore';
 import { useSound } from './use-sound';
 
 export interface UserProfile {
@@ -82,6 +82,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
+  const addNotification = useCallback(async (userId: string, message: string, link: string) => {
+    if (!userId) return;
+    try {
+        await addDoc(collection(db, 'users', userId, 'notifications'), {
+            message,
+            link,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.error("Error adding notification: ", error);
+    }
+  }, []);
+
+  const setupAdminListeners = useCallback((adminId: string) => {
+    const unsubscribes: (()=>void)[] = [];
+    const notifyAdmin = (message: string, link: string) => {
+        addNotification(adminId, message, link);
+    }
+
+    const lastCheckTimestamp = new Date(); // To avoid notifying for old docs
+
+    const depositsQuery = query(collection(db, 'deposits'), where('createdAt', '>', lastCheckTimestamp));
+    unsubscribes.push(onSnapshot(depositsQuery, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const data = change.doc.data();
+                notifyAdmin(`New deposit of ${settings?.currencySymbol}${data.amount} from ${data.userName}`, '/admin/deposits');
+            }
+        });
+    }));
+
+    const withdrawalsQuery = query(collection(db, 'withdrawals'), where('createdAt', '>', lastCheckTimestamp));
+    unsubscribes.push(onSnapshot(withdrawalsQuery, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const data = change.doc.data();
+                notifyAdmin(`New withdrawal of ${settings?.currencySymbol}${data.amount} from ${data.userName}`, '/admin/withdrawals');
+            }
+        });
+    }));
+    
+    const kycQuery = query(collection(db, 'kycSubmissions'), where('submittedAt', '>', lastCheckTimestamp));
+    unsubscribes.push(onSnapshot(kycQuery, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                 const data = change.doc.data();
+                notifyAdmin(`New KYC submission from ${data.userName}`, '/admin/kyc');
+            }
+        });
+    }));
+
+    return () => unsubscribes.forEach(unsub => unsub());
+
+  }, [addNotification, settings?.currencySymbol]);
 
   useEffect(() => {
     const settingsDocRef = doc(db, 'settings', 'platform');
@@ -89,10 +144,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (doc.exists()) {
             setSettings(doc.data() as PlatformSettings);
         } else {
-            // Default settings if none are in the database
             setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
         }
     });
+
+    let adminUnsubscribe = () => {};
 
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true);
@@ -109,48 +165,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
                 setUserProfile(profileData);
                 sessionStorage.setItem(`userProfile-${currentUser.uid}`, JSON.stringify(profileData));
+
+                // If user is an admin, set up listeners for platform-wide events
+                if (profileData.role === 'admin') {
+                   adminUnsubscribe = setupAdminListeners(currentUser.uid);
+                }
+
             } else {
-                 // This can happen if a user signs in with Google for the first time
-                 // The register/login page logic handles creating the doc.
                  console.log("User doc doesn't exist yet for UID:", currentUser.uid);
             }
             setLoading(false);
         });
 
-        // Return a cleanup function for the user subscription
         return () => {
             userUnsubscribe();
             authUnsubscribe();
             settingsUnsubscribe();
+            adminUnsubscribe();
         }
 
       } else {
         setUser(null);
         setUserProfile(null);
         setLoading(false);
+        adminUnsubscribe(); // Clean up admin listeners on logout
       }
     });
 
     return () => {
       authUnsubscribe();
       settingsUnsubscribe();
+      adminUnsubscribe();
     };
-  }, []);
-
-
-  const addNotification = useCallback(async (userId: string, message: string, link: string) => {
-    if (!userId) return;
-    try {
-        await addDoc(collection(db, 'users', userId, 'notifications'), {
-            message,
-            link,
-            read: false,
-            createdAt: serverTimestamp()
-        });
-    } catch (error) {
-        console.error("Error adding notification: ", error);
-    }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setupAdminListeners]);
 
   const value = {
       user,
