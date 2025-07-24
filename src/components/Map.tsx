@@ -3,10 +3,10 @@
 
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import type { Task } from './TaskCard';
-import L from 'leaflet';
+import L, { LatLngExpression } from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { useEffect, useMemo, memo } from 'react';
+import { useEffect, useMemo, memo, useRef } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -36,6 +36,8 @@ interface MapProps {
   onTaskSelect: (taskId: string) => void;
   center: [number, number] | null;
   zoom?: number;
+  isDraggable?: boolean;
+  onMarkerDragEnd?: (position: [number, number]) => void;
 }
 
 const INITIAL_ZOOM = 6;
@@ -108,7 +110,36 @@ function MapControls() {
   );
 }
 
-const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
+const DraggableMarker = ({ position, onDragEnd }: { position: LatLngExpression, onDragEnd: (position: [number, number]) => void }) => {
+    const markerRef = useRef<L.Marker>(null);
+    const eventHandlers = useMemo(
+        () => ({
+            dragend() {
+                const marker = markerRef.current;
+                if (marker != null) {
+                    const { lat, lng } = marker.getLatLng();
+                    onDragEnd([lat, lng]);
+                }
+            },
+        }),
+        [onDragEnd],
+    );
+
+    return (
+        <Marker
+            draggable={true}
+            eventHandlers={eventHandlers}
+            position={position}
+            ref={markerRef}
+            icon={greenIcon}
+        >
+            <Popup>Drag the pin to set the exact task location.</Popup>
+        </Marker>
+    );
+};
+
+
+const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM, isDraggable = false, onMarkerDragEnd }: MapProps) => {
   const { settings } = useAuth();
   const physicalTasks = useMemo(() => tasks.filter(task => task.coordinates), [tasks]);
   
@@ -120,21 +151,25 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
       />
       {physicalTasks.map(task => (
         task.coordinates && (
-            <Marker key={task.id} position={task.coordinates} icon={greenIcon}>
-            <Popup>
-                <div className="space-y-1">
-                <h3 className="font-bold">{task.title}</h3>
-                <p>{settings?.currencySymbol ?? 'Rs'}{task.price}</p>
-                <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => onTaskSelect(task.id)}
-                >
-                    View Task
-                </Button>
-                </div>
-            </Popup>
-            </Marker>
+            isDraggable && onMarkerDragEnd ? (
+                <DraggableMarker key={task.id} position={task.coordinates} onDragEnd={onMarkerDragEnd} />
+            ) : (
+                <Marker key={task.id} position={task.coordinates} icon={greenIcon}>
+                <Popup>
+                    <div className="space-y-1">
+                    <h3 className="font-bold">{task.title}</h3>
+                    <p>{settings?.currencySymbol ?? 'Rs'}{task.price}</p>
+                    <Button
+                        variant="link"
+                        className="p-0 h-auto"
+                        onClick={() => onTaskSelect(task.id)}
+                    >
+                        View Task
+                    </Button>
+                    </div>
+                </Popup>
+                </Marker>
+            )
         )
       ))}
       <MapViewUpdater center={center} zoom={zoom} />

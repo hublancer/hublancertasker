@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -231,6 +230,13 @@ export default function PostTaskForm() {
       }
     );
   };
+  
+  const handleMarkerDragEnd = (newPosition: [number, number]) => {
+    form.setValue('coordinates', { lat: newPosition[0], lng: newPosition[1] });
+    form.setValue('location', 'Custom Location');
+    setMarkerPosition(newPosition);
+    setMapCenter(newPosition);
+  };
 
 
   const isAuthenticated = !!user;
@@ -379,7 +385,12 @@ export default function PostTaskForm() {
                   <FormLabel>Task Type</FormLabel>
                   <FormControl>
                     <RadioGroup
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                          field.onChange(value);
+                          if (value === 'online') {
+                            setMarkerPosition(null);
+                          }
+                      }}
                       defaultValue={field.value}
                       className="flex gap-4"
                     >
@@ -461,6 +472,8 @@ export default function PostTaskForm() {
                             center={mapCenter}
                             zoom={mapZoom}
                             onTaskSelect={() => {}}
+                            isDraggable={true}
+                            onMarkerDragEnd={handleMarkerDragEnd}
                         />
                     </div>
                  )}
