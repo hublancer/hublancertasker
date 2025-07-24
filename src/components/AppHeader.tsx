@@ -278,9 +278,6 @@ const AppHeader = () => {
           <span className="font-bold font-headline text-lg">Hublancer</span>
         </Link>
         <div className="flex items-center space-x-2">
-          <Button asChild size="sm">
-            <Link href="/post-task">Post Task</Link>
-          </Button>
            {renderProfileButton()}
         </div>
       </div>

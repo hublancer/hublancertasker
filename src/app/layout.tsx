@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/hooks/use-auth';
+import { MobileNav } from '@/components/MobileNav';
 
 export const metadata: Metadata = {
   title: 'Hublancer',
@@ -30,9 +31,10 @@ export default function RootLayout({
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
           crossOrigin=""/>
       </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased pb-16 md:pb-0">
         <AuthProvider>
           {children}
+          <MobileNav />
         </AuthProvider>
         <Toaster />
       </body>
