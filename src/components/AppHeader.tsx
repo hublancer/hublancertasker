@@ -116,10 +116,6 @@ const AppHeader = () => {
     { href: '/my-tasks', label: 'My Tasks' },
     { href: '/messages', label: 'Messages', badge: unreadMessagesCount, icon: MessageSquare },
   ];
-  
-  if (userProfile?.accountType === 'tasker') {
-      navLinks.push({ href: '/kyc', label: 'KYC', badge: 0, icon: FileKey });
-  }
 
   const renderProfileButton = () => {
     if (loading) {
@@ -152,7 +148,7 @@ const AppHeader = () => {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
              <DropdownMenuItem asChild>
-              <Link href={`/profile-setup`}>
+              <Link href={`/profile/${user.uid}`}>
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
               </Link>

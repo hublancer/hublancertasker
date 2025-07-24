@@ -16,12 +16,14 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Progress } from '@/components/ui/progress';
+import { useRouter } from 'next/navigation';
 
 const kycSchema = z.object({
   fullName: z.string().min(3, 'Full name must be at least 3 characters long.'),
   cnic: z.string().regex(/^\d{5}-\d{7}-\d{1}$/, 'Please enter a valid CNIC (e.g., 12345-1234567-1).'),
+  dob: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Please enter a valid date."}),
   cnicPhoto: z.any()
     .refine(files => files?.length === 1, "CNIC photo is required.")
     .refine(files => files?.[0]?.size <= 5000000, `Max file size is 5MB.`)
@@ -37,6 +39,7 @@ interface KycSubmission {
   fullName: string;
   cnic: string;
   cnicPhotoUrl: string;
+  dob: string;
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: any;
   rejectionReason?: string;
@@ -45,6 +48,7 @@ interface KycSubmission {
 export default function KycPage() {
   const { user, userProfile, loading } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const [kycData, setKycData] = useState<KycSubmission | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,7 +64,7 @@ export default function KycPage() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      setPageLoading(false);
+      router.push('/login');
       return;
     }
 
@@ -70,13 +74,13 @@ export default function KycPage() {
       if (kycDoc.exists()) {
         const data = kycDoc.data() as KycSubmission;
         setKycData(data);
-        form.reset({ fullName: data.fullName, cnic: data.cnic });
+        form.reset({ fullName: data.fullName, cnic: data.cnic, dob: data.dob });
       }
       setPageLoading(false);
     };
 
     fetchKycData();
-  }, [user, loading, form]);
+  }, [user, loading, form, router]);
 
   const onSubmit = async (data: KycFormValues) => {
     if (!user || !userProfile) return;
@@ -100,6 +104,7 @@ export default function KycPage() {
       const submissionData = {
         fullName: data.fullName,
         cnic: data.cnic,
+        dob: data.dob,
         cnicPhotoUrl: downloadURL,
         userId: user.uid,
         userName: userProfile.name,
@@ -112,6 +117,8 @@ export default function KycPage() {
 
       setKycData({ ...submissionData, submittedAt: new Date() });
       toast({ title: 'KYC Submitted', description: 'Your information has been sent for review.' });
+      router.push('/');
+
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -195,6 +202,19 @@ export default function KycPage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="dob"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Birth</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} disabled={isFormDisabled} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                  <FormField
                   control={form.control}
                   name="cnicPhoto"
@@ -204,9 +224,6 @@ export default function KycPage() {
                         <FormControl>
                             <Input type="file" {...cnicPhotoRef} disabled={isFormDisabled} />
                         </FormControl>
-                        <FormDescription>
-                            Please upload a clear picture of your CNIC. Max 5MB.
-                        </FormDescription>
                         <FormMessage />
                     </FormItem>
                   )}

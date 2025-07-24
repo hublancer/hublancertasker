@@ -80,7 +80,7 @@ export default function ProfileSetupPage() {
         description: 'Your profile has been successfully set up.',
       });
 
-      router.push('/');
+      router.push('/kyc');
 
     } catch (error: any) {
       console.error('Error setting up profile:', error);
@@ -196,7 +196,6 @@ export default function ProfileSetupPage() {
               )}
               
               <div className="flex justify-end gap-2">
-                 <Button type="button" variant="ghost" onClick={() => router.push('/')}>Skip for now</Button>
                  <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? 'Saving...' : 'Save and Continue'}
                  </Button>
