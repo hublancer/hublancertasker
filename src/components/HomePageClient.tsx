@@ -34,7 +34,6 @@ import { Slider } from './ui/slider';
 import { cn } from '@/lib/utils';
 import { Switch } from './ui/switch';
 import { CategoryFilter } from './CategoryFilter';
-import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
 import { Input } from './ui/input';
 import { useRouter } from 'next/navigation';
@@ -81,7 +80,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     name: string;
     coordinates: [number, number];
   } | null>(null);
-  const [appliedDistance, setAppliedDistance] = useState(25);
   const [appliedAvailableOnly, setAppliedAvailableOnly] = useState(false);
   const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
   const [appliedPrice, setAppliedPrice] = useState('any');
@@ -92,7 +90,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     useState<TaskTypeFilter>(appliedTaskType);
   const [popoverLocation, setPopoverLocation] =
     useState<typeof appliedLocation>(appliedLocation);
-  const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
+
   const [popoverAvailableOnly, setPopoverAvailableOnly] =
     useState(appliedAvailableOnly);
   const [popoverNoOffersOnly, setPopoverNoOffersOnly] =
@@ -141,10 +139,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const handleLocationFilterApply = () => {
     setAppliedTaskType(popoverTaskType);
     setAppliedLocation(popoverLocation);
-    setAppliedDistance(popoverDistance);
     if (popoverLocation) {
       setCurrentMapCenter(popoverLocation.coordinates);
-      setMapZoom(getZoomFromDistance(popoverDistance));
+      setMapZoom(11);
     } else {
       setCurrentMapCenter(pakistaniCities[0].coordinates);
       setMapZoom(6);
@@ -155,19 +152,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const handleLocationFilterCancel = () => {
     setPopoverTaskType(appliedTaskType);
     setPopoverLocation(appliedLocation);
-    setPopoverDistance(appliedDistance);
     setIsLocationPopoverOpen(false);
-  };
-
-  const handleUseCurrentLocation = () => {
-    navigator.geolocation.getCurrentPosition(position => {
-      const { latitude, longitude } = position.coords;
-      const myLocation = {
-        name: 'Your Location',
-        coordinates: [latitude, longitude] as [number, number],
-      };
-      setPopoverLocation(myLocation);
-    });
   };
 
   const handleOtherFiltersApply = () => {
@@ -184,12 +169,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const getLocationButtonLabel = () => {
     if (appliedLocation) {
-      if (
-        appliedLocation.name === 'Your Location' &&
-        appliedTaskType === 'physical'
-      ) {
-        return `Within ${appliedDistance}km`;
-      }
       return appliedLocation.name;
     }
     if (appliedTaskType === 'physical') return 'In-person';
@@ -230,23 +209,8 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         if (task.type !== appliedTaskType) return false;
       }
 
-      if (appliedLocation && task.type === 'physical' && task.coordinates) {
-        const [lat1, lon1] = appliedLocation.coordinates;
-        const [lat2, lon2] = task.coordinates;
-
-        const R = 6371; // Radius of the Earth in km
-        const dLat = ((lat2 - lat1) * Math.PI) / 180;
-        const dLon = ((lon2 - lon1) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((lat1 * Math.PI) / 180) *
-            Math.cos((lat2 * Math.PI) / 180) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c; // Distance in km
-
-        if (distance > appliedDistance) return false;
+      if (appliedLocation && task.type === 'physical') {
+        if (task.location !== appliedLocation.name) return false;
       }
 
       if (appliedPrice !== 'any') {
@@ -273,7 +237,6 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     appliedCategories,
     appliedTaskType,
     appliedLocation,
-    appliedDistance,
     appliedPrice,
     appliedAvailableOnly,
     appliedNoOffersOnly,
@@ -354,7 +317,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                           variant={
                             popoverTaskType === 'all' ? 'default' : 'outline'
                           }
-                          onClick={() => setPopoverTaskType('all')}
+                          onClick={() => {
+                            setPopoverTaskType('all');
+                            setPopoverLocation(null);
+                          }}
                           className="flex-1"
                         >
                           All
@@ -363,50 +329,27 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="suburb">Location</Label>
-                      <Combobox
-                        items={pakistaniCities.map(c => ({
-                          value: c.name.toLowerCase(),
-                          label: c.name,
-                        }))}
-                        value={popoverLocation?.name.toLowerCase() || ''}
-                        onChange={value => {
-                          const city = pakistaniCities.find(
-                            c => c.name.toLowerCase() === value
-                          );
-                          setPopoverLocation(
-                            city
-                              ? { name: city.name, coordinates: city.coordinates }
-                              : null
-                          );
+                       <Select 
+                        value={popoverLocation?.name || ''}
+                        onValueChange={(value) => {
+                           const city = pakistaniCities.find(c => c.name === value);
+                           setPopoverLocation(city ? { name: city.name, coordinates: city.coordinates } : null);
                         }}
-                        placeholder="Search city..."
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleUseCurrentLocation}
-                      >
-                        <LocateFixed className="mr-2 h-4 w-4" />
-                        Use current location
-                      </Button>
+                        disabled={popoverTaskType !== 'physical'}
+                       >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a city" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pakistaniCities.map(city => (
+                            <SelectItem key={city.name} value={city.name}>
+                              {city.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="grid gap-2">
-                      <Label>
-                        Distance -{' '}
-                        <span className="font-bold text-primary">
-                          {popoverDistance}km
-                        </span>
-                      </Label>
-                      <Slider
-                        value={[popoverDistance]}
-                        onValueChange={value => setPopoverDistance(value[0])}
-                        max={MOCK_MAX_DISTANCE}
-                        step={1}
-                        disabled={
-                          popoverTaskType !== 'physical' || !popoverLocation
-                        }
-                      />
-                    </div>
+                   
                     <div className="flex justify-end gap-2 mt-2">
                       <Button
                         variant="ghost"

@@ -38,7 +38,6 @@ import { doc, setDoc, serverTimestamp, collection, addDoc, GeoPoint } from 'fire
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { categories } from '@/lib/categories';
-import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
 
@@ -389,23 +388,30 @@ export default function PostTaskForm() {
                     <FormLabel>Location</FormLabel>
                      <FormControl>
                         <div className="flex gap-2">
-                           <Combobox
-                                items={pakistaniCities.map(c => ({ value: c.name.toLowerCase(), label: c.name }))}
-                                value={field.value || ''}
-                                onChange={(value) => {
-                                    const city = pakistaniCities.find(c => c.name.toLowerCase() === value);
-                                    if (city) {
-                                        field.onChange(city.name);
-                                        form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
-                                    } else {
-                                        field.onChange('');
-                                        form.setValue('coordinates', undefined);
-                                    }
-                                }}
-                                placeholder="Select a city..."
-                                searchPlaceholder="Search city..."
-                                notFoundText="City not found."
-                            />
+                           <Select 
+                              onValueChange={(value) => {
+                                const city = pakistaniCities.find(c => c.name === value);
+                                if (city) {
+                                    field.onChange(city.name);
+                                    form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
+                                } else {
+                                    field.onChange('');
+                                    form.setValue('coordinates', undefined);
+                                }
+                              }}
+                              value={field.value}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a city" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {pakistaniCities.map(city => (
+                                  <SelectItem key={city.name} value={city.name}>
+                                    {city.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <Button type="button" variant="outline" onClick={handleUseCurrentLocation}>
                                 <LocateFixed className="mr-2 h-4 w-4" />
                                 Use current location
