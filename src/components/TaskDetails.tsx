@@ -19,6 +19,7 @@ import { LoginDialog } from './LoginDialog';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import Link from 'next/link';
+import UserAvatar from './UserAvatar';
 
 interface TaskDetailsProps {
   task: Task & {
@@ -40,6 +41,7 @@ interface Offer {
     createdAt: any;
     taskerRating?: number;
     taskerReviewCount?: number;
+    isOnline?: boolean;
 }
 
 interface Question {
@@ -50,6 +52,7 @@ interface Question {
     question: string;
     answer?: string;
     createdAt: any;
+    isOnline?: boolean;
 }
 
 const StarRating = ({ rating, setRating, readOnly = false }: { rating: number; setRating?: (rating: number) => void, readOnly?: boolean }) => {
@@ -79,6 +82,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loadingOffers, setLoadingOffers] = useState(true);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
+  const [taskOwnerProfile, setTaskOwnerProfile] = useState<UserProfile | null>(null);
 
   const [offerComment, setOfferComment] = useState('');
   const [offerPrice, setOfferPrice] = useState<number | ''>(task.price);
@@ -114,6 +118,15 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     setLoadingOffers(true);
     setLoadingQuestions(true);
 
+    const fetchTaskOwnerProfile = async () => {
+        const ownerDoc = await getDoc(doc(db, 'users', task.postedById));
+        if (ownerDoc.exists()) {
+            setTaskOwnerProfile(ownerDoc.data() as UserProfile);
+        }
+    }
+    fetchTaskOwnerProfile();
+
+
     const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
     const unsubscribeOffers = onSnapshot(offersQuery, async (snapshot) => {
         const offersDataPromises = snapshot.docs.map(async (docSnap) => {
@@ -125,7 +138,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 id: docSnap.id, 
                 ...offerData,
                 taskerRating: taskerProfile?.averageRating || 0,
-                taskerReviewCount: taskerProfile?.reviewCount || 0
+                taskerReviewCount: taskerProfile?.reviewCount || 0,
+                isOnline: taskerProfile?.isOnline || false,
             } as Offer;
         });
         const offersData = await Promise.all(offersDataPromises);
@@ -137,8 +151,19 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     });
 
     const questionsQuery = query(collection(db, 'tasks', task.id, 'questions'));
-    const unsubscribeQuestions = onSnapshot(questionsQuery, (snapshot) => {
-        const questionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+    const unsubscribeQuestions = onSnapshot(questionsQuery, async (snapshot) => {
+        const questionsDataPromises = snapshot.docs.map(async (docSnap) => {
+             const questionData = docSnap.data() as Omit<Question, 'id'>;
+             const userProfileDoc = await getDoc(doc(db, 'users', questionData.userId));
+             const userProfile = userProfileDoc.data() as UserProfile;
+
+             return {
+                 id: docSnap.id,
+                 ...questionData,
+                 isOnline: userProfile?.isOnline || false,
+             } as Question
+        });
+        const questionsData = await Promise.all(questionsDataPromises);
         setQuestions(questionsData);
         setLoadingQuestions(false);
     }, (error) => {
@@ -161,7 +186,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         unsubscribeOffers();
         unsubscribeQuestions();
     }
-  }, [task.id, user, task.status, task.assignedToId]);
+  }, [task.id, user, task.status, task.assignedToId, task.postedById]);
 
   const handleMakeOffer = async () => {
     if (!user || !userProfile) {
@@ -622,6 +647,12 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             COMPLETED
           </span>
         );
+      case 'disputed':
+        return (
+          <span className="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-600/20">
+            DISPUTED
+          </span>
+        );
     }
   };
 
@@ -841,13 +872,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             
             <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 gap-4 text-sm text-foreground mb-6">
                 <div className="flex items-start p-3 rounded-lg bg-muted/50">
-                    <Avatar className="h-10 w-10 mr-3">
-                    <AvatarImage
-                        src=""
-                        data-ai-hint="person face"
-                    />
-                    <AvatarFallback>{task.postedBy.slice(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar name={task.postedBy} imageUrl={taskOwnerProfile?.photoURL} isOnline={taskOwnerProfile?.isOnline} className="h-10 w-10 mr-3" />
                     <div>
                     <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
                     <p className="truncate">{task.postedBy}</p>
@@ -937,15 +962,12 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                       <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
                         <div className="flex-shrink-0 flex flex-col items-center text-center sm:border-r sm:pr-4 sm:w-32">
                             <Link href={`/profile/${offer.taskerId}`}>
-                              <Avatar className="h-12 w-12 cursor-pointer">
-                                <AvatarImage
-                                  src={offer.taskerAvatar || ''}
-                                  data-ai-hint="person face"
-                                />
-                                <AvatarFallback>
-                                  {offer.taskerName.slice(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
+                              <UserAvatar 
+                                name={offer.taskerName} 
+                                imageUrl={offer.taskerAvatar} 
+                                isOnline={offer.isOnline}
+                                className="h-12 w-12 cursor-pointer"
+                              />
                             </Link>
                           <Link href={`/profile/${offer.taskerId}`}><p className="font-semibold mt-2 hover:underline">{offer.taskerName}</p></Link>
                            <div className="flex items-center gap-1 mt-1">
@@ -1013,13 +1035,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                     <Card key={q.id}>
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={q.userAvatar || ''}
-                              data-ai-hint="person face"
-                            />
-                            <AvatarFallback>{q.userName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
+                          <UserAvatar name={q.userName} imageUrl={q.userAvatar} isOnline={q.isOnline} className="h-8 w-8" />
                           <p className="font-semibold text-sm">{q.userName}</p>
                         </div>
                         <p className="text-sm pl-10">{q.question}</p>

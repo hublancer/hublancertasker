@@ -30,6 +30,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import UserAvatar from './UserAvatar';
 
 interface Notification {
   id: string;
@@ -126,21 +127,23 @@ const AppHeader = () => {
       );
     }
 
-    if (user) {
+    if (user && userProfile) {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user.photoURL || userProfile?.photoURL || ''} alt="User avatar" data-ai-hint="person face" />
-                <AvatarFallback>{userProfile?.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
-              </Avatar>
+              <UserAvatar 
+                name={userProfile.name} 
+                imageUrl={userProfile.photoURL}
+                isOnline={userProfile.isOnline}
+                className="h-8 w-8"
+              />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{userProfile?.name || user.email}</p>
+                <p className="text-sm font-medium leading-none">{userProfile.name || user.email}</p>
                 <p className="text-xs leading-none text-muted-foreground">
                   {user.email}
                 </p>

@@ -4,7 +4,8 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc, query, where } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc, query, where, updateDoc } from 'firebase/firestore';
+import { getDatabase, ref, onValue, set, onDisconnect } from "firebase/database";
 import { useSound } from './use-sound';
 
 export interface UserProfile {
@@ -25,6 +26,8 @@ export interface UserProfile {
     balance: number;
   };
   lastMessageReadTimestamp?: any;
+  isOnline?: boolean;
+  lastSeen?: any;
 }
 
 export interface PlatformSettings {
@@ -170,6 +173,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const userDocRef = doc(db, 'users', currentUser.uid);
+
+        // Setup presence in Realtime Database
+        const rtdb = getDatabase();
+        const myConnectionsRef = ref(rtdb, `users/${currentUser.uid}/connections`);
+        const lastOnlineRef = ref(rtdb, `users/${currentUser.uid}/lastOnline`);
+        const userStatusFirestoreRef = doc(db, 'users', currentUser.uid);
+
+        const con = set(myConnectionsRef, true);
+        onDisconnect(myConnectionsRef).remove();
+        onDisconnect(lastOnlineRef).set(serverTimestamp());
+        onDisconnect(userStatusFirestoreRef).update({ isOnline: false, lastSeen: serverTimestamp() });
+
+        onValue(ref(rtdb, '.info/connected'), (snapshot) => {
+            if (snapshot.val() === true) {
+                set(myConnectionsRef, true);
+                updateDoc(userStatusFirestoreRef, { isOnline: true, lastSeen: serverTimestamp() });
+            }
+        });
+
+
         const userUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
@@ -195,6 +218,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
       } else {
+        if(user) {
+             const userStatusFirestoreRef = doc(db, 'users', user.uid);
+             updateDoc(userStatusFirestoreRef, { isOnline: false, lastSeen: serverTimestamp() });
+        }
         setUser(null);
         setUserProfile(null);
         setLoading(false);
@@ -208,7 +235,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       adminUnsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setupAdminListeners]);
+  }, [setupAdminListeners, user]);
 
   const value = {
       user,
