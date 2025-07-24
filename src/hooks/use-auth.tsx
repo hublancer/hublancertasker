@@ -4,8 +4,8 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc, query, where, updateDoc } from 'firebase/firestore';
-import { getDatabase, ref, onValue, set, onDisconnect } from "firebase/database";
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc, query, where, updateDoc, Timestamp } from 'firebase/firestore';
+import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from "firebase/database";
 import { useSound } from './use-sound';
 
 export interface UserProfile {
@@ -176,20 +176,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Setup presence in Realtime Database
         const rtdb = getDatabase();
-        const myConnectionsRef = ref(rtdb, `users/${currentUser.uid}/connections`);
-        const lastOnlineRef = ref(rtdb, `users/${currentUser.uid}/lastOnline`);
+        const userStatusDatabaseRef = ref(rtdb, '/status/' + currentUser.uid);
         const userStatusFirestoreRef = doc(db, 'users', currentUser.uid);
 
-        const con = set(myConnectionsRef, true);
-        onDisconnect(myConnectionsRef).remove();
-        onDisconnect(lastOnlineRef).set(serverTimestamp());
-        onDisconnect(userStatusFirestoreRef).update({ isOnline: false, lastSeen: serverTimestamp() });
+        const isOfflineForDatabase = {
+            isOnline: false,
+            lastSeen: rtdbServerTimestamp(),
+        };
+
+        const isOnlineForDatabase = {
+            isOnline: true,
+            lastSeen: rtdbServerTimestamp(),
+        };
+        
+        const isOfflineForFirestore = {
+            isOnline: false,
+            lastSeen: serverTimestamp(),
+        };
+
+        const isOnlineForFirestore = {
+            isOnline: true,
+            lastSeen: serverTimestamp(),
+        };
+
 
         onValue(ref(rtdb, '.info/connected'), (snapshot) => {
-            if (snapshot.val() === true) {
-                set(myConnectionsRef, true);
-                updateDoc(userStatusFirestoreRef, { isOnline: true, lastSeen: serverTimestamp() });
-            }
+            if (snapshot.val() === false) {
+                updateDoc(userStatusFirestoreRef, isOfflineForFirestore);
+                return;
+            };
+
+            onDisconnect(userStatusDatabaseRef).set(isOfflineForDatabase).then(() => {
+                set(userStatusDatabaseRef, isOnlineForDatabase);
+                updateDoc(userStatusFirestoreRef, isOnlineForFirestore);
+            });
         });
 
 
@@ -235,7 +255,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       adminUnsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setupAdminListeners, user]);
+  }, []);
 
   const value = {
       user,
