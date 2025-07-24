@@ -11,7 +11,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare } from 'lucide-react';
+import { Menu, Briefcase, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare, FileKey } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -117,6 +117,10 @@ const AppHeader = () => {
     { href: '/messages', label: 'Messages', badge: unreadMessagesCount, icon: MessageSquare },
   ];
   
+  if (userProfile?.accountType === 'tasker') {
+      navLinks.push({ href: '/kyc', label: 'KYC', badge: 0, icon: FileKey });
+  }
+
   const renderProfileButton = () => {
     if (loading) {
       return (
@@ -148,7 +152,7 @@ const AppHeader = () => {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
              <DropdownMenuItem asChild>
-              <Link href={`/profile/${user.uid}`}>
+              <Link href={`/profile-setup`}>
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
               </Link>

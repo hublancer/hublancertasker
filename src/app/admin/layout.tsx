@@ -1,9 +1,10 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Home, Users, Briefcase, CreditCard, Shield, LifeBuoy, Settings, Landmark, ArrowDownToDot, ArrowUpFromDot } from 'lucide-react';
+import { Home, Users, Briefcase, CreditCard, Shield, LifeBuoy, Settings, Landmark, ArrowDownToDot, ArrowUpFromDot, FileKey } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import AppHeader from '@/components/AppHeader';
@@ -54,6 +55,7 @@ export default function AdminLayout({
     { href: '/admin/transactions', label: 'Transactions', icon: CreditCard },
     { href: '/admin/deposits', label: 'Deposits', icon: ArrowDownToDot },
     { href: '/admin/withdrawals', label: 'Withdrawals', icon: ArrowUpFromDot },
+    { href: '/admin/kyc', label: 'KYC', icon: FileKey },
     { href: '/admin/disputes', label: 'Disputes', icon: Shield },
     { href: '/admin/gateways', label: 'Gateways', icon: Landmark },
     { href: '/admin/settings', label: 'Settings', icon: Settings },

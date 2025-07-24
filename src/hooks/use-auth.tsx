@@ -18,6 +18,9 @@ export interface UserProfile {
   skills?: string[];
   averageRating?: number;
   reviewCount?: number;
+  phone?: string;
+  isVerified?: boolean;
+  kycStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   wallet?: {
     balance: number;
   };

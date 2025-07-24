@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const profileSetupSchema = z.object({
   bio: z.string().max(300, 'Bio cannot exceed 300 characters.').optional(),
+  phone: z.string().optional(),
   skills: z.array(z.string()).optional(),
 });
 
@@ -40,6 +42,7 @@ export default function ProfileSetupPage() {
     resolver: zodResolver(profileSetupSchema),
     defaultValues: {
       bio: '',
+      phone: '',
       skills: [],
     },
   });
@@ -50,6 +53,7 @@ export default function ProfileSetupPage() {
     }
     if (userProfile) {
         form.setValue('bio', userProfile.bio || '');
+        form.setValue('phone', userProfile.phone || '');
         form.setValue('skills', userProfile.skills || []);
     }
   }, [user, userProfile, authLoading, router, form]);
@@ -63,7 +67,10 @@ export default function ProfileSetupPage() {
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, {
         bio: data.bio,
+        phone: data.phone,
         skills: data.skills,
+        isVerified: userProfile?.isVerified || false,
+        kycStatus: userProfile?.kycStatus || 'none',
       });
 
       await revalidateProfile();
@@ -120,6 +127,18 @@ export default function ProfileSetupPage() {
                     <h3 className="text-xl font-bold">{userProfile?.name}</h3>
                     <p className="text-muted-foreground">{userProfile?.email}</p>
                 </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone / WhatsApp</Label>
+                <Input
+                  id="phone"
+                  placeholder="e.g. +923001234567"
+                  {...form.register('phone')}
+                />
+                 {form.formState.errors.phone && (
+                    <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">

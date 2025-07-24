@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,6 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+
+const WhatsAppIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+    </svg>
+)
 
 export default function AdminUsersPage() {
   const { settings } = useAuth();
@@ -42,7 +51,9 @@ export default function AdminUsersPage() {
               <TableHead>User</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Verified</TableHead>
               <TableHead className="text-right">Wallet Balance</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,8 +77,22 @@ export default function AdminUsersPage() {
                     {user.role || user.accountType}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  <Badge variant={user.isVerified ? 'default' : 'outline'} className="capitalize">
+                    {user.isVerified ? 'Yes' : 'No'}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-right font-mono">
                   {settings?.currencySymbol ?? 'Rs'}{user.wallet?.balance.toFixed(2) ?? '0.00'}
+                </TableCell>
+                <TableCell className="text-right">
+                    {user.phone && (
+                        <Button asChild variant="outline" size="icon">
+                           <Link href={`https://wa.me/${user.phone.replace(/\D/g, '')}`} target="_blank">
+                               <WhatsAppIcon />
+                           </Link>
+                        </Button>
+                    )}
                 </TableCell>
               </TableRow>
             ))}

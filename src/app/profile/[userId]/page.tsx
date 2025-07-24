@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, MessageSquare, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Review {
     id: string;
@@ -124,7 +126,22 @@ export default function ProfilePage() {
                                 <AvatarFallback className="text-4xl">{profile.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <div className="text-center md:text-left">
-                                <h1 className="text-3xl font-bold font-headline">{profile.name}</h1>
+                                <div className="flex items-center justify-center md:justify-start gap-2">
+                                    <h1 className="text-3xl font-bold font-headline">{profile.name}</h1>
+                                    {profile.isVerified && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <CheckCircle className="h-7 w-7 text-primary" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Verified Tasker</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+                                </div>
+
                                 <p className="text-muted-foreground mt-1 capitalize">{profile.accountType}</p>
 
                                 {profile.accountType === 'tasker' && (
