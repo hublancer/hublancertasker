@@ -4,7 +4,7 @@ import { useState }from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { generateTaskDescription } from '@/app/actions';
+import { generateTaskDescription } from '@/ai/flows/generate-task-description';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -88,14 +88,14 @@ export default function PostTaskForm() {
     setIsGenerating(true);
     const { title, taskType, budget, preferredDateTime } = form.getValues();
     if (title && budget && preferredDateTime) {
-      const description = await generateTaskDescription({
+      const result = await generateTaskDescription({
         taskTitle: title,
         taskType: taskType,
         budget: budget,
         preferredDateTime: format(preferredDateTime, 'PPP'),
         additionalInfo: 'Generate a friendly and encouraging description.',
       });
-      form.setValue('description', description);
+      form.setValue('description', result.taskDescription);
     }
     setIsGenerating(false);
   }
@@ -449,4 +449,3 @@ export default function PostTaskForm() {
     </>
   );
 }
-
