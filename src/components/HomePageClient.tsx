@@ -39,6 +39,10 @@ import { Input } from './ui/input';
 import { useRouter } from 'next/navigation';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
+// Dynamically import L from leaflet only on the client side
+const L = typeof window !== 'undefined' ? require('leaflet') : null;
+
+
 interface HomePageClientProps {
   tasks: (Task & {
     coordinates: [number, number] | null;
@@ -49,8 +53,7 @@ interface HomePageClientProps {
 
 type TaskTypeFilter = 'all' | 'physical' | 'online';
 type SortByType = 'newest' | 'price-asc' | 'price-desc';
-
-const MOCK_MAX_DISTANCE = 100; // km
+type LocationFilterMode = 'city' | 'current';
 
 const getZoomFromDistance = (distance: number) => {
   if (distance <= 1) return 14;
@@ -76,10 +79,17 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
   const [appliedTaskType, setAppliedTaskType] =
     useState<TaskTypeFilter>('all');
-  const [appliedLocation, setAppliedLocation] = useState<{
+  const [appliedLocationFilterMode, setAppliedLocationFilterMode] =
+    useState<LocationFilterMode>('city');
+  const [appliedCity, setAppliedCity] = useState<{
     name: string;
     coordinates: [number, number];
   } | null>(null);
+  const [appliedCurrentLocation, setAppliedCurrentLocation] = useState<[
+    number,
+    number
+  ] | null>(null);
+  const [appliedDistance, setAppliedDistance] = useState(25); // Default 25km
   const [appliedAvailableOnly, setAppliedAvailableOnly] = useState(false);
   const [appliedNoOffersOnly, setAppliedNoOffersOnly] = useState(false);
   const [appliedPrice, setAppliedPrice] = useState('any');
@@ -88,9 +98,10 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   // Temporary state for the popovers
   const [popoverTaskType, setPopoverTaskType] =
     useState<TaskTypeFilter>(appliedTaskType);
-  const [popoverLocation, setPopoverLocation] =
-    useState<typeof appliedLocation>(appliedLocation);
-
+  const [popoverLocationFilterMode, setPopoverLocationFilterMode] =
+    useState<LocationFilterMode>(appliedLocationFilterMode);
+  const [popoverCity, setPopoverCity] = useState(appliedCity);
+  const [popoverDistance, setPopoverDistance] = useState(appliedDistance);
   const [popoverAvailableOnly, setPopoverAvailableOnly] =
     useState(appliedAvailableOnly);
   const [popoverNoOffersOnly, setPopoverNoOffersOnly] =
@@ -109,20 +120,24 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     []
   );
 
-  useEffect(() => {
+  const handleUseCurrentLocation = useCallback(() => {
     navigator.geolocation.getCurrentPosition(
       position => {
         const { latitude, longitude } = position.coords;
+        setPopoverLocationFilterMode('current');
+        setAppliedCurrentLocation([latitude, longitude]);
         setCurrentMapCenter([latitude, longitude]);
-        setMapZoom(12); // Zoom in on user's location
+        setMapZoom(getZoomFromDistance(popoverDistance));
       },
       () => {
-        // Default to Pakistan center if location is denied
-        setCurrentMapCenter(pakistaniCities[0].coordinates);
-        setMapZoom(6);
+        alert('Could not get your location.');
       }
     );
-  }, []);
+  }, [popoverDistance]);
+
+  useEffect(() => {
+    handleUseCurrentLocation();
+  }, [handleUseCurrentLocation]);
 
   const handleTaskSelect = (task: (typeof tasks)[0]) => {
     setSelectedTaskId(task.id);
@@ -138,11 +153,22 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const handleLocationFilterApply = () => {
     setAppliedTaskType(popoverTaskType);
-    setAppliedLocation(popoverLocation);
-    if (popoverLocation) {
-      setCurrentMapCenter(popoverLocation.coordinates);
+    setAppliedLocationFilterMode(popoverLocationFilterMode);
+    setAppliedDistance(popoverDistance);
+
+    if (popoverLocationFilterMode === 'city' && popoverCity) {
+      setAppliedCity(popoverCity);
+      setCurrentMapCenter(popoverCity.coordinates);
       setMapZoom(11);
+    } else if (
+      popoverLocationFilterMode === 'current' &&
+      appliedCurrentLocation
+    ) {
+      setAppliedCity(null);
+      setCurrentMapCenter(appliedCurrentLocation);
+      setMapZoom(getZoomFromDistance(popoverDistance));
     } else {
+      setAppliedCity(null);
       setCurrentMapCenter(pakistaniCities[0].coordinates);
       setMapZoom(6);
     }
@@ -151,7 +177,9 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
 
   const handleLocationFilterCancel = () => {
     setPopoverTaskType(appliedTaskType);
-    setPopoverLocation(appliedLocation);
+    setPopoverLocationFilterMode(appliedLocationFilterMode);
+    setPopoverCity(appliedCity);
+    setPopoverDistance(appliedDistance);
     setIsLocationPopoverOpen(false);
   };
 
@@ -168,15 +196,15 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
   };
 
   const getLocationButtonLabel = () => {
-    if (appliedLocation) {
-      return appliedLocation.name;
-    }
+    if (appliedLocationFilterMode === 'current') return 'Current Location';
+    if (appliedCity) return appliedCity.name;
     if (appliedTaskType === 'physical') return 'In-person';
     if (appliedTaskType === 'online') return 'Remotely';
     return 'Location';
   };
 
   const filteredTasks = useMemo(() => {
+    if (!L) return []; // Don't filter if Leaflet is not available
     let tasksToFilter = [...tasks];
 
     // Sorting
@@ -209,8 +237,24 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         if (task.type !== appliedTaskType) return false;
       }
 
-      if (appliedLocation && task.type === 'physical') {
-        if (task.location !== appliedLocation.name) return false;
+      if (
+        appliedTaskType === 'physical' &&
+        appliedLocationFilterMode === 'city' &&
+        appliedCity
+      ) {
+        if (task.location !== appliedCity.name) return false;
+      }
+
+      if (
+        appliedTaskType === 'physical' &&
+        appliedLocationFilterMode === 'current' &&
+        appliedCurrentLocation
+      ) {
+        if (!task.coordinates) return false;
+        const taskLatLng = L.latLng(task.coordinates);
+        const currentLatLng = L.latLng(appliedCurrentLocation);
+        const distance = currentLatLng.distanceTo(taskLatLng) / 1000; // in km
+        if (distance > appliedDistance) return false;
       }
 
       if (appliedPrice !== 'any') {
@@ -236,13 +280,15 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     searchTerm,
     appliedCategories,
     appliedTaskType,
-    appliedLocation,
+    appliedLocationFilterMode,
+    appliedCity,
+    appliedCurrentLocation,
+    appliedDistance,
     appliedPrice,
     appliedAvailableOnly,
     appliedNoOffersOnly,
     appliedSortBy,
   ]);
-
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -313,43 +359,84 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                         >
                           Remotely
                         </Button>
-                        <Button
-                          variant={
-                            popoverTaskType === 'all' ? 'default' : 'outline'
-                          }
-                          onClick={() => {
-                            setPopoverTaskType('all');
-                            setPopoverLocation(null);
-                          }}
-                          className="flex-1"
-                        >
-                          All
-                        </Button>
                       </div>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="suburb">Location</Label>
-                       <Select 
-                        value={popoverLocation?.name || ''}
-                        onValueChange={(value) => {
-                           const city = pakistaniCities.find(c => c.name === value);
-                           setPopoverLocation(city ? { name: city.name, coordinates: city.coordinates } : null);
-                        }}
-                        disabled={popoverTaskType !== 'physical'}
-                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a city" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pakistaniCities.map(city => (
-                            <SelectItem key={city.name} value={city.name}>
-                              {city.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                   
+                    {popoverTaskType === 'physical' && (
+                      <>
+                        <div className="grid gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={handleUseCurrentLocation}
+                            className={cn(
+                              popoverLocationFilterMode === 'current' &&
+                                'border-primary'
+                            )}
+                          >
+                            <LocateFixed className="mr-2 h-4 w-4" />
+                            Use my current location
+                          </Button>
+                        </div>
+                        {popoverLocationFilterMode === 'current' && (
+                          <div className="grid gap-2">
+                            <Label htmlFor="distance">
+                              Distance: {popoverDistance}km
+                            </Label>
+                            <Slider
+                              id="distance"
+                              min={1}
+                              max={100}
+                              step={1}
+                              value={[popoverDistance]}
+                              onValueChange={value =>
+                                setPopoverDistance(value[0])
+                              }
+                            />
+                          </div>
+                        )}
+                        <div className="relative my-2">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-popover px-2 text-muted-foreground">
+                              Or
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Select a city</Label>
+                          <Select
+                            value={popoverCity?.name || ''}
+                            onValueChange={value => {
+                              const city = pakistaniCities.find(
+                                c => c.name === value
+                              );
+                              setPopoverCity(
+                                city
+                                  ? {
+                                      name: city.name,
+                                      coordinates: city.coordinates,
+                                    }
+                                  : null
+                              );
+                              setPopoverLocationFilterMode('city');
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a city" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {pakistaniCities.map(city => (
+                                <SelectItem key={city.name} value={city.name}>
+                                  {city.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
+
                     <div className="flex justify-end gap-2 mt-2">
                       <Button
                         variant="ghost"
@@ -525,12 +612,14 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
             'md:block'
           )}
         >
-          {<Map
+          {
+            <Map
               tasks={filteredTasks}
               onTaskSelect={handleViewDetails}
               center={currentMapCenter}
               zoom={mapZoom}
-            />}
+            />
+          }
         </div>
       </main>
     </div>

@@ -31,7 +31,7 @@ L.Icon.Default.mergeOptions({
 
 interface MapProps {
   tasks: (Task & { coordinates: [number, number] | null })[];
-  onTaskSelect: (task: Task) => void;
+  onTaskSelect: (taskId: string) => void;
   center: [number, number] | null;
   zoom?: number;
 }
@@ -106,13 +106,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
   };
 
   return (
-    <MapContainer
-      center={mapCenter}
-      zoom={zoom}
-      scrollWheelZoom={true}
-      className="h-full w-full"
-      zoomControl={false} // Disable default zoom control
-    >
+    <>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -127,7 +121,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
                 <Button
                     variant="link"
                     className="p-0 h-auto"
-                    onClick={() => onTaskSelect(task)}
+                    onClick={() => onTaskSelect(task.id)}
                 >
                     View Task
                 </Button>
@@ -138,7 +132,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
       ))}
       <MapViewUpdater center={center} zoom={zoom} />
       <MapControls onRefresh={handleRefresh} />
-    </MapContainer>
+    </>
   );
 };
 

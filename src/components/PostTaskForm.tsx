@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState }from 'react';
@@ -52,7 +53,16 @@ const formSchema = z.object({
   category: z.string().min(1, { message: 'Please select a category.'}),
   location: z.string().optional(),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+}).refine(data => {
+    if (data.taskType === 'physical') {
+        return !!data.location;
+    }
+    return true;
+}, {
+    message: 'Location is required for physical tasks.',
+    path: ['location'],
 });
+
 
 type PostTaskFormValues = z.infer<typeof formSchema>;
 
