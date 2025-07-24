@@ -22,7 +22,6 @@ interface Review {
     comment: string;
     clientName: string;
     clientAvatar: string;
-    clientIsOnline?: boolean;
     createdAt: any;
 }
 
@@ -67,37 +66,22 @@ export default function ProfilePage() {
     }, [userId]);
 
     useEffect(() => {
-        if (profile) {
-            const fetchReviews = async () => {
-                 if (profile.accountType !== 'tasker') {
-                    setReviews([]);
-                    return;
-                }
-                const q = query(
-                    collection(db, 'reviews'),
-                    where('taskerId', '==', userId),
-                    orderBy('createdAt', 'desc')
-                );
-                
-                const querySnapshot = await getDocs(q);
-                
-                const reviewsDataPromises = querySnapshot.docs.map(async (docSnap) => {
-                    const reviewData = docSnap.data();
-                    const clientProfileDoc = await getDoc(doc(db, 'users', reviewData.clientId));
-                    const clientProfile = clientProfileDoc.data();
-                    return { 
-                        id: docSnap.id, 
-                        ...reviewData,
-                        clientIsOnline: clientProfile?.isOnline || false,
-                    } as Review;
-                });
-                
-                const reviewsData = await Promise.all(reviewsDataPromises);
+        if (profile?.accountType === 'tasker') {
+            const reviewsQuery = query(
+                collection(db, 'reviews'),
+                where('taskerId', '==', userId),
+                orderBy('createdAt', 'desc')
+            );
+            const unsubscribeReviews = onSnapshot(reviewsQuery, (querySnapshot) => {
+                const reviewsData = querySnapshot.docs.map(docSnap => ({
+                    id: docSnap.id,
+                    ...docSnap.data()
+                } as Review));
                 setReviews(reviewsData);
-            }
-            fetchReviews();
+            });
+            return () => unsubscribeReviews();
         }
-    }, [profile, userId])
+    }, [profile, userId]);
 
     if (loading) {
         return (
@@ -217,7 +201,6 @@ export default function ProfilePage() {
                                                     <UserAvatar 
                                                         name={review.clientName} 
                                                         imageUrl={review.clientAvatar} 
-                                                        isOnline={review.clientIsOnline}
                                                     />
                                                     <div className="flex-1">
                                                         <div className="flex justify-between items-center">

@@ -1,6 +1,6 @@
 
 'use client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, UserProfile } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -15,17 +15,17 @@ import {
 } from 'firebase/firestore';
 import { useEffect, useState, useRef, Suspense } from 'react';
 import AppHeader from '@/components/AppHeader';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, ArrowLeft, Info, XCircle } from 'lucide-react';
+import { Send, ArrowLeft, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useParams, useRouter } from 'next/navigation';
 import { type Conversation } from '../page';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type Task } from '@/components/TaskCard';
+import UserAvatar from '@/components/UserAvatar';
 
 interface Message {
   id: string;
@@ -42,6 +42,7 @@ function ConversationPageContent() {
   const conversationId = params.conversationId as string;
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [partnerIsOnline, setPartnerIsOnline] = useState<boolean>(false);
   const [task, setTask] = useState<Task | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -52,25 +53,38 @@ function ConversationPageContent() {
     if (!conversationId || !user) {
       if (!user) router.push('/messages');
       return;
-    };
+    }
+
+    let partnerUnsub: (() => void) | undefined;
 
     const convoRef = doc(db, 'conversations', conversationId);
-    const unsubscribeConvo = onSnapshot(convoRef, async (docSnap) => {
+    const unsubscribeConvo = onSnapshot(convoRef, async docSnap => {
       if (docSnap.exists()) {
-        const convoData = { id: docSnap.id, ...docSnap.data() } as Conversation;
+        const convoData = {
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Conversation;
         if (!convoData.participants.includes(user.uid)) {
-            console.error("User not in conversation");
-            router.push('/messages');
-            return;
+          console.error('User not in conversation');
+          router.push('/messages');
+          return;
         }
         setConversation(convoData);
-        
+
         const taskRef = doc(db, 'tasks', convoData.taskId);
         const taskSnap = await getDoc(taskRef);
         if (taskSnap.exists()) {
-            setTask(taskSnap.data() as Task)
+          setTask(taskSnap.data() as Task);
         }
 
+        const partnerId = convoData.participants.find(p => p !== user.uid);
+        if (partnerId) {
+          const partnerRef = doc(db, 'users', partnerId);
+          // Only listen to the online status of the partner
+          partnerUnsub = onSnapshot(partnerRef, snap => {
+            setPartnerIsOnline(snap.data()?.isOnline || false);
+          });
+        }
       } else {
         router.push('/messages');
       }
@@ -78,21 +92,24 @@ function ConversationPageContent() {
     });
 
     const messagesQuery = query(
-        collection(db, 'conversations', conversationId, 'messages'),
-        orderBy('createdAt', 'asc')
-      );
-  
+      collection(db, 'conversations', conversationId, 'messages'),
+      orderBy('createdAt', 'asc')
+    );
+
     const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
-        const msgs = snapshot.docs.map(
-            doc => ({ id: doc.id, ...doc.data() } as Message)
-        );
-        setMessages(msgs);
+      const msgs = snapshot.docs.map(
+        doc => ({ id: doc.id, ...doc.data() } as Message)
+      );
+      setMessages(msgs);
     });
 
     return () => {
-        unsubscribeConvo();
-        unsubscribeMessages();
-    }
+      unsubscribeConvo();
+      unsubscribeMessages();
+      if (partnerUnsub) {
+        partnerUnsub();
+      }
+    };
   }, [conversationId, user, router]);
 
   useEffect(() => {
@@ -129,18 +146,26 @@ function ConversationPageContent() {
   };
 
   const getPartner = () => {
-      if (!conversation || !userProfile) return { name: '', avatar: ''};
-      return userProfile.accountType === 'client' ? 
-        { name: conversation.taskerName, avatar: conversation.taskerAvatar } :
-        { name: conversation.clientName, avatar: conversation.clientAvatar };
-  }
+    if (!conversation || !userProfile) return { name: '', avatar: '' };
+    return userProfile.accountType === 'client'
+      ? { name: conversation.taskerName, avatar: conversation.taskerAvatar }
+      : { name: conversation.clientName, avatar: conversation.clientAvatar };
+  };
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center">Loading conversation...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading conversation...
+      </div>
+    );
   }
-  
+
   if (!conversation) {
-    return <div className="flex h-screen items-center justify-center">Conversation not found.</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Conversation not found.
+      </div>
+    );
   }
 
   const partner = getPartner();
@@ -152,91 +177,98 @@ function ConversationPageContent() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center p-2 border-b">
-            <Button variant="ghost" size="icon" onClick={() => router.push('/messages')}>
-                <ArrowLeft />
-            </Button>
-            <div className="flex items-center gap-3">
-                <Avatar>
-                    <AvatarImage src={partner.avatar} data-ai-hint="person face" />
-                    <AvatarFallback>{partner.name?.slice(0,2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div>
-                    <p className="font-semibold">{partner.name}</p>
-                    <p className="text-sm text-primary font-semibold truncate">{conversation.taskTitle}</p>
-                </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push('/messages')}
+          >
+            <ArrowLeft />
+          </Button>
+          <div className="flex items-center gap-3">
+            <UserAvatar
+              name={partner.name}
+              imageUrl={partner.avatar}
+              isOnline={partnerIsOnline}
+            />
+            <div>
+              <p className="font-semibold">{partner.name}</p>
+              <p className="text-sm text-primary font-semibold truncate">
+                {conversation.taskTitle}
+              </p>
             </div>
-            <div className="ml-auto">
-                 <Link href={`/task/${conversation.taskId}`}>
-                    <Button variant="outline" size="sm">
-                        View Task
-                    </Button>
-                </Link>
-            </div>
+          </div>
+          <div className="ml-auto">
+            <Link href={`/task/${conversation.taskId}`}>
+              <Button variant="outline" size="sm">
+                View Task
+              </Button>
+            </Link>
+          </div>
         </div>
-        
+
         {/* Messages */}
         <ScrollArea className="flex-1 p-4 md:p-6">
-            <div className="space-y-6">
+          <div className="space-y-6">
             {messages.map(msg => {
-                const fromMe = msg.senderId === user?.uid;
-                return (
-                    <div
-                    key={msg.id}
+              const fromMe = msg.senderId === user?.uid;
+              return (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    'flex items-end gap-2',
+                    fromMe ? 'justify-end' : 'justify-start'
+                  )}
+                >
+                  {!fromMe && (
+                    <UserAvatar
+                      name={partner.name}
+                      imageUrl={partner.avatar}
+                      isOnline={partnerIsOnline}
+                      className="h-8 w-8"
+                    />
+                  )}
+                  <div
                     className={cn(
-                        'flex items-end gap-2',
-                        fromMe ? 'justify-end' : 'justify-start'
+                      'max-w-xs md:max-w-md lg:max-w-lg rounded-lg p-3 text-sm',
+                      fromMe
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
                     )}
-                    >
-                    {!fromMe && (
-                        <Avatar className="h-8 w-8">
-                        <AvatarImage src={partner.avatar} data-ai-hint="person face" />
-                        <AvatarFallback>
-                            {partner.name?.slice(0,2).toUpperCase()}
-                        </AvatarFallback>
-                        </Avatar>
-                    )}
-                    <div
-                        className={cn(
-                        'max-w-xs md:max-w-md lg:max-w-lg rounded-lg p-3 text-sm',
-                        fromMe
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted'
-                        )}
-                    >
-                        <p>{msg.text}</p>
-                    </div>
-                    </div>
-                );
+                  >
+                    <p>{msg.text}</p>
+                  </div>
+                </div>
+              );
             })}
-            </div>
+          </div>
           <div ref={messagesEndRef} />
         </ScrollArea>
 
         {/* Input */}
         <div className="p-4 border-t bg-card">
-            {isCompleted ? (
-                <div className="flex items-center justify-center p-2 rounded-md bg-yellow-100 text-yellow-800 text-sm">
-                   <Info className="h-4 w-4 mr-2" />
-                   This task is complete. Messaging is disabled.
-                </div>
-            ) : (
-                <div className="relative">
-                    <Input
-                    placeholder="Type a message..."
-                    className="pr-12"
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
-                    />
-                    <Button
-                    size="icon"
-                    className="absolute top-1/2 right-1.5 -translate-y-1/2 h-7 w-7"
-                    onClick={handleSendMessage}
-                    >
-                    <Send className="h-4 w-4" />
-                    </Button>
-                </div>
-            )}
+          {isCompleted ? (
+            <div className="flex items-center justify-center p-2 rounded-md bg-yellow-100 text-yellow-800 text-sm">
+              <Info className="h-4 w-4 mr-2" />
+              This task is complete. Messaging is disabled.
+            </div>
+          ) : (
+            <div className="relative">
+              <Input
+                placeholder="Type a message..."
+                className="pr-12"
+                value={newMessage}
+                onChange={e => setNewMessage(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
+              />
+              <Button
+                size="icon"
+                className="absolute top-1/2 right-1.5 -translate-y-1/2 h-7 w-7"
+                onClick={handleSendMessage}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -244,9 +276,9 @@ function ConversationPageContent() {
 }
 
 export default function ConversationPage() {
-    return (
-        <Suspense fallback={<Skeleton className="h-screen w-screen" />}>
-            <ConversationPageContent />
-        </Suspense>
-    )
+  return (
+    <Suspense fallback={<Skeleton className="h-screen w-screen" />}>
+      <ConversationPageContent />
+    </Suspense>
+  );
 }

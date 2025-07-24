@@ -1,5 +1,6 @@
+
 'use client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, UserProfile } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -13,16 +14,15 @@ import {
 } from 'firebase/firestore';
 import { useEffect, useState, Suspense } from 'react';
 import AppHeader from '@/components/AppHeader';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Briefcase, MessageSquare } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginDialog } from '@/components/LoginDialog';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
+import UserAvatar from '@/components/UserAvatar';
 
 export interface Conversation {
   id: string;
@@ -35,6 +35,8 @@ export interface Conversation {
   lastMessageAt: any;
   clientAvatar?: string;
   taskerAvatar?: string;
+  clientIsOnline?: boolean;
+  taskerIsOnline?: boolean;
 }
 
 function MessagesPageContent() {
@@ -62,9 +64,13 @@ function MessagesPageContent() {
       orderBy('lastMessageAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const unsubscribe = onSnapshot(q, async snapshot => {
       const convos = snapshot.docs.map(
-        doc => ({ id: doc.id, ...doc.data() } as Conversation)
+        doc =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+          } as Conversation)
       );
       setConversations(convos);
       setLoading(false);
@@ -117,17 +123,19 @@ function MessagesPageContent() {
       </div>
     );
   }
-  
+
   const getConvoPartner = (convo: Conversation) => {
     if (userProfile?.accountType === 'client') {
       return {
         name: convo.taskerName,
         avatar: convo.taskerAvatar,
+        isOnline: convo.taskerIsOnline,
       };
     }
     return {
       name: convo.clientName,
       avatar: convo.clientAvatar,
+      isOnline: convo.clientIsOnline,
     };
   };
 
@@ -144,8 +152,12 @@ function MessagesPageContent() {
             {conversations.length === 0 && !loading && (
               <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-muted/20">
                 <Briefcase className="w-16 h-16 text-muted-foreground mb-4" />
-                <h2 className="text-xl font-bold font-headline">No conversations yet</h2>
-                <p className="text-muted-foreground">When a task is assigned, your conversation will appear here.</p>
+                <h2 className="text-xl font-bold font-headline">
+                  No conversations yet
+                </h2>
+                <p className="text-muted-foreground">
+                  When a task is assigned, your conversation will appear here.
+                </p>
               </div>
             )}
             {conversations.map(convo => {
@@ -156,13 +168,11 @@ function MessagesPageContent() {
                   href={`/messages/${convo.id}`}
                   className="flex items-start gap-3 p-4 cursor-pointer hover:bg-muted/50"
                 >
-                  <Avatar>
-                    <AvatarImage
-                      src={partner.avatar}
-                      data-ai-hint="person face"
-                    />
-                    <AvatarFallback>{partner.name?.slice(0,2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    name={partner.name}
+                    imageUrl={partner.avatar}
+                    isOnline={partner.isOnline}
+                  />
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>
                     <p className="text-sm font-semibold truncate text-primary">
@@ -182,11 +192,10 @@ function MessagesPageContent() {
   );
 }
 
-
 export default function MessagesPage() {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <MessagesPageContent />
-        </Suspense>
-    )
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MessagesPageContent />
+    </Suspense>
+  );
 }
