@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Task } from './TaskCard';
@@ -38,8 +39,7 @@ export default function TaskListItem({
             <h3 className="font-bold text-lg">{task.title}</h3>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2">
               <div className="flex items-center">
-                <MapPin className="mr-1.5 h-4 w-4" />
-                <span>{isRemote ? 'Remote' : task.location}</span>
+                 <Badge variant="outline" className="capitalize">{task.status}</Badge>
               </div>
               <div className="flex items-center">
                 <Calendar className="mr-1.5 h-4 w-4" />
@@ -51,8 +51,6 @@ export default function TaskListItem({
               </div>
             </div>
             <div className="mt-2 text-sm">
-                <Badge variant="outline" className="capitalize">{task.status}</Badge>
-                <span className="text-muted-foreground mx-2">&middot;</span>
                 <span className="inline-flex items-center">
                     <Users className="mr-1.5 h-4 w-4 text-muted-foreground"/>
                     <span className="text-muted-foreground">
