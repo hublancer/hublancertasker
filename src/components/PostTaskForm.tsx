@@ -1,11 +1,12 @@
 
 'use client';
 
-import { useState }from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { generateTaskDescription } from '@/ai/flows/generate-task-description';
+import dynamic from 'next/dynamic';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +42,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { categories } from '@/lib/categories';
 import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
+import { Skeleton } from './ui/skeleton';
+import { type Task } from './TaskCard';
+
 
 const formSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters.').max(100),
@@ -75,6 +79,15 @@ export default function PostTaskForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>([30.3753, 69.3451]);
+  const [mapZoom, setMapZoom] = useState(5);
+  const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(null);
+
+  const Map = useMemo(() => dynamic(() => import('@/components/Map'), { 
+      loading: () => <Skeleton className="h-full w-full" />,
+      ssr: false 
+  }), []);
 
 
   const form = useForm<PostTaskFormValues>({
@@ -92,6 +105,7 @@ export default function PostTaskForm() {
   });
 
   const taskType = form.watch('taskType');
+  const currentLocation = form.watch('location');
 
   async function handleGenerateDescription() {
     setIsGenerating(true);
@@ -196,9 +210,12 @@ export default function PostTaskForm() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        const coords: [number, number] = [latitude, longitude];
         form.setValue('coordinates', { lat: latitude, lng: longitude });
-        // You might need a reverse geocoding service to get a location name from coords
         form.setValue('location', 'Current Location'); 
+        setMapCenter(coords);
+        setMarkerPosition(coords);
+        setMapZoom(13);
         toast({
             title: "Location set!",
             description: "Your current location has been set for this task.",
@@ -390,48 +407,64 @@ export default function PostTaskForm() {
             />
 
             {taskType === 'physical' && (
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                     <FormControl>
-                        <div className="flex gap-2">
-                           <Select 
-                              onValueChange={(value) => {
-                                const city = pakistaniCities.find(c => c.name === value);
-                                if (city) {
-                                    field.onChange(city.name);
-                                    form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
-                                } else {
-                                    field.onChange('');
-                                    form.setValue('coordinates', undefined);
-                                }
-                              }}
-                              value={field.value}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a city" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {pakistaniCities.map(city => (
-                                  <SelectItem key={city.name} value={city.name}>
-                                    {city.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button type="button" variant="outline" onClick={handleUseCurrentLocation}>
-                                <LocateFixed className="mr-2 h-4 w-4" />
-                                Use current location
-                            </Button>
-                        </div>
-                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                          <div className="flex gap-2">
+                            <Select 
+                                onValueChange={(value) => {
+                                  const city = pakistaniCities.find(c => c.name === value);
+                                  if (city) {
+                                      field.onChange(city.name);
+                                      form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
+                                      setMapCenter(city.coordinates);
+                                      setMarkerPosition(city.coordinates);
+                                      setMapZoom(11);
+                                  } else {
+                                      field.onChange('');
+                                      form.setValue('coordinates', undefined);
+                                      setMarkerPosition(null);
+                                  }
+                                }}
+                                value={field.value}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a city" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {pakistaniCities.map(city => (
+                                    <SelectItem key={city.name} value={city.name}>
+                                      {city.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button type="button" variant="outline" onClick={handleUseCurrentLocation}>
+                                  <LocateFixed className="mr-2 h-4 w-4" />
+                                  Use current location
+                              </Button>
+                          </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 {currentLocation && (
+                    <div className="h-64 w-full rounded-md overflow-hidden border z-0">
+                        <Map
+                            tasks={markerPosition ? [{id: 'current', coordinates: markerPosition} as Task] : []}
+                            center={mapCenter}
+                            zoom={mapZoom}
+                            onTaskSelect={() => {}}
+                        />
+                    </div>
+                 )}
+              </div>
             )}
           </fieldset>
 

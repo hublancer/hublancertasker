@@ -6,7 +6,7 @@ import type { Task } from './TaskCard';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, memo } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -21,7 +21,9 @@ const greenIcon = new L.Icon({
 
 
 // This is to fix the missing marker icon issue with react-leaflet
-// delete (L.Icon.Default.prototype as any)._getIconUrl;
+if (L.Icon.Default.prototype) {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+}
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -72,8 +74,8 @@ function MapControls() {
 
 
   return (
-    <div className="leaflet-top leaflet-right">
-      <div className="leaflet-control leaflet-bar flex flex-col gap-px mt-2 mr-2">
+    <div className="leaflet-bottom leaflet-right">
+      <div className="leaflet-control leaflet-bar flex flex-col gap-px mb-2 mr-2">
         <Button
           variant="outline"
           size="icon"
@@ -108,7 +110,7 @@ function MapControls() {
 
 const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
   const { settings } = useAuth();
-  const physicalTasks = useMemo(() => tasks.filter(task => task.type === 'physical' && task.coordinates), [tasks]);
+  const physicalTasks = useMemo(() => tasks.filter(task => task.coordinates), [tasks]);
   
   return (
     <>
@@ -157,4 +159,4 @@ const MapWrapper = (props: MapProps) => {
 }
 
 
-export default MapWrapper;
+export default memo(MapWrapper);
