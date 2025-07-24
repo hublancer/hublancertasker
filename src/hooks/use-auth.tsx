@@ -134,12 +134,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
     }));
     
-    const reportsQuery = query(collection(db, 'reports'), where('createdAt', '>', lastCheckTimestamp));
-    unsubscribes.push(onSnapshot(reportsQuery, (snapshot) => {
+    const disputesQuery = query(collection(db, 'disputes'), where('createdAt', '>', lastCheckTimestamp));
+    unsubscribes.push(onSnapshot(disputesQuery, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
                  const data = change.doc.data();
-                notifyAdmin(`New task report from ${data.reporterName}`, '/admin/disputes');
+                notifyAdmin(`New dispute from ${data.raisedBy.name}`, '/admin/disputes');
             }
         });
     }));

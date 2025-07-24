@@ -46,7 +46,7 @@ export default function AdminDashboard() {
       deposits: collection(db, 'deposits'),
       withdrawals: collection(db, 'withdrawals'),
       kycSubmissions: collection(db, 'kycSubmissions'),
-      // disputes: collection(db, 'disputes'),
+      disputes: collection(db, 'disputes'),
     };
     
     // Users
@@ -83,6 +83,9 @@ export default function AdminDashboard() {
 
     const pendingKycQuery = query(collectionsToWatch.kycSubmissions, where('status', '==', 'pending'));
     unsubscribes.push(onSnapshot(pendingKycQuery, snapshot => setStats(prev => ({ ...prev, pendingKyc: snapshot.size }))));
+
+    const openDisputesQuery = query(collectionsToWatch.disputes, where('status', '==', 'open'));
+    unsubscribes.push(onSnapshot(openDisputesQuery, snapshot => setStats(prev => ({ ...prev, openDisputes: snapshot.size }))));
 
 
     setLoading(false);
@@ -132,7 +135,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.openDisputes}</div>
-             <p className="text-xs text-muted-foreground">Feature coming soon</p>
+             <p className="text-xs text-muted-foreground">Awaiting resolution</p>
           </CardContent>
         </Card>
       </div>

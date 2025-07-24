@@ -100,6 +100,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
   const [reportReason, setReportReason] = useState("");
   const [isReporting, setIsReporting] = useState(false);
 
+  const [disputeReason, setDisputeReason] = useState("");
+  const [isDisputing, setIsDisputing] = useState(false);
+
   useEffect(() => {
     if (!task?.id) return;
     setOffers([]);
@@ -529,6 +532,49 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         }
     };
 
+    const handleRaiseDispute = async () => {
+        if (!user || !userProfile || !task.assignedToId) { return; }
+        if (!disputeReason) {
+            toast({ variant: 'destructive', title: 'Please provide a reason for the dispute.' });
+            return;
+        }
+        setIsDisputing(true);
+        try {
+            const clientDoc = await getDoc(doc(db, 'users', task.postedById));
+            const taskerDoc = await getDoc(doc(db, 'users', task.assignedToId));
+
+            if (!clientDoc.exists() || !taskerDoc.exists()) throw new Error('User not found');
+
+            const clientProfile = clientDoc.data();
+            const taskerProfile = taskerDoc.data();
+
+            const newDisputeRef = doc(collection(db, 'disputes'));
+            await setDoc(newDisputeRef, {
+                taskId: task.id,
+                taskTitle: task.title,
+                taskPrice: task.price,
+                reason: disputeReason,
+                raisedBy: { id: user.uid, name: userProfile.name, role: userProfile.accountType },
+                participants: {
+                    client: { id: task.postedById, name: clientProfile.name, phone: clientProfile.phone },
+                    tasker: { id: task.assignedToId, name: taskerProfile.name, phone: taskerProfile.phone },
+                },
+                status: 'open',
+                createdAt: serverTimestamp(),
+            });
+
+            await updateDoc(doc(db, 'tasks', task.id), { status: 'disputed' });
+            
+            toast({ title: 'Dispute Raised', description: 'An admin will review your case shortly.' });
+            setDisputeReason('');
+            onTaskUpdate?.();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Failed to raise dispute.', description: error.message });
+        } finally {
+            setIsDisputing(false);
+        }
+    };
+
 
   const handleEditOffer = (offer: Offer) => {
     setEditingOffer(offer);
@@ -577,51 +623,61 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     
     const isParticipant = task.postedById === user.uid || task.assignedToId === user.uid;
 
-    if (task.status === 'assigned') {
+    if (task.status === 'assigned' || task.status === 'pending-completion') {
         if (isParticipant) {
              return (
                 <div className="space-y-2 mt-4">
                     <Button onClick={handleMessage} className="w-full">
                         <MessageSquare className="mr-2 h-4 w-4" /> Message
                     </Button>
-                     {user.uid === task.assignedToId && (
+                     {user.uid === task.assignedToId && task.status === 'assigned' && (
                         <Button onClick={handleMarkAsDone} variant="outline" className="w-full" disabled={isProcessing}>
                             <Hourglass className="mr-2 h-4 w-4" /> 
                             {isProcessing ? 'Processing...' : 'Mark as Done'}
                         </Button>
                      )}
+                     {isOwner && task.status === 'pending-completion' && (
+                        <Button onClick={handleCompleteTask} disabled={isProcessing} className="w-full">
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            {isProcessing ? 'Processing...' : 'Accept & Release Payment'}
+                        </Button>
+                     )}
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="w-full">
+                                <ShieldAlert className="mr-2 h-4 w-4" /> Raise a Dispute
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Raise a Dispute</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Please explain why you are raising a dispute. An admin will review the case. This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                             <Textarea
+                                placeholder="Explain the issue..."
+                                value={disputeReason}
+                                onChange={(e) => setDisputeReason(e.target.value)}
+                                className="my-4"
+                            />
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleRaiseDispute} disabled={isDisputing || !disputeReason}>
+                                    {isDisputing ? 'Submitting...' : 'Submit Dispute'}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
             );
         }
     }
 
-    if (task.status === 'pending-completion') {
-      if (isOwner) {
-        return (
-          <div className="space-y-2 mt-4">
-            <Button onClick={handleCompleteTask} disabled={isProcessing} className="w-full">
-              <CheckCircle className="mr-2 h-4 w-4" />
-              {isProcessing ? 'Processing...' : 'Accept & Release Payment'}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={isProcessing}
-              onClick={() => toast({ title: 'Feature coming soon!' })}
-              className="w-full"
-            >
-              <ShieldAlert className="mr-2 h-4 w-4" /> Raise a Dispute
-            </Button>
-          </div>
-        );
-      }
-      if (user.uid === task.assignedToId) {
-        return (
-          <Button onClick={handleMessage} className="w-full mt-4">
-            <MessageSquare className="mr-2 h-4 w-4" /> Message Client
-          </Button>
-        );
-      }
+    if (task.status === 'disputed') {
+      return <Button className="w-full mt-4" disabled>Dispute in Progress</Button>;
     }
+
     
     if (task.status === 'completed') {
         if (isOwner && !hasAlreadyReviewed && !showReviewForm) {

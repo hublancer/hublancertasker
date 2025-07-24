@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, serverTimestamp, increment, getDoc, addDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,120 +9,213 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Trash2, Check } from 'lucide-react';
+import { MessageSquare, BadgeCent, User, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
-interface Report {
+interface Dispute {
     id: string;
     taskId: string;
+    taskTitle: string;
     reason: string;
-    reporterName: string;
-    reporterId: string;
-    status: 'pending' | 'resolved';
-    createdAt: Timestamp;
+    raisedBy: { id: string, name: string, role: string };
+    participants: { client: { id: string, name: string, phone?: string }, tasker: { id: string, name: string, phone?: string } };
+    taskPrice: number;
+    status: 'open' | 'resolved';
+    createdAt: any;
 }
+
+const WhatsAppIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+    </svg>
+)
 
 export default function AdminDisputesPage() {
     const { toast } = useToast();
-    const [reports, setReports] = useState<Report[]>([]);
+    const { settings, addNotification } = useAuth();
+    const [disputes, setDisputes] = useState<Dispute[]>([]);
     const [loading, setLoading] = useState(true);
+    const [processingId, setProcessingId] = useState<string | null>(null);
 
     useEffect(() => {
-        const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
+        const q = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const reportsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
-            setReports(reportsData);
+            const disputesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dispute));
+            setDisputes(disputesData);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching disputes:", error);
             setLoading(false);
         });
         return () => unsubscribe();
     }, []);
+    
+    const handleResolve = async (dispute: Dispute, favor: 'client' | 'tasker') => {
+        if (!dispute || !dispute.id) return;
+        setProcessingId(dispute.id);
 
-    const handleDismissReport = async (reportId: string) => {
-        const reportRef = doc(db, 'reports', reportId);
-        await updateDoc(reportRef, { status: 'resolved' });
-        toast({ title: 'Report Dismissed' });
-    };
-
-    const handleDeleteTask = async (report: Report) => {
         try {
-            // Delete the task
-            await deleteDoc(doc(db, 'tasks', report.taskId));
-            // Mark the report as resolved
-            await updateDoc(doc(db, 'reports', report.id), { status: 'resolved' });
-            toast({ title: 'Task Deleted', description: 'The reported task has been removed.' });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete task.' });
-        }
-    };
+            const batch = writeBatch(db);
+            
+            // 1. Mark dispute as resolved
+            const disputeRef = doc(db, 'disputes', dispute.id);
+            batch.update(disputeRef, { status: 'resolved', resolvedAt: serverTimestamp(), resolution: `Admin favored ${favor}` });
+            
+            // 2. Mark task as completed (to prevent further actions)
+            const taskRef = doc(db, 'tasks', dispute.taskId);
+            batch.update(taskRef, { status: 'completed' });
 
-    if (loading) return <p>Loading reports...</p>;
+            if (favor === 'client') {
+                // Refund client
+                const clientRef = doc(db, 'users', dispute.participants.client.id);
+                batch.update(clientRef, { 'wallet.balance': increment(dispute.taskPrice) });
+
+                const clientTransactionRef = doc(collection(db, 'users', dispute.participants.client.id, 'transactions'));
+                batch.set(clientTransactionRef, {
+                    amount: dispute.taskPrice,
+                    type: 'refund',
+                    description: `Refund for disputed task: ${dispute.taskTitle}`,
+                    taskId: dispute.taskId,
+                    timestamp: serverTimestamp(),
+                });
+                await addNotification(dispute.participants.client.id, `Your dispute for "${dispute.taskTitle}" was resolved in your favor.`, `/my-tasks`);
+                await addNotification(dispute.participants.tasker.id, `Your dispute for "${dispute.taskTitle}" was resolved in the client's favor.`, `/my-tasks`);
+
+            } else { // Favor tasker
+                const settingsDoc = await getDoc(doc(db, 'settings', 'platform'));
+                const commissionRate = settingsDoc.data()?.commissionRate ?? 0.1;
+                const commission = dispute.taskPrice * commissionRate;
+                const taskerEarnings = dispute.taskPrice - commission;
+
+                // Pay tasker
+                const taskerRef = doc(db, 'users', dispute.participants.tasker.id);
+                batch.update(taskerRef, { 'wallet.balance': increment(taskerEarnings) });
+                
+                // Create earning transaction for tasker
+                const taskerTransactionRef = doc(collection(db, 'users', dispute.participants.tasker.id, 'transactions'));
+                batch.set(taskerTransactionRef, {
+                    amount: taskerEarnings,
+                    type: 'earning',
+                    description: `Payment for disputed task: ${dispute.taskTitle}`,
+                    taskId: dispute.taskId,
+                    timestamp: serverTimestamp(),
+                });
+
+                 // Create commission transaction for platform
+                const platformTransactionRef = doc(collection(db, 'platform_transactions'));
+                batch.set(platformTransactionRef, {
+                    amount: commission, type: 'commission', description: `Commission from disputed task: ${dispute.taskTitle}`,
+                    taskId: dispute.taskId, taskPrice: dispute.taskPrice, commissionRate: commissionRate, timestamp: serverTimestamp(),
+                });
+
+                await addNotification(dispute.participants.tasker.id, `Your dispute for "${dispute.taskTitle}" was resolved in your favor.`, `/my-tasks`);
+                await addNotification(dispute.participants.client.id, `Your dispute for "${dispute.taskTitle}" was resolved in the tasker's favor.`, `/my-tasks`);
+            }
+
+            await batch.commit();
+            toast({ title: 'Dispute Resolved', description: `Funds have been released to the ${favor}.` });
+        } catch (error: any) {
+            console.error("Error resolving dispute:", error);
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to resolve dispute.' });
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
+    if (loading) return <p>Loading disputes...</p>;
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Task Reports</CardTitle>
-                <CardDescription>Review and manage user-submitted reports on tasks.</CardDescription>
+                <CardTitle>Dispute Management</CardTitle>
+                <CardDescription>Review and resolve disputes between clients and taskers.</CardDescription>
             </CardHeader>
             <CardContent>
                  <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Task ID</TableHead>
+                            <TableHead>Task</TableHead>
+                            <TableHead>Raised By</TableHead>
                             <TableHead>Reason</TableHead>
-                            <TableHead>Reported By</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {reports.length === 0 ? (
+                        {disputes.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24">No reports found.</TableCell>
+                                <TableCell colSpan={5} className="text-center h-24">No disputes found.</TableCell>
                             </TableRow>
                         ) : (
-                            reports.map(report => (
-                                <TableRow key={report.id}>
-                                    <TableCell>{report.createdAt.toDate().toLocaleString()}</TableCell>
+                            disputes.map(d => (
+                                <TableRow key={d.id}>
                                     <TableCell>
-                                        <Link href={`/task/${report.taskId}`} className="font-mono text-xs hover:underline" target="_blank">
-                                            {report.taskId}
+                                        <Link href={`/task/${d.taskId}`} className="font-medium hover:underline" target="_blank">
+                                            {d.taskTitle}
                                         </Link>
-                                    </TableCell>
-                                    <TableCell className="max-w-xs truncate">{report.reason}</TableCell>
-                                    <TableCell>
-                                        <Link href={`/profile/${report.reporterId}`} className="hover:underline">
-                                            {report.reporterName}
-                                        </Link>
+                                         <p className="text-xs text-muted-foreground font-mono">{d.taskId}</p>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={report.status === 'pending' ? 'destructive' : 'secondary'}>{report.status}</Badge>
+                                        <Link href={`/profile/${d.raisedBy.id}`} className="hover:underline" target="_blank">
+                                            {d.raisedBy.name}
+                                        </Link>
+                                         <p className="text-xs text-muted-foreground capitalize">{d.raisedBy.role}</p>
+                                    </TableCell>
+                                    <TableCell className="max-w-xs truncate">{d.reason}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={d.status === 'open' ? 'destructive' : 'secondary'}>{d.status}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right space-x-2">
-                                       {report.status === 'pending' && (
+                                       {d.status === 'open' && (
                                         <>
-                                            <Button size="icon" variant="outline" onClick={() => handleDismissReport(report.id)}>
-                                                <Check className="h-4 w-4" />
-                                            </Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
-                                                    <Button size="icon" variant="destructive">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                    <Button size="sm" variant="outline" disabled={!!processingId}>Resolve</Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
-                                                        <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+                                                        <AlertDialogTitle>Resolve Dispute</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            This will permanently delete the task. This action cannot be undone.
+                                                            Review the conversation and user details before making a decision. This action is final and will transfer funds.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
+                                                    <div className="my-4 space-y-2 text-sm">
+                                                        <p><strong>Client:</strong> {d.participants.client.name}</p>
+                                                        <p><strong>Tasker:</strong> {d.participants.tasker.name}</p>
+                                                        <p><strong>Task Price:</strong> {settings?.currencySymbol}{d.taskPrice.toFixed(2)}</p>
+                                                        <div className="flex gap-2 mt-2">
+                                                            {d.participants.client.phone && (
+                                                                <Button asChild size="sm" variant="outline">
+                                                                    <Link href={`https://wa.me/${d.participants.client.phone.replace(/\D/g, '')}`} target="_blank"><WhatsAppIcon /> Client</Link>
+                                                                </Button>
+                                                            )}
+                                                            {d.participants.tasker.phone && (
+                                                                <Button asChild size="sm" variant="outline">
+                                                                     <Link href={`https://wa.me/${d.participants.tasker.phone.replace(/\D/g, '')}`} target="_blank"><WhatsAppIcon /> Tasker</Link>
+                                                                </Button>
+                                                            )}
+                                                            <Button asChild size="sm" variant="outline">
+                                                                <Link href={`/messages?taskId=${d.taskId}`} target="_blank"><MessageSquare className="h-4 w-4 mr-1"/> Conversation</Link>
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                     <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteTask(report)}>Delete Task</AlertDialogAction>
+                                                        <AlertDialogCancel disabled={!!processingId}>Cancel</AlertDialogCancel>
+                                                        <Button variant="secondary" onClick={() => handleResolve(d, 'client')} disabled={!!processingId}>
+                                                            <User className="mr-2 h-4 w-4"/>
+                                                            {processingId === d.id ? "Processing..." : "Refund Client"}
+                                                        </Button>
+                                                        <Button onClick={() => handleResolve(d, 'tasker')} disabled={!!processingId}>
+                                                            <BadgeCent className="mr-2 h-4 w-4"/>
+                                                            {processingId === d.id ? "Processing..." : "Pay Tasker"}
+                                                        </Button>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
                                         </>
+                                       )}
+                                       {d.status === 'resolved' && (
+                                          <ShieldCheck className="h-5 w-5 text-green-500 inline-block" />
                                        )}
                                     </TableCell>
                                 </TableRow>

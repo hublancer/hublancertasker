@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Briefcase, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginDialog } from '@/components/LoginDialog';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,6 +40,7 @@ export interface Conversation {
 function MessagesPageContent() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,16 +62,25 @@ function MessagesPageContent() {
       orderBy('lastMessageAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, snapshot => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       const convos = snapshot.docs.map(
         doc => ({ id: doc.id, ...doc.data() } as Conversation)
       );
       setConversations(convos);
       setLoading(false);
+
+      // Handle redirect for admin disputes
+      const taskId = searchParams.get('taskId');
+      if (userProfile?.role === 'admin' && taskId) {
+        const convoForTask = convos.find(c => c.taskId === taskId);
+        if (convoForTask) {
+          router.replace(`/messages/${convoForTask.id}`);
+        }
+      }
     });
 
     return () => unsubscribe();
-  }, [user, authLoading]);
+  }, [user, authLoading, router, searchParams, userProfile]);
 
   if (authLoading || loading) {
     return (

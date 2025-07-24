@@ -18,7 +18,7 @@ export type Task = {
   price: number;
   offers: number;
   type: 'physical' | 'online';
-  status: 'open' | 'assigned' | 'completed' | 'pending-completion';
+  status: 'open' | 'assigned' | 'completed' | 'pending-completion' | 'disputed';
   category: string;
   description: string;
   postedBy: string;
