@@ -155,8 +155,8 @@ export default function WalletPage() {
                     <p className="text-muted-foreground">Manage your funds and view your transaction history.</p>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-8">
-                    <div className="md:col-span-2 space-y-8">
+                <div className="grid lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-8">
                         <Card>
                              <CardHeader>
                                 <CardTitle>Current Balance</CardTitle>

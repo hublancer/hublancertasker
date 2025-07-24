@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import AppHeader from '@/components/AppHeader';
@@ -50,24 +50,19 @@ export default function ProfilePage() {
     useEffect(() => {
         if (!userId) return;
 
-        const fetchProfile = async () => {
-            const docRef = doc(db, 'users', userId);
-            const docSnap = await getDoc(docRef);
-
+        setLoading(true);
+        const docRef = doc(db, 'users', userId);
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
                 setProfile(docSnap.data() as UserProfile);
             } else {
                 console.log('No such document!');
+                setProfile(null);
             }
-        };
-
-        const fetchData = async () => {
-            setLoading(true);
-            await fetchProfile();
             setLoading(false);
-        }
+        });
 
-        fetchData();
+        return () => unsubscribe();
     }, [userId]);
 
     useEffect(() => {
