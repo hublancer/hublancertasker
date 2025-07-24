@@ -56,7 +56,12 @@ export default function KycPage() {
 
   const form = useForm<KycFormValues>({
     resolver: zodResolver(kycSchema),
-    defaultValues: { fullName: '', cnic: '' },
+    defaultValues: {
+      fullName: '',
+      cnic: '',
+      dob: '',
+      cnicPhoto: undefined,
+    },
   });
   const cnicPhotoRef = form.register("cnicPhoto");
 
