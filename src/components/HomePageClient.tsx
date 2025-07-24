@@ -607,14 +607,14 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Map */}
         <div
           className={cn(
-            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10',
+            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10 rounded-lg overflow-hidden',
             isMobile && mobileView === 'list' && 'hidden',
             'md:block'
           )}
         >
           {
             <Map
-              tasks={filteredTasks}
+              tasks={tasks}
               onTaskSelect={handleViewDetails}
               center={currentMapCenter}
               zoom={mapZoom}

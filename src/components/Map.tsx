@@ -49,8 +49,21 @@ function MapViewUpdater({ center, zoom }: { center: [number, number] | null, zoo
   return null;
 }
 
-function MapControls({ onRefresh }: { onRefresh: () => void }) {
+function MapControls() {
   const map = useMap();
+  const physicalTasks = useMap().eachLayer(l => l instanceof L.Marker).getLayers();
+
+  const handleRefresh = () => {
+    if (physicalTasks.length > 0) {
+        const bounds = L.latLngBounds(physicalTasks.map(marker => (marker as L.Marker).getLatLng()));
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    } else {
+        map.setView(DEFAULT_CENTER, INITIAL_ZOOM);
+    }
+  };
+
 
   return (
     <div className="leaflet-top leaflet-right">
@@ -77,7 +90,7 @@ function MapControls({ onRefresh }: { onRefresh: () => void }) {
             variant="outline"
             size="icon"
             className="h-8 w-8 bg-white"
-            onClick={onRefresh}
+            onClick={handleRefresh}
             aria-label="Refresh map"
         >
             <RefreshCw className="h-4 w-4" />
@@ -90,21 +103,7 @@ function MapControls({ onRefresh }: { onRefresh: () => void }) {
 const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => {
   const { settings } = useAuth();
   const physicalTasks = tasks.filter(task => task.type === 'physical' && task.coordinates);
-  const mapCenter = center || DEFAULT_CENTER;
   
-  const map = useMap();
-
-  const handleRefresh = () => {
-    if (physicalTasks.length > 0) {
-        const bounds = L.latLngBounds(physicalTasks.map(task => task.coordinates as L.LatLngTuple));
-        if (bounds.isValid()) {
-            map.fitBounds(bounds, { padding: [50, 50] });
-        }
-    } else {
-        map.setView(DEFAULT_CENTER, INITIAL_ZOOM);
-    }
-  };
-
   return (
     <>
       <TileLayer
@@ -131,7 +130,7 @@ const Map = ({ tasks, onTaskSelect, center, zoom = INITIAL_ZOOM }: MapProps) => 
         )
       ))}
       <MapViewUpdater center={center} zoom={zoom} />
-      <MapControls onRefresh={handleRefresh} />
+      <MapControls />
     </>
   );
 };
