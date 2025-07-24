@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface Report {
     id: string;
@@ -49,6 +50,22 @@ export default function AdminSupportPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to resolve report.' });
         }
     }
+
+    const handleDeleteTask = async (report: Report) => {
+        try {
+            // First, delete the task
+            await deleteDoc(doc(db, 'tasks', report.taskId));
+            
+            // Then, update the report status
+            const reportRef = doc(db, 'reports', report.id);
+            await updateDoc(reportRef, { status: 'resolved', resolvedAt: serverTimestamp(), resolution: 'Task deleted' });
+            
+            toast({ title: 'Task Deleted', description: 'The reported task has been removed.' });
+        } catch (error: any) {
+             console.error("Error deleting task:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete task.' });
+        }
+    };
 
     if (loading) return <p>Loading reports...</p>;
 
@@ -96,9 +113,28 @@ export default function AdminSupportPage() {
                                            <Link href={`/task/${r.taskId}`} target="_blank">View Task</Link>
                                        </Button>
                                        {r.status === 'pending' && (
+                                        <>
                                             <Button size="sm" onClick={() => handleResolve(r.id)}>
                                                 Mark as Resolved
                                             </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button size="sm" variant="destructive">Delete Task</Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete the task.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteTask(r)}>Delete Task</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </>
                                        )}
                                     </TableCell>
                                 </TableRow>
