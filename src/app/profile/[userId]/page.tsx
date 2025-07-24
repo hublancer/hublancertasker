@@ -7,7 +7,6 @@ import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot } f
 import { db } from '@/lib/firebase';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import AppHeader from '@/components/AppHeader';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, MessageSquare, CheckCircle, Edit } from 'lucide-react';
@@ -15,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import UserAvatar from '@/components/UserAvatar';
 
 interface Review {
     id: string;
@@ -22,6 +22,7 @@ interface Review {
     comment: string;
     clientName: string;
     clientAvatar: string;
+    clientIsOnline?: boolean;
     createdAt: any;
 }
 
@@ -77,8 +78,21 @@ export default function ProfilePage() {
                     where('taskerId', '==', userId),
                     orderBy('createdAt', 'desc')
                 );
+                
                 const querySnapshot = await getDocs(q);
-                const reviewsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+                
+                const reviewsDataPromises = querySnapshot.docs.map(async (docSnap) => {
+                    const reviewData = docSnap.data();
+                    const clientProfileDoc = await getDoc(doc(db, 'users', reviewData.clientId));
+                    const clientProfile = clientProfileDoc.data();
+                    return { 
+                        id: docSnap.id, 
+                        ...reviewData,
+                        clientIsOnline: clientProfile?.isOnline || false,
+                    } as Review;
+                });
+                
+                const reviewsData = await Promise.all(reviewsDataPromises);
                 setReviews(reviewsData);
             }
             fetchReviews();
@@ -122,10 +136,12 @@ export default function ProfilePage() {
                     <Card>
                         <CardContent className="p-8">
                            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-                             <Avatar className="h-32 w-32">
-                                <AvatarImage src={profile.photoURL || ''}  data-ai-hint="person face" />
-                                <AvatarFallback className="text-4xl">{profile.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
+                             <UserAvatar 
+                                name={profile.name}
+                                imageUrl={profile.photoURL}
+                                isOnline={profile.isOnline}
+                                className="h-32 w-32 text-4xl"
+                             />
                             <div className="text-center md:text-left flex-1">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center justify-center md:justify-start gap-2">
@@ -198,10 +214,11 @@ export default function ProfilePage() {
                                         <Card key={review.id}>
                                             <CardContent className="p-6">
                                                 <div className="flex items-start gap-4">
-                                                    <Avatar>
-                                                        <AvatarImage src={review.clientAvatar || ''} data-ai-hint="person face" />
-                                                        <AvatarFallback>{review.clientName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                                                    </Avatar>
+                                                    <UserAvatar 
+                                                        name={review.clientName} 
+                                                        imageUrl={review.clientAvatar} 
+                                                        isOnline={review.clientIsOnline}
+                                                    />
                                                     <div className="flex-1">
                                                         <div className="flex justify-between items-center">
                                                             <p className="font-semibold">{review.clientName}</p>

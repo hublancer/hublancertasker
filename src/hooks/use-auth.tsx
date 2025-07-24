@@ -103,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribes: (()=>void)[] = [];
     const notifyAdmin = (message: string, link: string) => {
         addNotification(adminId, message, link);
+        playNotificationSound();
     }
 
     const lastCheckTimestamp = new Date(); // To avoid notifying for old docs
@@ -149,7 +150,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => unsubscribes.forEach(unsub => unsub());
 
-  }, [addNotification, settings?.currencySymbol]);
+  }, [addNotification, settings?.currencySymbol, playNotificationSound]);
 
   useEffect(() => {
     const settingsDocRef = doc(db, 'settings', 'platform');
@@ -167,59 +168,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       if (currentUser) {
         setUser(currentUser);
+        // Load from cache first
         const cachedProfile = sessionStorage.getItem(`userProfile-${currentUser.uid}`);
         if (cachedProfile) {
             setUserProfile(JSON.parse(cachedProfile));
         }
 
-        const userDocRef = doc(db, 'users', currentUser.uid);
-
-        // Setup presence in Realtime Database
+        // Setup Realtime DB presence
         const rtdb = getDatabase();
         const userStatusDatabaseRef = ref(rtdb, '/status/' + currentUser.uid);
-        const userStatusFirestoreRef = doc(db, 'users', currentUser.uid);
-
-        const isOfflineForDatabase = {
-            isOnline: false,
-            lastSeen: rtdbServerTimestamp(),
-        };
-
-        const isOnlineForDatabase = {
-            isOnline: true,
-            lastSeen: rtdbServerTimestamp(),
-        };
-        
-        const isOfflineForFirestore = {
-            isOnline: false,
-            lastSeen: serverTimestamp(),
-        };
-
-        const isOnlineForFirestore = {
-            isOnline: true,
-            lastSeen: serverTimestamp(),
-        };
-
 
         onValue(ref(rtdb, '.info/connected'), (snapshot) => {
             if (snapshot.val() === false) {
-                updateDoc(userStatusFirestoreRef, isOfflineForFirestore);
-                return;
+                return; // Not connected
             };
 
-            onDisconnect(userStatusDatabaseRef).set(isOfflineForDatabase).then(() => {
-                set(userStatusDatabaseRef, isOnlineForDatabase);
-                updateDoc(userStatusFirestoreRef, isOnlineForFirestore);
+            onDisconnect(userStatusDatabaseRef).set({ isOnline: false, lastSeen: rtdbServerTimestamp() }).then(() => {
+                set(userStatusDatabaseRef, { isOnline: true, lastSeen: rtdbServerTimestamp() });
+                // Also update firestore
+                updateDoc(doc(db, 'users', currentUser.uid), { isOnline: true, lastSeen: serverTimestamp() });
             });
         });
+        
+        // Listen for RTDB changes and update Firestore
+        onValue(userStatusDatabaseRef, (snapshot) => {
+             const status = snapshot.val();
+             if (status) {
+                updateDoc(doc(db, 'users', currentUser.uid), {
+                    isOnline: status.isOnline,
+                    lastSeen: serverTimestamp(),
+                });
+             }
+        });
 
-
+        // Firestore listener for profile
+        const userDocRef = doc(db, 'users', currentUser.uid);
         const userUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
                 setUserProfile(profileData);
                 sessionStorage.setItem(`userProfile-${currentUser.uid}`, JSON.stringify(profileData));
 
-                // If user is an admin, set up listeners for platform-wide events
                 if (profileData.role === 'admin') {
                    adminUnsubscribe = setupAdminListeners(currentUser.uid);
                 }
@@ -232,7 +221,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         return () => {
             userUnsubscribe();
-            authUnsubscribe();
             settingsUnsubscribe();
             adminUnsubscribe();
         }
@@ -255,7 +243,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       adminUnsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user]);
 
   const value = {
       user,

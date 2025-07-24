@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import UserAvatar from '@/components/UserAvatar';
 
 const WhatsAppIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -24,14 +24,12 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const usersData = querySnapshot.docs.map(doc => doc.data() as UserProfile);
-      setUsers(usersData);
-      setLoading(false);
-    };
-    fetchUsers();
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
+        setUsers(usersData);
+        setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
   if (loading) {
@@ -61,10 +59,12 @@ export default function AdminUsersPage() {
               <TableRow key={user.uid}>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                       <AvatarImage src={user.photoURL || ''} alt="Avatar" />
-                      <AvatarFallback>{user.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar 
+                        name={user.name} 
+                        imageUrl={user.photoURL} 
+                        isOnline={user.isOnline}
+                        className="h-9 w-9"
+                    />
                     <div className="grid gap-0.5">
                       <p className="font-medium">{user.name}</p>
                        <p className="text-xs text-muted-foreground">{user.uid}</p>
