@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -104,7 +105,6 @@ export default function PostTaskForm() {
   });
 
   const taskType = form.watch('taskType');
-  const currentLocation = form.watch('location');
 
   async function handleGenerateDescription() {
     setIsGenerating(true);
@@ -465,18 +465,16 @@ export default function PostTaskForm() {
                     </FormItem>
                   )}
                 />
-                 {currentLocation && (
-                    <div className="h-64 w-full rounded-md overflow-hidden border z-0">
-                        <Map
-                            tasks={markerPosition ? [{id: 'current', coordinates: markerPosition} as Task] : []}
-                            center={mapCenter}
-                            zoom={mapZoom}
-                            onTaskSelect={() => {}}
-                            isDraggable={true}
-                            onMarkerDragEnd={handleMarkerDragEnd}
-                        />
-                    </div>
-                 )}
+                 <div className="h-64 w-full rounded-md overflow-hidden border z-0">
+                    <Map
+                        tasks={markerPosition ? [{id: 'current', coordinates: markerPosition} as Task] : []}
+                        center={mapCenter}
+                        zoom={mapZoom}
+                        onTaskSelect={() => {}}
+                        isDraggable={true}
+                        onMarkerDragEnd={handleMarkerDragEnd}
+                    />
+                </div>
               </div>
             )}
           </fieldset>
