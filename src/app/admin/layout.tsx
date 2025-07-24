@@ -57,6 +57,7 @@ export default function AdminLayout({
     { href: '/admin/withdrawals', label: 'Withdrawals', icon: ArrowUpFromDot },
     { href: '/admin/kyc', label: 'KYC', icon: FileKey },
     { href: '/admin/disputes', label: 'Disputes', icon: Shield },
+    { href: '/admin/support', label: 'Support & Reports', icon: LifeBuoy },
     { href: '/admin/gateways', label: 'Gateways', icon: Landmark },
     { href: '/admin/settings', label: 'Settings', icon: Settings },
   ];
@@ -81,12 +82,6 @@ export default function AdminLayout({
                 </Link>
             ))}
             </nav>
-            <div className="mt-auto p-4">
-                <Button size="sm" variant="outline" className="w-full">
-                    <LifeBuoy className="mr-2 h-4 w-4" />
-                    Support
-                </Button>
-            </div>
         </aside>
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
