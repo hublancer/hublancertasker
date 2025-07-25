@@ -75,24 +75,29 @@ export default function ProfilePage() {
     const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
     const [hasMore, setHasMore] = useState(true);
 
-    useEffect(() => {
-        if (!userId) return;
-
-        setLoading(true);
+    const fetchProfile = useCallback(async () => {
+      if (!userId) return;
+      setLoading(true);
+      try {
         const docRef = doc(db, 'users', userId);
-        
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setProfile(docSnap.data() as UserProfile);
-            } else {
-                console.log('No such document!');
-                setProfile(null);
-            }
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        } else {
+          console.log('No such document!');
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setLoading(false);
+      }
     }, [userId]);
+
+
+    useEffect(() => {
+        fetchProfile();
+    }, [fetchProfile]);
 
     const fetchReviews = useCallback(async (loadMore = false) => {
         if (!userId) return;

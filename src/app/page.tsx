@@ -11,7 +11,7 @@ import {
   query,
   orderBy,
   where,
-  onSnapshot,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,21 +26,19 @@ export default function Home() {
     })[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const { playNewTaskSound } = useAuth();
 
   useEffect(() => {
-    const tasksCollection = collection(db, 'tasks');
-    const q = query(
-      tasksCollection,
-      where('status', '==', 'open'),
-      orderBy('createdAt', 'desc')
-    );
+    const fetchTasks = async () => {
+      setLoading(true);
+      try {
+        const tasksCollection = collection(db, 'tasks');
+        const q = query(
+          tasksCollection,
+          where('status', '==', 'open'),
+          orderBy('createdAt', 'desc')
+        );
 
-    let isFirstLoad = true;
-
-    const unsubscribe = onSnapshot(
-      q,
-      snapshot => {
+        const snapshot = await getDocs(q);
         const taskList = snapshot.docs.map(doc => {
           const data = doc.data();
 
@@ -76,24 +74,16 @@ export default function Home() {
             postedBy: string;
           };
         });
-
-        if (!isFirstLoad && snapshot.docChanges().some(change => change.type === 'added')) {
-          playNewTaskSound();
-        }
-        
-        isFirstLoad = false;
-
         setTasks(taskList);
-        setLoading(false);
-      },
-      error => {
-        console.error('Error fetching tasks in real-time:', error);
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+      } finally {
         setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
-  }, [playNewTaskSound]);
+    fetchTasks();
+  }, []);
 
   if (loading) {
     return (

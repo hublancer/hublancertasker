@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, onSnapshot, Timestamp, GeoPoint } from 'firebase/firestore';
+import { doc, getDoc, Timestamp, GeoPoint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type Task } from '@/components/TaskCard';
 import AppHeader from '@/components/AppHeader';
@@ -25,51 +25,57 @@ export default function TaskPage() {
 
   const [task, setTask] = useState<FullTask | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const fetchTask = async () => {
+    if (!taskId) return;
+     setLoading(true);
+
+    try {
+        const docRef = doc(db, 'tasks', taskId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            let coordinates: [number, number] | null = null;
+            if (data.coordinates instanceof GeoPoint) {
+                coordinates = [data.coordinates.latitude, data.coordinates.longitude];
+            }
+            setTask({
+                id: docSnap.id,
+                title: data.title,
+                location: data.location,
+                date: data.preferredDateTime instanceof Timestamp ? data.preferredDateTime.toDate().toLocaleDateString() : data.preferredDateTime,
+                price: data.budget,
+                offers: data.offerCount || 0,
+                type: data.taskType,
+                category: data.category || 'General',
+                coordinates: coordinates,
+                description: data.description,
+                postedBy: data.postedByName || 'Anonymous',
+                status: data.status || 'open',
+                postedById: data.postedById,
+                assignedToId: data.assignedToId,
+                assignedToName: data.assignedToName,
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            });
+        } else {
+            console.log('No such document!');
+            setTask(null);
+        }
+    } catch(error) {
+        console.error("Error fetching task:", error);
+    } finally {
+        setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!taskId) return;
-
-    const docRef = doc(db, 'tasks', taskId);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        let coordinates: [number, number] | null = null;
-        if (data.coordinates instanceof GeoPoint) {
-            coordinates = [data.coordinates.latitude, data.coordinates.longitude];
-        }
-        setTask({
-            id: docSnap.id,
-            title: data.title,
-            location: data.location,
-            date: data.preferredDateTime instanceof Timestamp ? data.preferredDateTime.toDate().toLocaleDateString() : data.preferredDateTime,
-            price: data.budget,
-            offers: data.offerCount || 0,
-            type: data.taskType,
-            category: data.category || 'General',
-            coordinates: coordinates,
-            description: data.description,
-            postedBy: data.postedByName || 'Anonymous',
-            status: data.status || 'open',
-            postedById: data.postedById,
-            assignedToId: data.assignedToId,
-            assignedToName: data.assignedToName,
-            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-        });
-      } else {
-        console.log('No such document!');
-        setTask(null);
-      }
-      setLoading(false);
-    }, (error) => {
-        console.error("Error fetching task in real-time:", error);
-        setLoading(false);
-    });
-
-    return () => unsubscribe();
+    fetchTask();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
   const handleTaskUpdate = () => {
-    // The onSnapshot listener will handle updates automatically
+    fetchTask(); // Re-fetch the task data after an update
   };
 
   if (loading) {
