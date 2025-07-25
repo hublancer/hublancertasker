@@ -83,6 +83,8 @@ export default function WalletPage() {
     }, [user, lastVisible]);
 
     useEffect(() => {
+        if (authLoading) return; // Wait until authentication state is determined
+
         if (!user) {
             setLoading(false);
             return;
@@ -105,7 +107,7 @@ export default function WalletPage() {
         }));
 
         return () => unsubscribers.forEach(unsub => unsub());
-    }, [user, fetchTransactions]);
+    }, [user, fetchTransactions, authLoading]);
     
     if (authLoading || loading) {
         return (
