@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { ArrowDownToLine } from 'lucide-react';
+import { useMediaQuery } from '@/hooks/use-media-query';
 
 declare global {
   interface WindowEventMap {
@@ -22,17 +23,15 @@ interface BeforeInstallPromptEvent extends Event {
 export const InstallPwaButton = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
     
     const handleAppInstalled = () => {
-        // Hide the app-provided install promotion
         setDeferredPrompt(null);
         setIsInstalled(true);
     };
@@ -40,7 +39,6 @@ export const InstallPwaButton = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Check if the app is already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
         setIsInstalled(true);
     }
@@ -55,11 +53,8 @@ export const InstallPwaButton = () => {
     if (!deferredPrompt) {
       return;
     }
-    // Show the install prompt.
     deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt.
     const { outcome } = await deferredPrompt.userChoice;
-    // We've used the prompt, and can't use it again, but we can listen for the appinstalled event.
     if(outcome === 'accepted') {
         setDeferredPrompt(null);
     }
@@ -67,6 +62,14 @@ export const InstallPwaButton = () => {
 
   if (!deferredPrompt || isInstalled) {
     return null;
+  }
+
+  if (isMobile) {
+      return (
+        <button onClick={handleInstallClick} className="text-sm font-semibold underline">
+            Install Hublancer for a better experience!
+        </button>
+      )
   }
 
   return (
