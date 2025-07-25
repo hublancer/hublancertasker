@@ -32,7 +32,6 @@ import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestam
 import { useMediaQuery } from '@/hooks/use-media-query';
 import UserAvatar from './UserAvatar';
 import Image from 'next/image';
-import { InstallPwaButton } from './InstallPwaButton';
 
 
 interface Notification {
@@ -290,7 +289,6 @@ const AppHeader = () => {
 
           {/* Right side buttons for Desktop */}
           <div className="hidden flex-1 items-center justify-end space-x-2 md:flex">
-             <InstallPwaButton />
              {user && (
                   <Button variant="outline" asChild>
                     <Link href="/wallet" className="flex items-center gap-2">

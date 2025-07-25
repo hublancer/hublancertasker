@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/hooks/use-auth';
 import { MobileNav } from '@/components/MobileNav';
-import InstallHeader from '@/components/InstallHeader';
+import { InstallPwaDialog } from '@/components/InstallPwaDialog';
 
 export const metadata: Metadata = {
   title: 'Hublancer',
@@ -51,7 +51,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased pb-16 md:pb-0">
         <AuthProvider>
-          <InstallHeader />
+          <InstallPwaDialog />
           {children}
           <MobileNav />
         </AuthProvider>
