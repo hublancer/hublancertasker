@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Briefcase } from 'lucide-react';
+import Image from 'next/image';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -68,7 +69,7 @@ export default function AdminLoginPage() {
   return (
     <div className="flex flex-col min-h-screen items-center justify-center bg-muted/40 p-4">
        <div className="mb-8 flex items-center space-x-2">
-            <Briefcase className="h-8 w-8 text-primary" />
+            <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={32} height={32} />
             <span className="font-bold font-headline text-2xl">Hublancer Admin</span>
         </div>
       <Card className="w-full max-w-sm">
