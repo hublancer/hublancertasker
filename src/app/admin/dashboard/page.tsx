@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where, getDocs, sum } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Briefcase, CreditCard, Shield, FileKey, ArrowDownToDot, ArrowUpFromDot, UserCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -37,61 +37,56 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribes: (() => void)[] = [];
+    const fetchStats = async () => {
+        try {
+            const usersQuery = query(collection(db, 'users'));
+            const usersSnapshot = await getDocs(usersQuery);
+            let clients = 0;
+            let taskers = 0;
+            usersSnapshot.forEach(doc => {
+                if(doc.data().accountType === 'client') clients++;
+                if(doc.data().accountType === 'tasker') taskers++;
+            });
 
-    const collectionsToWatch = {
-      users: collection(db, 'users'),
-      tasks: collection(db, 'tasks'),
-      platform_transactions: collection(db, 'platform_transactions'),
-      deposits: collection(db, 'deposits'),
-      withdrawals: collection(db, 'withdrawals'),
-      kycSubmissions: collection(db, 'kycSubmissions'),
-      disputes: collection(db, 'disputes'),
-    };
+            const activeTasksQuery = query(collection(db, 'tasks'), where('status', 'in', ['open', 'assigned']));
+            const activeTasksSnapshot = await getDocs(activeTasksQuery);
+
+            const revenueQuery = query(collection(db, 'platform_transactions'));
+            const revenueSnapshot = await getDocs(revenueQuery);
+            const total = revenueSnapshot.docs.reduce((sum, doc) => sum + doc.data().amount, 0);
+            
+            const pendingDepositsQuery = query(collection(db, 'deposits'), where('status', '==', 'pending'));
+            const pendingDepositsSnapshot = await getDocs(pendingDepositsQuery);
+            
+            const pendingWithdrawalsQuery = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));
+            const pendingWithdrawalsSnapshot = await getDocs(pendingWithdrawalsQuery);
+
+            const pendingKycQuery = query(collection(db, 'kycSubmissions'), where('status', '==', 'pending'));
+            const pendingKycSnapshot = await getDocs(pendingKycQuery);
+            
+            const openDisputesQuery = query(collection(db, 'disputes'), where('status', '==', 'open'));
+            const openDisputesSnapshot = await getDocs(openDisputesQuery);
+
+            setStats({
+                totalUsers: usersSnapshot.size,
+                totalClients: clients,
+                totalTaskers: taskers,
+                activeTasks: activeTasksSnapshot.size,
+                openDisputes: openDisputesSnapshot.size,
+                totalRevenue: total,
+                pendingDeposits: pendingDepositsSnapshot.size,
+                pendingWithdrawals: pendingWithdrawalsSnapshot.size,
+                pendingKyc: pendingKycSnapshot.size,
+            });
+
+        } catch (error) {
+            console.error("Error fetching admin dashboard stats:", error);
+        } finally {
+            setLoading(false);
+        }
+    }
     
-    // Users
-    const usersQuery = query(collectionsToWatch.users);
-    unsubscribes.push(onSnapshot(usersQuery, (snapshot) => {
-        let clients = 0;
-        let taskers = 0;
-        snapshot.forEach(doc => {
-            if(doc.data().accountType === 'client') clients++;
-            if(doc.data().accountType === 'tasker') taskers++;
-        });
-        setStats(prev => ({ ...prev, totalUsers: snapshot.size, totalClients: clients, totalTaskers: taskers }));
-    }));
-
-    // Tasks
-    const activeTasksQuery = query(collectionsToWatch.tasks, where('status', 'in', ['open', 'assigned']));
-     unsubscribes.push(onSnapshot(activeTasksQuery, (snapshot) => {
-        setStats(prev => ({ ...prev, activeTasks: snapshot.size }));
-    }));
-    
-    // Revenue
-    const revenueQuery = query(collectionsToWatch.platform_transactions);
-    unsubscribes.push(onSnapshot(revenueQuery, async (snapshot) => {
-        const total = snapshot.docs.reduce((sum, doc) => sum + doc.data().amount, 0);
-        setStats(prev => ({ ...prev, totalRevenue: total }));
-    }));
-
-    // Pending Requests
-    const pendingDepositsQuery = query(collectionsToWatch.deposits, where('status', '==', 'pending'));
-    unsubscribes.push(onSnapshot(pendingDepositsQuery, snapshot => setStats(prev => ({ ...prev, pendingDeposits: snapshot.size }))));
-
-    const pendingWithdrawalsQuery = query(collectionsToWatch.withdrawals, where('status', '==', 'pending'));
-    unsubscribes.push(onSnapshot(pendingWithdrawalsQuery, snapshot => setStats(prev => ({ ...prev, pendingWithdrawals: snapshot.size }))));
-
-    const pendingKycQuery = query(collectionsToWatch.kycSubmissions, where('status', '==', 'pending'));
-    unsubscribes.push(onSnapshot(pendingKycQuery, snapshot => setStats(prev => ({ ...prev, pendingKyc: snapshot.size }))));
-
-    const openDisputesQuery = query(collectionsToWatch.disputes, where('status', '==', 'open'));
-    unsubscribes.push(onSnapshot(openDisputesQuery, snapshot => setStats(prev => ({ ...prev, openDisputes: snapshot.size }))));
-
-
-    setLoading(false);
-
-    return () => unsubscribes.forEach(unsub => unsub());
-
+    fetchStats();
   }, []);
 
   return (

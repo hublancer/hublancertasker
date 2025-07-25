@@ -65,6 +65,7 @@ export default function AdminTransactionsPage() {
 
     useEffect(() => {
         fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     if (loading) {

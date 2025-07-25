@@ -59,6 +59,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -91,8 +92,6 @@ export default function AdminUsersPage() {
                     <UserAvatar 
                         name={user.name} 
                         imageUrl={user.photoURL} 
-                        isOnline={user.isOnline}
-                        lastSeen={user.lastSeen}
                         className="h-9 w-9"
                     />
                     <div className="grid gap-0.5">

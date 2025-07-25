@@ -96,7 +96,7 @@ function ConversationPageContent() {
             setPartnerProfile(snap.data() as UserProfile);
           });
         }
-        setLoading(false);
+        
       } else {
         router.push('/messages');
       }
@@ -115,6 +115,7 @@ function ConversationPageContent() {
       setMessages(msgs);
       setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       setHasMore(snapshot.docs.length === initialLimit);
+      setLoading(false);
     });
 
     return () => {

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query, startAfter, limit, DocumentSnapshot } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, startAfter, limit, DocumentSnapshot, Timestamp } from 'firebase/firestore';
 import type { Task } from '@/components/TaskCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 
-type FullTask = Task & { createdAt: any, budget: number };
+type FullTask = Task & { createdAt: Timestamp, budget: number };
 
 const PAGE_SIZE = 20;
 
@@ -54,6 +54,7 @@ export default function AdminTasksPage() {
 
   useEffect(() => {
     fetchTasks();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
