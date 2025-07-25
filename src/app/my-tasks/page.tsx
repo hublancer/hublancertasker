@@ -155,7 +155,11 @@ export default function MyTasksPage() {
   }, [user, userProfile, lastVisible]);
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user) {
+        setLoading(false);
+        return;
+    };
     
     const initialFetch = async () => {
         if (userProfile?.accountType === 'client') {
@@ -341,5 +345,3 @@ export default function MyTasksPage() {
     </div>
   );
 }
-
-    
