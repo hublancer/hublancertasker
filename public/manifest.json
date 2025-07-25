@@ -2,20 +2,26 @@
   "name": "Hublancer",
   "short_name": "Hublancer",
   "description": "Your hub for finding and completing tasks.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#299947",
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "https://i.postimg.cc/hGrRDPFS/Untitled-design-11-png.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "https://i.postimg.cc/hGrRDPFS/Untitled-design-11-png.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "https://i.postimg.cc/hGrRDPFS/Untitled-design-11-png.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ],
-  "theme_color": "#4DB6AC",
-  "background_color": "#ECEFF1",
-  "start_url": "/",
-  "display": "standalone"
+  ]
 }
