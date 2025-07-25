@@ -6,11 +6,17 @@ import { usePathname } from 'next/navigation';
 import { Compass, MessageSquare, PlusSquare, Wallet, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useEffect, useState } from 'react';
 
 export function MobileNav() {
     const pathname = usePathname();
     const isMobile = useMediaQuery('(max-width: 767px)');
-     const isAdminPage = pathname.startsWith('/admin');
+    const isAdminPage = pathname.startsWith('/admin');
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     const navItems = [
         { href: '/', label: 'Browse', icon: Compass },
@@ -20,7 +26,7 @@ export function MobileNav() {
         { href: '/my-tasks', label: 'My Tasks', icon: Briefcase },
     ];
 
-    if (!isMobile || isAdminPage) {
+    if (!isClient || !isMobile || isAdminPage) {
         return null;
     }
 
