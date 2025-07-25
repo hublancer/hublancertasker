@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, onSnapshot, query, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, query, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,14 +50,17 @@ export default function AdminGatewaysPage() {
         },
     });
 
-    useEffect(() => {
+    const fetchGateways = async () => {
+        setLoading(true);
         const q = query(collection(db, 'paymentGateways'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const gatewaysData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentGateway));
-            setGateways(gatewaysData);
-            setLoading(false);
-        });
-        return () => unsubscribe();
+        const snapshot = await getDocs(q);
+        const gatewaysData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentGateway));
+        setGateways(gatewaysData);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchGateways();
     }, []);
 
     const onSubmit = async (data: GatewayFormValues) => {
@@ -65,6 +68,7 @@ export default function AdminGatewaysPage() {
             await addDoc(collection(db, 'paymentGateways'), data);
             toast({ title: 'Gateway Added', description: 'The new payment gateway has been added.' });
             form.reset();
+            fetchGateways();
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to add gateway.' });
         }
@@ -73,11 +77,13 @@ export default function AdminGatewaysPage() {
     const toggleGatewayStatus = async (gateway: PaymentGateway) => {
         const gatewayRef = doc(db, 'paymentGateways', gateway.id);
         await updateDoc(gatewayRef, { enabled: !gateway.enabled });
+        fetchGateways();
     };
     
     const deleteGateway = async (gatewayId: string) => {
         await deleteDoc(doc(db, 'paymentGateways', gatewayId));
         toast({ title: 'Gateway Deleted' });
+        fetchGateways();
     }
 
     return (

@@ -3,15 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import Image from 'next/image';
 
 interface KycRequest {
     userId: string;
@@ -29,19 +27,24 @@ export default function AdminKycPage() {
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
-    useEffect(() => {
-        const q = query(collection(db, 'kycSubmissions'), where('status', '==', 'pending'), orderBy('submittedAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+    const fetchRequests = async () => {
+        setLoading(true);
+        try {
+            const q = query(collection(db, 'kycSubmissions'), where('status', '==', 'pending'), orderBy('submittedAt', 'desc'));
+            const snapshot = await getDocs(q);
             const reqs = snapshot.docs.map(doc => ({ ...doc.data() } as KycRequest));
             setRequests(reqs);
-            setLoading(false);
-        }, (error) => {
+        } catch (error) {
             console.error("Error fetching KYC requests:", error);
-            setLoading(false);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch KYC requests.' });
-        });
-        return () => unsubscribe();
-    }, [toast]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRequests();
+    }, []);
 
     const handleApprove = async (req: KycRequest) => {
         setProcessingId(req.userId);
@@ -55,6 +58,7 @@ export default function AdminKycPage() {
 
             await batch.commit();
             toast({ title: 'Success', description: 'KYC has been approved.' });
+            fetchRequests(); // Re-fetch
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message });
         } finally {
@@ -76,6 +80,7 @@ export default function AdminKycPage() {
             await batch.commit();
 
             toast({ title: 'Success', description: 'KYC has been rejected.' });
+            fetchRequests(); // Re-fetch
         } catch (error: any) {
              toast({ variant: 'destructive', title: 'Error', description: error.message });
         } finally {

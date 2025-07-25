@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, collectionGroup } from 'firebase/firestore';
+import { collection, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -30,19 +30,24 @@ export default function AdminDepositsPage() {
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
-    useEffect(() => {
-        const q = query(collection(db, 'deposits'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+    const fetchRequests = async () => {
+        setLoading(true);
+        try {
+            const q = query(collection(db, 'deposits'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DepositRequest));
             setRequests(reqs);
-            setLoading(false);
-        }, (error) => {
+        } catch (error) {
             console.error("Error fetching deposit requests:", error);
-            setLoading(false);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch deposit requests.' });
-        });
-        return () => unsubscribe();
-    }, [toast]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        fetchRequests();
+    }, []);
 
     const handleApprove = async (req: DepositRequest) => {
         if (!req || !req.id || !req.userId) return;
@@ -70,6 +75,7 @@ export default function AdminDepositsPage() {
             await batch.commit();
 
             toast({ title: 'Success', description: 'Deposit has been approved.' });
+            fetchRequests(); // Re-fetch to update the list
         } catch (error: any) {
             console.error('Error approving deposit:', error);
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to approve deposit.' });
@@ -85,6 +91,7 @@ export default function AdminDepositsPage() {
             const depositRef = doc(db, 'deposits', id);
             await updateDoc(depositRef, { status: 'rejected', processedAt: serverTimestamp() });
             toast({ title: 'Success', description: 'Deposit has been rejected.' });
+            fetchRequests(); // Re-fetch to update the list
         } catch (error: any) {
              toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to reject deposit.' });
         } finally {

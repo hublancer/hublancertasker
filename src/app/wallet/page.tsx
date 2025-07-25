@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, where, Timestamp, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, where, Timestamp, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import AppHeader from '@/components/AppHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -55,7 +55,7 @@ export default function WalletPage() {
       if (loadMore) {
         setLoadingMore(true);
       } else {
-        setLoading(true); // Only set loading for the initial fetch
+        setLoading(true);
       }
 
       try {
@@ -86,7 +86,23 @@ export default function WalletPage() {
       }
     }, [user, lastVisible]);
     
-    // Effect for initial load and handling auth changes
+    const fetchPendingRequests = useCallback(async () => {
+        if (!user) return;
+        try {
+            const depositsQuery = query(collection(db, 'deposits'), where('userId', '==', user.uid), where('status', '==', 'pending'));
+            const depositsSnapshot = await getDocs(depositsQuery);
+            const depositReqs = depositsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
+            setPendingDeposits(depositReqs);
+            
+            const withdrawalsQuery = query(collection(db, 'withdrawals'), where('userId', '==', user.uid), where('status', '==', 'pending'));
+            const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
+            const withdrawalReqs = withdrawalsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
+            setPendingWithdrawals(withdrawalReqs);
+        } catch (error) {
+            console.error("Error fetching pending requests:", error);
+        }
+    }, [user]);
+
     useEffect(() => {
         if (authLoading) {
             setLoading(true);
@@ -97,30 +113,10 @@ export default function WalletPage() {
             return;
         }
         fetchTransactions();
+        fetchPendingRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, user]);
 
-    // Effect for real-time pending requests
-    useEffect(() => {
-        if (!user) return;
-
-        const depositsQuery = query(collection(db, 'deposits'), where('userId', '==', user.uid), where('status', '==', 'pending'));
-        const depositsUnsubscribe = onSnapshot(depositsQuery, (snapshot) => {
-            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
-            setPendingDeposits(reqs);
-        });
-        
-        const withdrawalsQuery = query(collection(db, 'withdrawals'), where('userId', '==', user.uid), where('status', '==', 'pending'));
-        const withdrawalsUnsubscribe = onSnapshot(withdrawalsQuery, (snapshot) => {
-            const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
-            setPendingWithdrawals(reqs);
-        });
-
-        return () => {
-            depositsUnsubscribe();
-            withdrawalsUnsubscribe();
-        }
-    }, [user]);
     
     if (authLoading || loading) {
         return (
@@ -169,6 +165,7 @@ export default function WalletPage() {
         setLastVisible(null);
         setTransactions([]);
         fetchTransactions();
+        fetchPendingRequests();
     }
 
     const hasPendingRequests = pendingDeposits.length > 0 || pendingWithdrawals.length > 0;

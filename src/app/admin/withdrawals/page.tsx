@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp, orderBy, doc, getDoc, writeBatch, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, Timestamp, orderBy, doc, getDoc, writeBatch, serverTimestamp, updateDoc, increment, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -30,19 +30,24 @@ export default function AdminWithdrawalsPage() {
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
-    useEffect(() => {
-        const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+    const fetchRequests = async () => {
+        setLoading(true);
+        try {
+            const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawalRequest));
             setRequests(reqs);
-            setLoading(false);
-        }, (error) => {
+        } catch (error) {
             console.error("Error fetching withdrawal requests:", error);
-            setLoading(false);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch withdrawal requests.' });
-        });
-        return () => unsubscribe();
-    }, [toast]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRequests();
+    }, []);
 
     const handleApprove = async (req: WithdrawalRequest) => {
         if (!req || !req.id || !req.userId) return;
@@ -60,6 +65,7 @@ export default function AdminWithdrawalsPage() {
                 });
                 toast({ variant: 'destructive', title: 'Error', description: 'Insufficient funds. Withdrawal rejected.' });
                 setProcessingId(null);
+                fetchRequests();
                 return;
             }
 
@@ -84,6 +90,7 @@ export default function AdminWithdrawalsPage() {
             await batch.commit();
 
             toast({ title: 'Success', description: 'Withdrawal has been processed.' });
+            fetchRequests();
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to approve withdrawal.' });
         } finally {
@@ -98,6 +105,7 @@ export default function AdminWithdrawalsPage() {
             const withdrawalRef = doc(db, 'withdrawals', id);
             await updateDoc(withdrawalRef, { status: 'rejected', processedAt: serverTimestamp() });
             toast({ title: 'Success', description: 'Withdrawal has been rejected.' });
+            fetchRequests();
         } catch (error: any) {
              toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to reject withdrawal.' });
         } finally {
