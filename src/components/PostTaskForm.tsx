@@ -224,7 +224,7 @@ export default function PostTaskForm() {
     setMapCenter(newPosition);
   };
 
-  const mapTasks: (Task & { coordinates: [number, number] | null })[] = markerPosition ? [{ id: 'current', coordinates: markerPosition } as Task] : [];
+  const mapTasks = markerPosition ? [{ id: 'current', coordinates: markerPosition } as Task & { coordinates: [number, number] | null }] : [];
 
 
   const isAuthenticated = !!user;
