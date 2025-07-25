@@ -29,7 +29,6 @@ import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, addDoc, GeoPoint } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { categories } from '@/lib/categories';
 import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
@@ -71,7 +70,7 @@ export default function PostTaskForm() {
   const router = useRouter();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   
-  const [mapCenter, setMapCenter] = useState<[number, number] | null>([30.3753, 69.3451]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([30.3753, 69.3451]);
   const [mapZoom, setMapZoom] = useState(5);
   const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(null);
 
@@ -208,11 +207,6 @@ export default function PostTaskForm() {
     );
   };
   
-  useEffect(() => {
-    handleUseCurrentLocation();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleMarkerDragEnd = (newPosition: [number, number]) => {
     form.setValue('coordinates', { lat: newPosition[0], lng: newPosition[1] });
     form.setValue('location', 'Custom Location');
@@ -382,8 +376,14 @@ export default function PostTaskForm() {
                         <div className="flex flex-col sm:flex-row gap-2">
                            <select
                                 {...field}
+                                value={field.value || ''}
                                 onChange={(e) => {
                                     const value = e.target.value;
+                                    if (value === 'Current Location') {
+                                        handleUseCurrentLocation();
+                                        field.onChange('Current Location');
+                                        return;
+                                    }
                                     const city = pakistaniCities.find(c => c.name === value);
                                     if (city) {
                                         field.onChange(city.name);
@@ -400,7 +400,8 @@ export default function PostTaskForm() {
                                 "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 )}
                             >
-                                <option value="" disabled>Select a city...</option>
+                                <option value="" disabled>Select a location</option>
+                                <option value="Current Location">Current Location</option>
                                 {pakistaniCities.map(c => (
                                     <option key={c.name} value={c.name}>{c.name}</option>
                                 ))}
@@ -450,3 +451,4 @@ export default function PostTaskForm() {
     </>
   );
 }
+
