@@ -12,7 +12,6 @@ import {
   Timestamp,
   orderBy,
   DocumentData,
-  onSnapshot,
   getDocs,
   limit,
   startAfter,
@@ -36,7 +35,7 @@ const TaskList = ({
   onChat,
   onLoadMore,
   hasMore,
-  loading,
+  loadingMore,
   emptyMessage
 }: {
   tasks: Task[],
@@ -44,27 +43,26 @@ const TaskList = ({
   onChat: (taskId: string) => void,
   onLoadMore: () => void,
   hasMore: boolean,
-  loading: boolean,
+  loadingMore: boolean,
   emptyMessage: string
 }) => {
+  if (tasks.length === 0 && !loadingMore) {
+    return <p className="text-center text-muted-foreground py-10">{emptyMessage}</p>
+  }
   return (
     <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-      {tasks.length > 0 ? (
-        tasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onSelect={() => onSelect(task)}
-            onChat={onChat}
-          />
-        ))
-      ) : (
-        <p className="text-center text-muted-foreground py-10">{emptyMessage}</p>
-      )}
+      {tasks.map(task => (
+        <TaskCard
+          key={task.id}
+          task={task}
+          onSelect={() => onSelect(task)}
+          onChat={onChat}
+        />
+      ))}
       {hasMore && (
-        <div className="text-center md:col-span-2 lg:col-span-1">
-          <Button onClick={onLoadMore} disabled={loading}>
-            {loading ? 'Loading...' : 'Load More'}
+        <div className="text-center md:col-span-2 lg:col-span-1 mt-4">
+          <Button onClick={onLoadMore} disabled={loadingMore}>
+            {loadingMore ? 'Loading...' : 'Load More'}
           </Button>
         </div>
       )}
@@ -94,20 +92,25 @@ export default function MyTasksPage() {
     'pending-completion': true,
     completed: true,
   });
-  const [loading, setLoading] = useState<Record<TaskStatus, boolean>>({
-    open: true,
-    assigned: true,
-    'pending-completion': true,
-    completed: true,
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState<Record<TaskStatus, boolean>>({
+    open: false,
+    assigned: false,
+    'pending-completion': false,
+    completed: false,
   });
   
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const fetchTasks = useCallback(async (status: TaskStatus) => {
+  const fetchTasks = useCallback(async (status: TaskStatus, loadMore = false) => {
     if (!user || !userProfile) return;
-
-    setLoading(prev => ({...prev, [status]: true}));
+    
+    if (loadMore) {
+      setLoadingMore(prev => ({...prev, [status]: true}));
+    } else {
+      setLoading(true);
+    }
 
     const toTask = (doc: DocumentData): Task => {
         const data = doc.data();
@@ -132,7 +135,7 @@ export default function MyTasksPage() {
         limit(PAGE_SIZE)
     );
     
-    if (lastVisible[status]) {
+    if (loadMore && lastVisible[status]) {
       q = query(q, startAfter(lastVisible[status]));
     }
     
@@ -140,28 +143,34 @@ export default function MyTasksPage() {
         const snapshot = await getDocs(q);
         const newTasks = snapshot.docs.map(toTask);
         
-        setTaskLists(prev => ({ ...prev, [status]: [...prev[status], ...newTasks]}));
+        setTaskLists(prev => ({ ...prev, [status]: loadMore ? [...prev[status], ...newTasks] : newTasks}));
         setLastVisible(prev => ({ ...prev, [status]: snapshot.docs[snapshot.docs.length - 1] || null }));
         setHasMore(prev => ({ ...prev, [status]: newTasks.length === PAGE_SIZE }));
     } catch (error) {
-        console.error("Error fetching tasks:", error);
+        console.error(`Error fetching ${status} tasks:`, error);
     } finally {
-         setLoading(prev => ({...prev, [status]: false}));
+         setLoading(false);
+         setLoadingMore(prev => ({...prev, [status]: false}));
     }
-  }, [user, userProfile]);
+  }, [user, userProfile, lastVisible]);
 
   useEffect(() => {
     if (authLoading || !user) return;
-    // Initial fetch for all relevant statuses
-    if(userProfile?.accountType === 'client') {
-      fetchTasks('open');
-      fetchTasks('assigned');
-      fetchTasks('pending-completion');
-      fetchTasks('completed');
-    } else {
-      fetchTasks('assigned');
-      fetchTasks('completed');
+    
+    const initialFetch = async () => {
+        if (userProfile?.accountType === 'client') {
+            await fetchTasks('open');
+            await fetchTasks('assigned');
+            await fetchTasks('pending-completion');
+            await fetchTasks('completed');
+        } else {
+            await fetchTasks('assigned');
+            await fetchTasks('pending-completion');
+            await fetchTasks('completed');
+        }
     }
+
+    initialFetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user, userProfile]);
 
@@ -173,9 +182,29 @@ export default function MyTasksPage() {
     setSelectedTask(null);
   };
 
-  const handleTaskUpdate = () => {
-      // This function could trigger a re-fetch of the specific list if needed,
-      // but for now, we can rely on user navigation to refresh data.
+  const handleTaskUpdate = (updatedTask: Task) => {
+      // Find which list the task is in and update it
+      Object.keys(taskLists).forEach(status => {
+          const list = taskLists[status as TaskStatus];
+          const taskIndex = list.findIndex(t => t.id === updatedTask.id);
+          if (taskIndex > -1) {
+              const newList = [...list];
+              // If status changed, remove from old list
+              if (updatedTask.status !== status) {
+                  newList.splice(taskIndex, 1);
+              } else {
+                  newList[taskIndex] = updatedTask;
+              }
+              setTaskLists(prev => ({...prev, [status]: newList}));
+          }
+      });
+      // Add to new list if status changed
+      if (task.status !== updatedTask.status) {
+          setTaskLists(prev => ({...prev, [updatedTask.status]: [updatedTask, ...prev[updatedTask.status]]}))
+      }
+      if(selectedTask?.id === updatedTask.id){
+          setSelectedTask(updatedTask);
+      }
   };
 
   const handleGoToChat = async (taskId: string) => {
@@ -194,13 +223,17 @@ export default function MyTasksPage() {
   };
 
 
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
       <div className="flex flex-col min-h-screen bg-background">
         <AppHeader />
         <div className="container mx-auto py-12 px-4 md:px-6">
           <Skeleton className="h-8 w-48 mb-4" />
           <Skeleton className="h-6 w-64 mb-8" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
         </div>
       </div>
     );
@@ -221,6 +254,8 @@ export default function MyTasksPage() {
       </div>
     );
   }
+  
+  const mergedAssignedAndPending = [...taskLists.assigned, ...taskLists['pending-completion']];
 
   const renderClientDashboard = () => (
     <Tabs defaultValue="open" className="w-full">
@@ -231,37 +266,45 @@ export default function MyTasksPage() {
         <TabsTrigger value="completed">Completed</TabsTrigger>
       </TabsList>
       <TabsContent value="open" className="mt-6">
-        <TaskList tasks={taskLists.open} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('open')} hasMore={hasMore.open} loading={loading.open} emptyMessage="You have no open tasks."/>
+        <TaskList tasks={taskLists.open} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('open', true)} hasMore={hasMore.open} loadingMore={loadingMore.open} emptyMessage="You have no open tasks."/>
       </TabsContent>
        <TabsContent value="assigned" className="mt-6">
-        <TaskList tasks={taskLists.assigned} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('assigned')} hasMore={hasMore.assigned} loading={loading.assigned} emptyMessage="You have no assigned tasks."/>
+        <TaskList tasks={taskLists.assigned} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('assigned', true)} hasMore={hasMore.assigned} loadingMore={loadingMore.assigned} emptyMessage="You have no assigned tasks."/>
       </TabsContent>
       <TabsContent value="pending" className="mt-6">
-        <TaskList tasks={taskLists['pending-completion']} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('pending-completion')} hasMore={hasMore['pending-completion']} loading={loading['pending-completion']} emptyMessage="You have no tasks pending completion."/>
+        <TaskList tasks={taskLists['pending-completion']} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('pending-completion', true)} hasMore={hasMore['pending-completion']} loadingMore={loadingMore['pending-completion']} emptyMessage="You have no tasks pending completion."/>
       </TabsContent>
       <TabsContent value="completed" className="mt-6">
-        <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed')} hasMore={hasMore.completed} loading={loading.completed} emptyMessage="You have no completed tasks."/>
+        <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed', true)} hasMore={hasMore.completed} loadingMore={loadingMore.completed} emptyMessage="You have no completed tasks."/>
       </TabsContent>
     </Tabs>
   );
 
-  const renderTaskerDashboard = () => {
-     const assignedTasks = [...taskLists.assigned, ...taskLists['pending-completion']];
-     return (
-        <Tabs defaultValue="assigned" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-sm">
-            <TabsTrigger value="assigned">My Work</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-           <TabsContent value="assigned" className="mt-6">
-             <TaskList tasks={assignedTasks} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => { fetchTasks('assigned'); fetchTasks('pending-completion');}} hasMore={hasMore.assigned || hasMore['pending-completion']} loading={loading.assigned || loading['pending-completion']} emptyMessage="You have no assigned tasks."/>
-          </TabsContent>
-          <TabsContent value="completed" className="mt-6">
-            <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed')} hasMore={hasMore.completed} loading={loading.completed} emptyMessage="You have no completed tasks."/>
-          </TabsContent>
-        </Tabs>
-     )
-  };
+  const renderTaskerDashboard = () => (
+    <Tabs defaultValue="assigned" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-sm">
+        <TabsTrigger value="assigned">My Work</TabsTrigger>
+        <TabsTrigger value="completed">Completed</TabsTrigger>
+        </TabsList>
+        <TabsContent value="assigned" className="mt-6">
+            <TaskList 
+                tasks={mergedAssignedAndPending} 
+                onSelect={handleTaskSelect} 
+                onChat={handleGoToChat} 
+                onLoadMore={() => {
+                    if (hasMore.assigned) fetchTasks('assigned', true);
+                    if (hasMore['pending-completion']) fetchTasks('pending-completion', true);
+                }} 
+                hasMore={hasMore.assigned || hasMore['pending-completion']} 
+                loadingMore={loadingMore.assigned || loadingMore['pending-completion']} 
+                emptyMessage="You have no assigned tasks."
+            />
+        </TabsContent>
+        <TabsContent value="completed" className="mt-6">
+        <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed', true)} hasMore={hasMore.completed} loadingMore={loadingMore.completed} emptyMessage="You have no completed tasks."/>
+        </TabsContent>
+    </Tabs>
+  );
   
     const mainContent = (
         <div className="p-4 md:p-6">
@@ -287,7 +330,7 @@ export default function MyTasksPage() {
         </ScrollArea>
         <div className={cn(
             'bg-card border-l h-full overflow-y-auto',
-            !selectedTask && 'hidden md:hidden'
+            !selectedTask && 'hidden'
           )}>
          {selectedTask && (
             <TaskDetails task={selectedTask} onBack={handleBack} onTaskUpdate={handleTaskUpdate} />
@@ -298,3 +341,5 @@ export default function MyTasksPage() {
     </div>
   );
 }
+
+    
