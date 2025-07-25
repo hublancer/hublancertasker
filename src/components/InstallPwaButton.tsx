@@ -25,9 +25,7 @@ export const InstallPwaButton = () => {
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
-      // Prevent the default prompt
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
 
@@ -38,15 +36,13 @@ export const InstallPwaButton = () => {
     };
   }, []);
 
-  const handleInstallClick = async () => {
+  const handleInstallClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!deferredPrompt) {
       return;
     }
-    // Show the install prompt
     deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt
     await deferredPrompt.userChoice;
-    // We've used the prompt, and can't use it again, so clear it
     setDeferredPrompt(null);
   };
 
@@ -56,11 +52,12 @@ export const InstallPwaButton = () => {
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
+      size="icon"
       onClick={handleInstallClick}
     >
-      <ArrowDownToLine className="mr-2 h-4 w-4" />
-      Install App
+      <ArrowDownToLine className="h-5 w-5" />
+      <span className="sr-only">Install App</span>
     </Button>
   );
 };

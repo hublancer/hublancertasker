@@ -251,7 +251,6 @@ const AppHeader = () => {
                     Hublancer
                   </span>
                 </Link>
-                <InstallPwaButton />
             </div>
 
             <div className="my-4 h-[calc(100vh-8rem)] pb-10 pl-6">
@@ -278,8 +277,9 @@ const AppHeader = () => {
           <Image src="https://i.postimg.cc/hGrRDPFS/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
           <span className="font-bold font-headline text-lg">Hublancer</span>
         </Link>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
            {user && renderNotificationBell()}
+           <InstallPwaButton />
            {renderProfileButton()}
         </div>
       </div>
@@ -302,7 +302,7 @@ const AppHeader = () => {
                     </Link>
                   </Button>
               )}
-             {renderNotificationBell()}
+             {user && renderNotificationBell()}
             
             {!isMobile && (
               <Button
