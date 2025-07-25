@@ -16,6 +16,7 @@ import {
   startAfter,
   QueryDocumentSnapshot,
   getDocs,
+  where,
 } from 'firebase/firestore';
 import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
@@ -60,33 +61,13 @@ function ConversationPageContent() {
 
   const initialLimit = 20;
 
-  const fetchInitialMessages = useCallback(async () => {
-    if (!conversationId) return;
-    setLoading(true);
-     const messagesQuery = query(
-      collection(db, 'conversations', conversationId, 'messages'),
-      orderBy('createdAt', 'desc'),
-      limit(initialLimit)
-    );
-
-    const snapshot = await getDocs(messagesQuery);
-    const msgs = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Message))
-        .reverse();
-    setMessages(msgs);
-    setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-    setHasMore(snapshot.docs.length === initialLimit);
-    setLoading(false);
-  }, [conversationId]);
-
-
   useEffect(() => {
     if (!conversationId || !user) {
       if (!user) router.push('/messages');
       return;
     }
 
-    let partnerUnsub: (() => void) | undefined;
+    setLoading(true);
 
     const convoRef = doc(db, 'conversations', conversationId);
     const unsubscribeConvo = onSnapshot(convoRef, async docSnap => {
@@ -111,47 +92,42 @@ function ConversationPageContent() {
         const partnerId = convoData.participants.find(p => p !== user.uid);
         if (partnerId) {
           const partnerRef = doc(db, 'users', partnerId);
-          partnerUnsub = onSnapshot(partnerRef, snap => {
+          onSnapshot(partnerRef, snap => {
             setPartnerProfile(snap.data() as UserProfile);
           });
         }
+        setLoading(false);
       } else {
         router.push('/messages');
       }
     });
 
-    fetchInitialMessages();
-
-    // Setup listener for new messages only
-    const newMessagesQuery = query(
+    const messagesQuery = query(
       collection(db, 'conversations', conversationId, 'messages'),
       orderBy('createdAt', 'desc'),
-      limit(1)
+      limit(initialLimit)
     );
-    const unsubscribeNewMessages = onSnapshot(newMessagesQuery, snapshot => {
-       snapshot.docChanges().forEach(change => {
-           if(change.type === 'added') {
-               const newMessageData = {id: change.doc.id, ...change.doc.data()} as Message;
-               // Avoid adding duplicates on initial load
-               if(!messages.find(m => m.id === newMessageData.id)) {
-                   setMessages(prev => [...prev, newMessageData]);
-               }
-           }
-       })
-    });
 
+    const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
+      const msgs = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+        .reverse(); // Reverse to show latest at the bottom
+      setMessages(msgs);
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === initialLimit);
+    });
 
     return () => {
       unsubscribeConvo();
-      unsubscribeNewMessages();
-      if (partnerUnsub) {
-        partnerUnsub();
-      }
+      unsubscribeMessages();
     };
-  }, [conversationId, user, router, fetchInitialMessages, messages]);
+  }, [conversationId, user, router]);
+
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    if (messages.length) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
   }, [messages.length]);
 
   const loadMoreMessages = async () => {
@@ -247,8 +223,7 @@ function ConversationPageContent() {
             <UserAvatar
               name={partner.name}
               imageUrl={partner.avatar}
-              isOnline={partnerProfile?.isOnline}
-              lastSeen={partnerProfile?.lastSeen}
+              className="h-8 w-8"
             />
             <div>
               <p className="font-semibold">{partner.name}</p>
@@ -295,8 +270,6 @@ function ConversationPageContent() {
                     <UserAvatar
                       name={partner.name}
                       imageUrl={partner.avatar}
-                      isOnline={partnerProfile?.isOnline}
-                      lastSeen={partnerProfile?.lastSeen}
                       className="h-8 w-8"
                     />
                   )}

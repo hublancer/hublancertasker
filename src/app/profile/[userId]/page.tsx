@@ -94,11 +94,8 @@ export default function ProfilePage() {
     }, [userId]);
 
     const fetchReviews = useCallback(async (loadMore = false) => {
-        if (!userId || profile?.accountType !== 'tasker') {
-            setLoadingReviews(false);
-            setReviews([]);
-            return;
-        }
+        if (!userId) return;
+        
         if (!loadMore) {
             setLoadingReviews(true);
         }
@@ -128,11 +125,14 @@ export default function ProfilePage() {
         } finally {
             setLoadingReviews(false);
         }
-    }, [userId, profile, lastVisible]);
+    }, [userId, lastVisible]);
 
     useEffect(() => {
-        if (profile) {
+        if (profile?.accountType === 'tasker') {
             fetchReviews();
+        } else {
+            setLoadingReviews(false);
+            setReviews([]);
         }
     }, [profile, fetchReviews]);
 
@@ -259,6 +259,7 @@ export default function ProfilePage() {
                                                     <UserAvatar 
                                                         name={review.clientName} 
                                                         imageUrl={review.clientAvatar} 
+                                                        className="h-10 w-10"
                                                     />
                                                     <div className="flex-1">
                                                         <div className="flex justify-between items-center">

@@ -11,8 +11,9 @@ import {
   doc,
   updateDoc,
   serverTimestamp,
+  getDocs,
 } from 'firebase/firestore';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,6 +49,34 @@ function MessagesPageContent() {
   const [loading, setLoading] = useState(true);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
+  const fetchPartnerProfiles = useCallback(async (convos: Conversation[]) => {
+    const partnerIds = convos.map(c => c.participants.find(p => p !== user?.uid)).filter(id => !!id) as string[];
+    if (partnerIds.length === 0) return convos;
+
+    const uniquePartnerIds = [...new Set(partnerIds)];
+    const partners: Record<string, UserProfile> = {};
+
+    // Fetch in chunks of 10 to avoid firestore limitations
+    for (let i = 0; i < uniquePartnerIds.length; i += 10) {
+        const chunk = uniquePartnerIds.slice(i, i + 10);
+        const q = query(collection(db, 'users'), where('uid', 'in', chunk));
+        const snapshot = await getDocs(q);
+        snapshot.forEach(doc => {
+            partners[doc.id] = doc.data() as UserProfile;
+        });
+    }
+
+    return convos.map(convo => {
+        const partnerId = convo.participants.find(p => p !== user?.uid);
+        if (partnerId && partners[partnerId]) {
+            convo.partnerProfile = partners[partnerId];
+        }
+        return convo;
+    });
+
+  }, [user]);
+
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
@@ -66,27 +95,17 @@ function MessagesPageContent() {
     );
 
     const unsubscribe = onSnapshot(q, async snapshot => {
-      const convosPromises = snapshot.docs.map(async (docSnap) => {
-        const convoData = { id: docSnap.id, ...docSnap.data() } as Conversation;
-        const partnerId = convoData.participants.find(p => p !== user.uid);
+      const convosData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Conversation));
+      
+      const convosWithProfiles = await fetchPartnerProfiles(convosData);
 
-        if (partnerId) {
-            const partnerDoc = await docSnap.ref.collection('participants').doc(partnerId).get();
-            if (partnerDoc.exists()) {
-                convoData.partnerProfile = partnerDoc.data() as UserProfile;
-            }
-        }
-        return convoData;
-      });
-
-      const convos = await Promise.all(convosPromises);
-      setConversations(convos);
+      setConversations(convosWithProfiles);
       setLoading(false);
 
       // Handle redirect for admin disputes
       const taskId = searchParams.get('taskId');
       if (userProfile?.role === 'admin' && taskId) {
-        const convoForTask = convos.find(c => c.taskId === taskId);
+        const convoForTask = convosWithProfiles.find(c => c.taskId === taskId);
         if (convoForTask) {
           router.replace(`/messages/${convoForTask.id}`);
         }
@@ -94,7 +113,7 @@ function MessagesPageContent() {
     });
 
     return () => unsubscribe();
-  }, [user, authLoading, router, searchParams, userProfile]);
+  }, [user, authLoading, router, searchParams, userProfile, fetchPartnerProfiles]);
 
   if (authLoading || loading) {
     return (
@@ -181,8 +200,7 @@ function MessagesPageContent() {
                   <UserAvatar
                     name={partner.name}
                     imageUrl={partner.avatar}
-                    isOnline={partner.isOnline}
-                    lastSeen={partner.lastSeen}
+                    className="h-10 w-10"
                   />
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>
