@@ -44,6 +44,7 @@ import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
 import { Skeleton } from './ui/skeleton';
 import { type Task } from './TaskCard';
+import { Combobox } from './ui/combobox';
 
 
 const formSchema = z.object({
@@ -51,7 +52,7 @@ const formSchema = z.object({
   description: z
     .string()
     .min(20, 'Description must be at least 20 characters.'),
-  budget: z.coerce.number().positive('Budget must be a positive number.'),
+  budget: z.coerce.number().min(1000, 'Budget must be at least 1000.'),
   taskType: z.enum(['physical', 'online']),
   preferredDateTime: z.date({ required_error: 'A date is required.' }),
   category: z.string().min(1, { message: 'Please select a category.'}),
@@ -322,7 +323,7 @@ export default function PostTaskForm() {
               )}
             />
 
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <FormField
                 control={form.control}
                 name="budget"
@@ -330,7 +331,7 @@ export default function PostTaskForm() {
                   <FormItem>
                     <FormLabel>Budget ({settings?.currencySymbol ?? 'Rs'})</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="5000" {...field} value={field.value ?? ''} />
+                      <Input type="number" placeholder="1000" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -427,14 +428,36 @@ export default function PostTaskForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Location</FormLabel>
-                      <FormControl>
-                          <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="w-full">
-                              <LocateFixed className="mr-2 h-4 w-4" />
-                              Use current location and/or adjust pin on map
-                          </Button>
-                      </FormControl>
-                      <FormDescription>Click the button to set your location, then drag the pin on the map to refine it.</FormDescription>
-                      <FormMessage />
+                     <FormControl>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                           <Combobox
+                                items={pakistaniCities.map(c => ({ value: c.name.toLowerCase(), label: c.name }))}
+                                value={field.value || ''}
+                                onChange={(value) => {
+                                    const city = pakistaniCities.find(c => c.name.toLowerCase() === value);
+                                    if (city) {
+                                        field.onChange(city.name);
+                                        form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
+                                        setMapCenter(city.coordinates);
+                                        setMarkerPosition(city.coordinates);
+                                        setMapZoom(11);
+                                    } else {
+                                        field.onChange('');
+                                        form.setValue('coordinates', undefined);
+                                    }
+                                }}
+                                placeholder="Select a city..."
+                                searchPlaceholder="Search city..."
+                                notFoundText="City not found."
+                            />
+                            <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="flex-shrink-0">
+                                <LocateFixed className="mr-2 h-4 w-4" />
+                                Use current location
+                            </Button>
+                        </div>
+                     </FormControl>
+                     <FormDescription>Select a city or use the button to set your location, then drag the pin on the map to refine it.</FormDescription>
+                    <FormMessage />
                     </FormItem>
                   )}
                 />
