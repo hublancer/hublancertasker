@@ -13,6 +13,7 @@ import {
   orderBy,
   DocumentData,
   onSnapshot,
+  getDocs,
 } from 'firebase/firestore';
 import { useEffect, useState, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -154,6 +155,24 @@ export default function MyTasksPage() {
       console.log("Task updated, listener will refresh data.");
   };
 
+  const handleGoToChat = async (taskId: string) => {
+    const q = query(
+        collection(db, 'conversations'),
+        where('taskId', '==', taskId)
+    );
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+        router.push(`/messages/${snapshot.docs[0].id}`);
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Conversation not found for this task.',
+        });
+    }
+  };
+
+
   const renderSkeletons = () => (
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
@@ -209,6 +228,7 @@ export default function MyTasksPage() {
                 key={task.id}
                 task={task}
                 onSelect={() => handleTaskSelect(task)}
+                onChat={handleGoToChat}
               />
             ))
           ) : (
@@ -224,6 +244,7 @@ export default function MyTasksPage() {
                 key={task.id}
                 task={task}
                 onSelect={() => handleTaskSelect(task)}
+                onChat={handleGoToChat}
               />
             ))
           ) : (
@@ -239,6 +260,7 @@ export default function MyTasksPage() {
                 key={task.id}
                 task={task}
                 onSelect={() => handleTaskSelect(task)}
+                onChat={handleGoToChat}
               />
             ))
           ) : (
@@ -254,6 +276,7 @@ export default function MyTasksPage() {
                 key={task.id}
                 task={task}
                 onSelect={() => handleTaskSelect(task)}
+                onChat={handleGoToChat}
               />
             ))
           ) : (
@@ -278,6 +301,7 @@ export default function MyTasksPage() {
                 key={task.id}
                 task={task}
                 onSelect={() => handleTaskSelect(task)}
+                onChat={handleGoToChat}
               />
             ))
           ) : (
@@ -293,6 +317,7 @@ export default function MyTasksPage() {
                 key={task.id}
                 task={task}
                 onSelect={() => handleTaskSelect(task)}
+                onChat={handleGoToChat}
               />
             ))
           ) : (

@@ -7,8 +7,9 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Calendar, Users } from 'lucide-react';
+import { MapPin, Calendar, Users, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useRouter } from 'next/navigation';
 
 export type Task = {
   id: string;
@@ -32,10 +33,12 @@ export type Task = {
 interface TaskCardProps {
   task: Task;
   onSelect?: () => void;
+  onChat?: (taskId: string) => void;
 }
 
-export default function TaskCard({ task, onSelect }: TaskCardProps) {
-  const { settings } = useAuth();
+export default function TaskCard({ task, onSelect, onChat }: TaskCardProps) {
+  const { settings, user } = useAuth();
+  const router = useRouter();
 
   const handleViewTask = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -43,6 +46,15 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
       onSelect();
     }
   };
+  
+  const handleChatClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if(onChat) {
+          onChat(task.id);
+      }
+  }
+
+  const isMyTask = user?.uid === task.postedById || user?.uid === task.assignedToId;
 
   return (
     <Card
@@ -68,19 +80,20 @@ export default function TaskCard({ task, onSelect }: TaskCardProps) {
           <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
           <span>{task.date}</span>
         </div>
-        <div className="flex items-center text-sm text-muted-foreground">
-          <Users className="mr-2 h-4 w-4 flex-shrink-0" />
-          <span>
-            {task.offers} {task.offers === 1 ? 'offer' : 'offers'}
-          </span>
-        </div>
       </CardContent>
       <CardFooter className="flex justify-between items-center mt-auto pt-4">
         <div className="text-xl font-bold text-primary">
           {settings?.currencySymbol ?? 'Rs'}
           {task.price}
         </div>
-        <Button onClick={handleViewTask}>View Task</Button>
+        <div className="flex items-center gap-2">
+            {isMyTask && (task.status === 'assigned' || task.status === 'pending-completion') && (
+                 <Button variant="outline" size="icon" onClick={handleChatClick}>
+                    <MessageSquare className="h-4 w-4" />
+                </Button>
+            )}
+            <Button onClick={handleViewTask}>View Task</Button>
+        </div>
       </CardFooter>
     </Card>
   );

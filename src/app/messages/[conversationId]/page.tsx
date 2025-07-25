@@ -12,6 +12,9 @@ import {
   serverTimestamp,
   updateDoc,
   getDoc,
+  limit,
+  startAfter,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { useEffect, useState, useRef, Suspense } from 'react';
 import AppHeader from '@/components/AppHeader';
@@ -47,7 +50,14 @@ function ConversationPageContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastVisible, setLastVisible] =
+    useState<QueryDocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const initialLimit = 20;
 
   useEffect(() => {
     if (!conversationId || !user) {
@@ -93,14 +103,17 @@ function ConversationPageContent() {
 
     const messagesQuery = query(
       collection(db, 'conversations', conversationId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(initialLimit)
     );
 
     const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
-      const msgs = snapshot.docs.map(
-        doc => ({ id: doc.id, ...doc.data() } as Message)
-      );
+      const msgs = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+        .reverse();
       setMessages(msgs);
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === initialLimit);
     });
 
     return () => {
@@ -113,8 +126,29 @@ function ConversationPageContent() {
   }, [conversationId, user, router]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages]);
+
+  const loadMoreMessages = async () => {
+    if (!hasMore || loadingMore || !lastVisible) return;
+    setLoadingMore(true);
+
+    const moreMessagesQuery = query(
+      collection(db, 'conversations', conversationId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      startAfter(lastVisible),
+      limit(initialLimit)
+    );
+    const snapshot = await getDocs(moreMessagesQuery);
+    const newMsgs = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+      .reverse();
+
+    setMessages(prev => [...newMsgs, ...prev]);
+    setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+    setHasMore(snapshot.docs.length === initialLimit);
+    setLoadingMore(false);
+  };
 
   const handleSendMessage = async () => {
     if (
@@ -207,7 +241,19 @@ function ConversationPageContent() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-4 md:p-6">
+        <ScrollArea className="flex-1 p-4 md:p-6" viewportRef={scrollRef}>
+          {hasMore && (
+            <div className="text-center mb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMoreMessages}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Loading...' : 'Load Previous Messages'}
+              </Button>
+            </div>
+          )}
           <div className="space-y-6">
             {messages.map(msg => {
               const fromMe = msg.senderId === user?.uid;

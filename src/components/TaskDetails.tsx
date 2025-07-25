@@ -277,9 +277,10 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     try {
       const batch = writeBatch(db);
       const taskRef = doc(db, 'tasks', task.id);
+      const taskStatus = 'assigned';
 
       batch.update(taskRef, {
-        status: 'assigned',
+        status: taskStatus,
         assignedToId: offer.taskerId,
         assignedToName: offer.taskerName,
         price: offer.offerPrice, // Use the offer price as the final price
@@ -296,7 +297,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         lastMessage: 'Task assigned. Start conversation!',
         lastMessageAt: serverTimestamp(),
         clientAvatar: user?.photoURL || '',
-        taskerAvatar: offer.taskerAvatar || ''
+        taskerAvatar: offer.taskerAvatar || '',
+        taskStatus: taskStatus,
       });
 
       // Deduct funds from client's wallet
@@ -381,10 +383,21 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       const markTaskAsDone = async (completionDetails: any) => {
         try {
           const taskRef = doc(db, 'tasks', task.id);
+          const taskStatus = 'pending-completion';
           await updateDoc(taskRef, {
-            status: 'pending-completion',
+            status: taskStatus,
             completionDetails,
           });
+
+          // Update conversation status
+           const convoQuery = query(collection(db, "conversations"), where("taskId", "==", task.id));
+           const convoSnapshot = await getDocs(convoQuery);
+           if (!convoSnapshot.empty) {
+                const convoRef = convoSnapshot.docs[0].ref;
+                await updateDoc(convoRef, { taskStatus: taskStatus });
+           }
+
+
           await addNotification(task.postedById, `${task.assignedToName} marked "${task.title}" as done.`, `/task/${task.id}`);
           toast({ title: 'Task Marked as Done', description: 'The client has been notified to review your work.' });
           onTaskUpdate?.();
@@ -462,7 +475,16 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
             // 5. Update task status to 'completed'
             const taskRef = doc(db, 'tasks', task.id);
-            batch.update(taskRef, { status: 'completed' });
+            const taskStatus = 'completed';
+            batch.update(taskRef, { status: taskStatus });
+
+            // 6. Update conversation status
+            const convoQuery = query(collection(db, "conversations"), where("taskId", "==", task.id));
+            const convoSnapshot = await getDocs(convoQuery);
+            if (!convoSnapshot.empty) {
+                    const convoRef = convoSnapshot.docs[0].ref;
+                    batch.update(convoRef, { taskStatus: taskStatus });
+            }
 
             await batch.commit();
 
@@ -505,8 +527,11 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
              
             // Also update the tasker's profile with the new review count and average rating
             const taskerRef = doc(db, 'users', task.assignedToId);
-            const taskerDoc = await getDoc(taskerRef);
-            if(taskerDoc.exists()) {
+            await runTransaction(db, async (transaction) => {
+                const taskerDoc = await transaction.get(taskerRef);
+                if (!taskerDoc.exists()) {
+                    throw "Tasker document does not exist!";
+                }
                 const taskerData = taskerDoc.data();
                 const oldReviewCount = taskerData.reviewCount || 0;
                 const oldAverageRating = taskerData.averageRating || 0;
@@ -514,11 +539,11 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 const newReviewCount = oldReviewCount + 1;
                 const newAverageRating = ((oldAverageRating * oldReviewCount) + reviewRating) / newReviewCount;
                 
-                await updateDoc(taskerRef, {
-                    reviewCount: newReviewCount,
-                    averageRating: newAverageRating,
+                transaction.update(taskerRef, { 
+                    reviewCount: newReviewCount, 
+                    averageRating: newAverageRating 
                 });
-            }
+            });
 
 
             setHasAlreadyReviewed(true);
@@ -586,8 +611,10 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             const clientProfile = clientDoc.data();
             const taskerProfile = taskerDoc.data();
 
+            const batch = writeBatch(db);
+
             const newDisputeRef = doc(collection(db, 'disputes'));
-            await setDoc(newDisputeRef, {
+            batch.set(newDisputeRef, {
                 taskId: task.id,
                 taskTitle: task.title,
                 taskPrice: task.price,
@@ -601,7 +628,17 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 createdAt: serverTimestamp(),
             });
 
-            await updateDoc(doc(db, 'tasks', task.id), { status: 'disputed' });
+            const taskStatus = 'disputed';
+            batch.update(doc(db, 'tasks', task.id), { status: taskStatus });
+
+            const convoQuery = query(collection(db, "conversations"), where("taskId", "==", task.id));
+            const convoSnapshot = await getDocs(convoQuery);
+            if (!convoSnapshot.empty) {
+                const convoRef = convoSnapshot.docs[0].ref;
+                batch.update(convoRef, { taskStatus: taskStatus });
+            }
+
+            await batch.commit();
             
             toast({ title: 'Dispute Raised', description: 'An admin will review your case shortly.' });
             setDisputeReason('');

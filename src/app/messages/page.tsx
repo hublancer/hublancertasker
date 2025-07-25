@@ -37,6 +37,7 @@ export interface Conversation {
   taskerAvatar?: string;
   clientIsOnline?: boolean;
   taskerIsOnline?: boolean;
+  taskStatus: 'open' | 'assigned' | 'completed' | 'pending-completion' | 'disputed';
 }
 
 function MessagesPageContent() {
@@ -61,6 +62,7 @@ function MessagesPageContent() {
     const q = query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', user.uid),
+      where('taskStatus', 'in', ['assigned', 'pending-completion']),
       orderBy('lastMessageAt', 'desc')
     );
 
@@ -153,7 +155,7 @@ function MessagesPageContent() {
               <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-muted/20">
                 <Briefcase className="w-16 h-16 text-muted-foreground mb-4" />
                 <h2 className="text-xl font-bold font-headline">
-                  No conversations yet
+                  No active conversations
                 </h2>
                 <p className="text-muted-foreground">
                   When a task is assigned, your conversation will appear here.
