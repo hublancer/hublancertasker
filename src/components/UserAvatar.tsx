@@ -3,7 +3,6 @@
 
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Timestamp } from 'firebase/firestore';
 
 interface UserAvatarProps {
   name?: string;
