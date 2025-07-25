@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ArrowDownToLine, X } from 'lucide-react';
-import Image from 'next/image';
 
 declare global {
   interface WindowEventMap {
@@ -82,7 +81,9 @@ export const InstallPwaDialog = () => {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex justify-center">
-             <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={64} height={64} className="mb-4 rounded-lg" />
+             <div className="bg-primary text-primary-foreground rounded-lg p-4 mb-4">
+                <ArrowDownToLine className="h-8 w-8" />
+             </div>
           </div>
           <DialogTitle className="text-center text-2xl font-headline">Install Hublancer</DialogTitle>
           <DialogDescription className="text-center">
