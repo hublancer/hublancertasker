@@ -85,9 +85,9 @@ export default function PostTaskForm() {
     defaultValues: {
       title: '',
       description: '',
-      budget: undefined,
+      budget: '' as any, // Initialize as empty string to be a controlled component
       taskType: 'physical',
-      preferredDateTime: undefined,
+      preferredDateTime: '', // Initialize as empty string
       category: 'General',
       location: '',
       coordinates: undefined,
@@ -292,7 +292,7 @@ export default function PostTaskForm() {
                   <FormItem>
                     <FormLabel>Budget ({settings?.currencySymbol ?? 'Rs'})</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="1000" {...field} value={field.value ?? ''} />
+                      <Input type="number" placeholder="1000" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
