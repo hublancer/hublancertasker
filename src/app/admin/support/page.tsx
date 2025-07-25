@@ -180,5 +180,3 @@ export default function AdminSupportPage() {
         </Card>
     );
 }
-
-    

@@ -81,7 +81,7 @@ export default function ProfilePage() {
         setLoading(true);
         const docRef = doc(db, 'users', userId);
         
-        getDoc(docRef).then((docSnap) => {
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
                 setProfile(docSnap.data() as UserProfile);
             } else {
@@ -91,6 +91,7 @@ export default function ProfilePage() {
             setLoading(false);
         });
 
+        return () => unsubscribe();
     }, [userId]);
 
     const fetchReviews = useCallback(async (loadMore = false) => {
@@ -295,5 +296,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
