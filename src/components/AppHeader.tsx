@@ -42,11 +42,10 @@ interface Notification {
 
 
 const AppHeader = () => {
-  const { user, userProfile, settings, loading, playNotificationSound, playMessageSound } = useAuth();
+  const { user, userProfile, settings, loading, playNotificationSound } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
-
+  
   const pathname = usePathname();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
@@ -70,36 +69,11 @@ const AppHeader = () => {
         setNotifications(notifs);
     });
 
-    // Unread messages listener
-    const setupMessageListener = async () => {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const lastReadTimestamp = userDoc.data()?.lastMessageReadTimestamp || new Timestamp(0, 0);
-
-        const conversationsQuery = query(
-            collection(db, 'conversations'), 
-            where('participants', 'array-contains', user.uid),
-            where('lastMessageAt', '>', lastReadTimestamp)
-        );
-
-        const unsubscribeConversations = onSnapshot(conversationsQuery, (snapshot) => {
-            const hasNewMessages = snapshot.docChanges().some(change => change.type === 'added');
-            if (hasNewMessages) {
-                 playMessageSound();
-            }
-            setUnreadMessagesCount(snapshot.size);
-        });
-        return unsubscribeConversations;
-    }
-    
-    const messageUnsubscribePromise = setupMessageListener();
-
-
     return () => {
         unsubscribeNotifications();
-        messageUnsubscribePromise.then(unsub => unsub());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, playNotificationSound, playMessageSound]);
+  }, [user, playNotificationSound]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -115,7 +89,7 @@ const AppHeader = () => {
   const navLinks = [
     { href: '/', label: 'Browse Tasks' },
     { href: '/my-tasks', label: 'My Tasks' },
-    { href: '/messages', label: 'Messages', badge: unreadMessagesCount, icon: MessageSquare },
+    { href: '/messages', label: 'Messages', icon: MessageSquare },
   ];
 
   const renderProfileButton = () => {
@@ -242,11 +216,6 @@ const AppHeader = () => {
             )}
           >
             {link.label}
-            {link.badge && link.badge > 0 && (
-               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                  {link.badge}
-              </span>
-            )}
           </Link>
         ))}
       </nav>
@@ -292,11 +261,6 @@ const AppHeader = () => {
                     )}
                   >
                      {link.label}
-                     {link.badge && link.badge > 0 && (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                            {link.badge}
-                        </span>
-                     )}
                   </Link>
                 ))}
               </div>
@@ -351,5 +315,3 @@ const AppHeader = () => {
 };
 
 export default AppHeader;
-
-    

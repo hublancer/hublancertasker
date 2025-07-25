@@ -25,7 +25,6 @@ export interface UserProfile {
   wallet?: {
     balance: number;
   };
-  lastMessageReadTimestamp?: any;
   isOnline?: boolean;
   lastSeen?: any;
 }
@@ -43,7 +42,6 @@ interface AuthContextType {
   loading: boolean;
   addNotification: (userId: string, message: string, link: string) => Promise<void>;
   playNewTaskSound: () => void;
-  playMessageSound: () => void;
   playNotificationSound: () => void;
   revalidateProfile: () => Promise<void>;
 }
@@ -55,7 +53,6 @@ const AuthContext = createContext<AuthContextType>({
     loading: true,
     addNotification: async () => {},
     playNewTaskSound: () => {},
-    playMessageSound: () => {},
     playNotificationSound: () => {},
     revalidateProfile: async () => {},
 });
@@ -67,7 +64,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const [playNewTaskSound] = useSound({ frequency: 300, type: 'triangle' });
-  const [playMessageSound] = useSound({ frequency: 440, type: 'sine' });
   const [playNotificationSound] = useSound({ frequency: 520, type: 'square', duration: 0.2 });
   
   const revalidateProfile = useCallback(async () => {
@@ -239,7 +235,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       settings,
       addNotification,
       playNewTaskSound,
-      playMessageSound,
       playNotificationSound,
       revalidateProfile,
   };
@@ -252,5 +247,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-
-    

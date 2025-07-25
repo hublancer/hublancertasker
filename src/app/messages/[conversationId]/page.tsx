@@ -41,7 +41,7 @@ interface Message {
 }
 
 function ConversationPageContent() {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, addNotification } = useAuth();
   const params = useParams();
   const conversationId = params.conversationId as string;
   const router = useRouter();
@@ -157,6 +157,7 @@ function ConversationPageContent() {
       !newMessage.trim() ||
       !conversation ||
       !user ||
+      !userProfile ||
       task?.status === 'completed'
     )
       return;
@@ -176,6 +177,12 @@ function ConversationPageContent() {
         lastMessage: messageText,
         lastMessageAt: serverTimestamp(),
       });
+      
+      const partnerId = conversation.participants.find(p => p !== user.uid);
+      if(partnerId) {
+        await addNotification(partnerId, `New message from ${userProfile.name} in "${conversation.taskTitle}"`, `/messages/${conversation.id}`);
+      }
+
     } catch (error) {
       console.error('Error sending message: ', error);
     }
