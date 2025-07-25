@@ -5,7 +5,6 @@ import { useState, useEffect, createContext, useContext, ReactNode, useCallback 
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc, setDoc, query, where, updateDoc, Timestamp } from 'firebase/firestore';
-import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from "firebase/database";
 import { useSound } from './use-sound';
 
 export interface UserProfile {
