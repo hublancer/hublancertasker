@@ -96,14 +96,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const settingsDocRef = doc(db, 'settings', 'platform');
-    const settingsUnsubscribe = onSnapshot(settingsDocRef, (doc) => {
-        if (doc.exists()) {
-            setSettings(doc.data() as PlatformSettings);
-        } else {
-            setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
+    const fetchSettings = async () => {
+        try {
+            const settingsDoc = await getDoc(doc(db, 'settings', 'platform'));
+            if (settingsDoc.exists()) {
+                setSettings(settingsDoc.data() as PlatformSettings);
+            } else {
+                setSettings({ commissionRate: 0.1, currencySymbol: 'Rs' });
+            }
+        } catch (error) {
+            console.error("Error fetching settings:", error);
         }
-    });
+    }
+    fetchSettings();
 
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true);
@@ -117,36 +122,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUserProfile(JSON.parse(cachedProfile));
         }
         
-        // Firestore listener for profile
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        const userUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+        try {
+            const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+            if (userDoc.exists()) {
+                const profileData = { uid: userDoc.id, ...userDoc.data() } as UserProfile;
                 setUserProfile(profileData);
                 sessionStorage.setItem(`userProfile-${currentUser.uid}`, JSON.stringify(profileData));
-            } else {
-                 console.log("User doc doesn't exist yet for UID:", currentUser.uid);
             }
-            setLoading(false);
-        });
-
-        return () => {
-            userUnsubscribe();
-            settingsUnsubscribe();
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
         }
 
       } else {
         setUser(null);
         setUserProfile(null);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
     return () => {
       authUnsubscribe();
-      settingsUnsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = {

@@ -109,83 +109,52 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
   const [disputeReason, setDisputeReason] = useState("");
   const [isDisputing, setIsDisputing] = useState(false);
 
-  useEffect(() => {
-    if (!task?.id) return;
-    setOffers([]);
-    setQuestions([]);
-    setShowReviewForm(false);
-    setHasAlreadyReviewed(false);
-    setLoadingOffers(true);
-    setLoadingQuestions(true);
+  const fetchData = async () => {
+        if (!task?.id) return;
+        setLoadingOffers(true);
+        setLoadingQuestions(true);
 
-    const fetchTaskOwnerProfile = async () => {
-        const ownerDoc = await getDoc(doc(db, 'users', task.postedById));
-        if (ownerDoc.exists()) {
-            setTaskOwnerProfile(ownerDoc.data() as UserProfile);
+        try {
+            // Fetch task owner profile
+            const ownerDoc = await getDoc(doc(db, 'users', task.postedById));
+            if (ownerDoc.exists()) setTaskOwnerProfile(ownerDoc.data() as UserProfile);
+
+            // Fetch offers
+            const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
+            const offersSnapshot = await getDocs(offersQuery);
+            const offersDataPromises = offersSnapshot.docs.map(async (docSnap) => {
+                const offerData = docSnap.data() as Omit<Offer, 'id'>;
+                const taskerProfileDoc = await getDoc(doc(db, 'users', offerData.taskerId));
+                const taskerProfile = taskerProfileDoc.data() as UserProfile;
+                return { id: docSnap.id, ...offerData, taskerRating: taskerProfile?.averageRating || 0, taskerReviewCount: taskerProfile?.reviewCount || 0, taskerProfile: taskerProfile } as Offer;
+            });
+            setOffers(await Promise.all(offersDataPromises));
+        } catch (e) { console.error("Error fetching offers or owner", e)}
+        finally { setLoadingOffers(false); }
+
+        try {
+            // Fetch questions
+            const questionsQuery = query(collection(db, 'tasks', task.id, 'questions'));
+            const questionsSnapshot = await getDocs(questionsQuery);
+            const questionsDataPromises = questionsSnapshot.docs.map(async (docSnap) => {
+                const questionData = docSnap.data() as Omit<Question, 'id'>;
+                const userProfileDoc = await getDoc(doc(db, 'users', questionData.userId));
+                return { id: docSnap.id, ...questionData, userProfile: userProfileDoc.data() as UserProfile } as Question;
+            });
+            setQuestions(await Promise.all(questionsDataPromises));
+        } catch (e) { console.error("Error fetching questions", e)}
+        finally { setLoadingQuestions(false) }
+
+        // Check for existing review
+        if (user && task.status === 'completed' && task.assignedToId) {
+            const reviewQuery = query(collection(db, 'reviews'), where('taskId', '==', task.id), where('clientId', '==', user.uid));
+            const reviewSnapshot = await getDocs(reviewQuery);
+            if (!reviewSnapshot.empty) setHasAlreadyReviewed(true);
         }
-    }
-    fetchTaskOwnerProfile();
+  }
 
-
-    const offersQuery = query(collection(db, 'tasks', task.id, 'offers'));
-    const unsubscribeOffers = onSnapshot(offersQuery, async (snapshot) => {
-        const offersDataPromises = snapshot.docs.map(async (docSnap) => {
-            const offerData = docSnap.data() as Omit<Offer, 'id'>;
-            const taskerProfileDoc = await getDoc(doc(db, 'users', offerData.taskerId));
-            const taskerProfile = taskerProfileDoc.data() as UserProfile;
-
-            return { 
-                id: docSnap.id, 
-                ...offerData,
-                taskerRating: taskerProfile?.averageRating || 0,
-                taskerReviewCount: taskerProfile?.reviewCount || 0,
-                taskerProfile: taskerProfile
-            } as Offer;
-        });
-        const offersData = await Promise.all(offersDataPromises);
-        setOffers(offersData);
-        setLoadingOffers(false);
-    }, (error) => {
-        console.error("Error fetching offers:", error);
-        setLoadingOffers(false);
-    });
-
-    const questionsQuery = query(collection(db, 'tasks', task.id, 'questions'));
-    const unsubscribeQuestions = onSnapshot(questionsQuery, async (snapshot) => {
-        const questionsDataPromises = snapshot.docs.map(async (docSnap) => {
-             const questionData = docSnap.data() as Omit<Question, 'id'>;
-             const userProfileDoc = await getDoc(doc(db, 'users', questionData.userId));
-             const userProfile = userProfileDoc.data() as UserProfile;
-
-             return {
-                 id: docSnap.id,
-                 ...questionData,
-                 userProfile: userProfile
-             } as Question
-        });
-        const questionsData = await Promise.all(questionsDataPromises);
-        setQuestions(questionsData);
-        setLoadingQuestions(false);
-    }, (error) => {
-        console.error("Error fetching questions:", error);
-        setLoadingQuestions(false);
-    });
-
-    // Check if review exists
-    if (user && task.status === 'completed' && task.assignedToId) {
-        const reviewQuery = query(collection(db, 'reviews'), where('taskId', '==', task.id), where('clientId', '==', user.uid));
-        getDocs(reviewQuery).then(snapshot => {
-            if (!snapshot.empty) {
-                setHasAlreadyReviewed(true);
-            }
-        });
-    }
-
-
-    return () => {
-        unsubscribeOffers();
-        unsubscribeQuestions();
-    }
+  useEffect(() => {
+    fetchData();
   }, [task.id, user, task.status, task.assignedToId, task.postedById]);
 
   const handleMakeOffer = async () => {
@@ -223,6 +192,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       }
       setOfferComment('');
       setOfferPrice(task.price);
+      fetchData();
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -255,6 +225,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         });
         setQuestionText('');
         toast({ title: "Question submitted successfully!" });
+        fetchData();
     } catch (error) {
         toast({ variant: 'destructive', title: "Failed to submit question." });
         console.error("Error submitting question:", error);
@@ -353,10 +324,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
   const handleCancelOffer = async (offerId: string) => {
     try {
-        // The cloud function will handle decrementing the offer count
         await deleteDoc(doc(db, 'tasks', task.id, 'offers', offerId));
-        if(onTaskUpdate) onTaskUpdate(task as Task);
         toast({ title: 'Offer cancelled.' });
+        fetchData();
     } catch (error) {
         console.error("Error cancelling offer: ", error);
         toast({ variant: 'destructive', title: 'Could not cancel offer.' });
@@ -916,9 +886,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 <div className="flex items-start p-3 rounded-lg bg-muted/50">
                     <UserAvatar 
                       name={task.postedBy} 
-                      imageUrl={taskOwnerProfile?.photoURL} 
-                      isOnline={taskOwnerProfile?.isOnline}
-                      lastSeen={taskOwnerProfile?.lastSeen}
+                      imageUrl={taskOwnerProfile?.photoURL}
                       className="h-10 w-10 mr-3" />
                     <div>
                     <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
@@ -1012,8 +980,6 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                               <UserAvatar 
                                 name={offer.taskerName} 
                                 imageUrl={offer.taskerAvatar} 
-                                isOnline={offer.taskerProfile?.isOnline}
-                                lastSeen={offer.taskerProfile?.lastSeen}
                                 className="h-12 w-12 cursor-pointer"
                               />
                             </Link>
@@ -1086,8 +1052,6 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                           <UserAvatar 
                             name={q.userName} 
                             imageUrl={q.userAvatar} 
-                            isOnline={q.userProfile?.isOnline}
-                            lastSeen={q.userProfile?.lastSeen}
                             className="h-8 w-8" />
                           <p className="font-semibold text-sm">{q.userName}</p>
                         </div>

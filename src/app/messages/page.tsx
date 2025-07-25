@@ -8,6 +8,8 @@ import {
   where,
   orderBy,
   getDocs,
+  getDoc,
+  doc,
 } from 'firebase/firestore';
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
@@ -56,7 +58,6 @@ function MessagesPageContent() {
         const q = query(
           collection(db, 'conversations'),
           where('participants', 'array-contains', user.uid),
-          where('taskStatus', 'in', ['assigned', 'pending-completion', 'disputed']),
           orderBy('lastMessageAt', 'desc')
         );
 
@@ -67,7 +68,7 @@ function MessagesPageContent() {
         const convosWithProfiles = await Promise.all(convosData.map(async convo => {
             const partnerId = convo.participants.find(p => p !== user.uid);
             if (partnerId) {
-                const partnerDoc = await getDoc(collection(db, 'users', partnerId));
+                const partnerDoc = await getDoc(doc(db, 'users', partnerId));
                 if (partnerDoc.exists()) {
                     convo.partnerProfile = partnerDoc.data() as UserProfile;
                 }

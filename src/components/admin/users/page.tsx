@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,12 +24,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+    const fetchUsers = async () => {
+        setLoading(true);
+        const snapshot = await getDocs(collection(db, 'users'));
         const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
         setUsers(usersData);
         setLoading(false);
-    });
-    return () => unsub();
+    }
+    fetchUsers();
   }, []);
 
   if (loading) {
@@ -62,7 +64,6 @@ export default function AdminUsersPage() {
                     <UserAvatar 
                         name={user.name} 
                         imageUrl={user.photoURL} 
-                        isOnline={user.isOnline}
                         className="h-9 w-9"
                     />
                     <div className="grid gap-0.5">
@@ -102,3 +103,4 @@ export default function AdminUsersPage() {
     </Card>
   );
 }
+
