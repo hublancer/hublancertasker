@@ -18,6 +18,21 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js').then(registration => {
+                      console.log('SW registered: ', registration);
+                    }).catch(registrationError => {
+                      console.log('SW registration failed: ', registrationError);
+                    });
+                  });
+                }
+              `,
+            }}
+          />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
