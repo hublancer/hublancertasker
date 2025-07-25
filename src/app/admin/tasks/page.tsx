@@ -1,31 +1,58 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, startAfter, limit, DocumentSnapshot } from 'firebase/firestore';
 import type { Task } from '@/components/TaskCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
 
 type FullTask = Task & { createdAt: any, budget: number };
+
+const PAGE_SIZE = 20;
 
 export default function AdminTasksPage() {
   const { settings } = useAuth();
   const [tasks, setTasks] = useState<FullTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+
+  const fetchTasks = useCallback(async (loadMore = false) => {
+    if (loadMore) {
+        setLoadingMore(true);
+    } else {
+        setLoading(true);
+    }
+
+    try {
+        let q = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'), limit(PAGE_SIZE));
+
+        if (loadMore && lastVisible) {
+            q = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(PAGE_SIZE));
+        }
+
+        const querySnapshot = await getDocs(q);
+        const tasksData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FullTask));
+        
+        setTasks(prev => loadMore ? [...prev, ...tasksData] : tasksData);
+        setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+        setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+    } catch (error) {
+        console.error("Error fetching tasks:", error);
+    } finally {
+        setLoading(false);
+        setLoadingMore(false);
+    }
+  }, [lastVisible]);
 
   useEffect(() => {
-    const fetchTasks = async () => {
-      setLoading(true);
-      const q = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const tasksData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FullTask));
-      setTasks(tasksData);
-      setLoading(false);
-    };
     fetchTasks();
   }, []);
 
@@ -86,6 +113,13 @@ export default function AdminTasksPage() {
             ))}
           </TableBody>
         </Table>
+        {hasMore && (
+            <div className="mt-4 text-center">
+                <Button onClick={() => fetchTasks(true)} disabled={loadingMore}>
+                    {loadingMore ? 'Loading...' : 'Load More'}
+                </Button>
+            </div>
+        )}
       </CardContent>
     </Card>
   );

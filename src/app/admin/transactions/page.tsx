@@ -1,10 +1,12 @@
+
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { collection, getDocs, orderBy, query, Timestamp, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
+import { useEffect, useState, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 
 interface PlatformTransaction {
     id: string;
@@ -17,29 +19,57 @@ interface PlatformTransaction {
     timestamp: Timestamp;
 }
 
+const PAGE_SIZE = 20;
 
 export default function AdminTransactionsPage() {
     const { settings } = useAuth();
     const [transactions, setTransactions] = useState<PlatformTransaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalRevenue, setTotalRevenue] = useState(0);
 
-    useEffect(() => {
-        const fetchTransactions = async () => {
+    const fetchTransactions = useCallback(async (loadMore = false) => {
+        if (loadMore) {
+            setLoadingMore(true);
+        } else {
             setLoading(true);
-            const q = query(collection(db, 'platform_transactions'), orderBy('timestamp', 'desc'));
+            const allTransactionsSnapshot = await getDocs(collection(db, 'platform_transactions'));
+            const total = allTransactionsSnapshot.docs.reduce((acc, t) => acc + t.data().amount, 0);
+            setTotalRevenue(total);
+        }
+
+        try {
+            let q = query(collection(db, 'platform_transactions'), orderBy('timestamp', 'desc'), limit(PAGE_SIZE));
+
+            if (loadMore && lastVisible) {
+                q = query(collection(db, 'platform_transactions'), orderBy('timestamp', 'desc'), startAfter(lastVisible), limit(PAGE_SIZE));
+            }
+
             const querySnapshot = await getDocs(q);
             const transactionsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlatformTransaction));
-            setTransactions(transactionsData);
+
+            setTransactions(prev => loadMore ? [...prev, ...transactionsData] : transactionsData);
+            setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+            setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+
+        } catch (error) {
+            console.error("Error fetching transactions:", error);
+        } finally {
             setLoading(false);
-        };
+            setLoadingMore(false);
+        }
+    }, [lastVisible]);
+
+
+    useEffect(() => {
         fetchTransactions();
     }, []);
 
     if (loading) {
         return <div>Loading transactions...</div>;
     }
-
-    const totalRevenue = transactions.reduce((acc, t) => acc + t.amount, 0);
 
     return (
         <div className="space-y-6">
@@ -83,6 +113,13 @@ export default function AdminTransactionsPage() {
                             ))}
                         </TableBody>
                     </Table>
+                     {hasMore && (
+                        <div className="mt-4 text-center">
+                            <Button onClick={() => fetchTransactions(true)} disabled={loadingMore}>
+                                {loadingMore ? 'Loading...' : 'Load More'}
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

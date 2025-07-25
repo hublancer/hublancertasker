@@ -106,7 +106,13 @@ export function DepositModal({ open, onOpenChange, onSuccess }: DepositModalProp
     };
     
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={(isOpen) => {
+            if(!isOpen) {
+                form.reset();
+                setSelectedGateway(null);
+            }
+            onOpenChange(isOpen)
+        }}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Deposit Funds</DialogTitle>

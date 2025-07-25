@@ -14,8 +14,11 @@ import {
   DocumentData,
   onSnapshot,
   getDocs,
+  limit,
+  startAfter,
+  DocumentSnapshot,
 } from 'firebase/firestore';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { LoginDialog } from '@/components/LoginDialog';
@@ -24,122 +27,143 @@ import TaskDetails from '@/components/TaskDetails';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+type TaskStatus = 'open' | 'assigned' | 'pending-completion' | 'completed';
+const PAGE_SIZE = 10;
+
+const TaskList = ({
+  tasks,
+  onSelect,
+  onChat,
+  onLoadMore,
+  hasMore,
+  loading,
+  emptyMessage
+}: {
+  tasks: Task[],
+  onSelect: (task: Task) => void,
+  onChat: (taskId: string) => void,
+  onLoadMore: () => void,
+  hasMore: boolean,
+  loading: boolean,
+  emptyMessage: string
+}) => {
+  return (
+    <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
+      {tasks.length > 0 ? (
+        tasks.map(task => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            onSelect={() => onSelect(task)}
+            onChat={onChat}
+          />
+        ))
+      ) : (
+        <p className="text-center text-muted-foreground py-10">{emptyMessage}</p>
+      )}
+      {hasMore && (
+        <div className="text-center md:col-span-2 lg:col-span-1">
+          <Button onClick={onLoadMore} disabled={loading}>
+            {loading ? 'Loading...' : 'Load More'}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MyTasksPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Combined task list
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
-
-  const [loading, setLoading] = useState(true);
+  const [taskLists, setTaskLists] = useState<Record<TaskStatus, Task[]>>({
+    open: [],
+    assigned: [],
+    'pending-completion': [],
+    completed: [],
+  });
+  const [lastVisible, setLastVisible] = useState<Record<TaskStatus, DocumentSnapshot | null>>({
+    open: null,
+    assigned: null,
+    'pending-completion': null,
+    completed: null,
+  });
+   const [hasMore, setHasMore] = useState<Record<TaskStatus, boolean>>({
+    open: true,
+    assigned: true,
+    'pending-completion': true,
+    completed: true,
+  });
+  const [loading, setLoading] = useState<Record<TaskStatus, boolean>>({
+    open: true,
+    assigned: true,
+    'pending-completion': true,
+    completed: true,
+  });
+  
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user || !userProfile) {
-      setLoading(false);
-      return;
-    }
+  const fetchTasks = useCallback(async (status: TaskStatus) => {
+    if (!user || !userProfile) return;
 
-    setLoading(true);
+    setLoading(prev => ({...prev, [status]: true}));
 
     const toTask = (doc: DocumentData): Task => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title,
-        location: data.location,
-        date:
-          data.preferredDateTime instanceof Timestamp
-            ? data.preferredDateTime.toDate().toLocaleDateString()
-            : data.preferredDateTime,
-        price: data.budget,
-        offers: data.offerCount || 0,
-        type: data.taskType,
-        status: data.status,
-        category: data.category || 'General',
-        description: data.description,
-        postedBy: data.postedByName,
-        postedById: data.postedById,
-        assignedToId: data.assignedToId,
-        assignedToName: data.assignedToName,
-        coordinates: data.coordinates || null,
-        createdAt:
-          data.createdAt instanceof Timestamp
-            ? data.createdAt.toDate().toISOString()
-            : new Date().toISOString(),
-      } as Task;
+        const data = doc.data();
+        return {
+            id: doc.id,
+            title: data.title, location: data.location,
+            date: data.preferredDateTime instanceof Timestamp ? data.preferredDateTime.toDate().toLocaleDateString() : data.preferredDateTime,
+            price: data.budget, offers: data.offerCount || 0, type: data.taskType, status: data.status,
+            category: data.category || 'General', description: data.description, postedBy: data.postedByName,
+            postedById: data.postedById, assignedToId: data.assignedToId, assignedToName: data.assignedToName,
+            coordinates: data.coordinates || null,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        } as Task;
     };
 
-    let q;
-    if (userProfile.accountType === 'client') {
-      q = query(
+    let fieldToQuery = userProfile.accountType === 'client' ? 'postedById' : 'assignedToId';
+    let q = query(
         collection(db, 'tasks'),
-        where('postedById', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-    } else {
-      q = query(
-        collection(db, 'tasks'),
-        where('assignedToId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-    }
-
-    const unsubscribe = onSnapshot(
-      q,
-      snapshot => {
-        const tasksData = snapshot.docs.map(toTask);
-        setAllTasks(tasksData);
-        setLoading(false);
-      },
-      error => {
-        console.error('Error fetching tasks: ', error);
-        setLoading(false);
-      }
+        where(fieldToQuery, '==', user.uid),
+        where('status', '==', status),
+        orderBy('createdAt', 'desc'),
+        limit(PAGE_SIZE)
     );
+    
+    if (lastVisible[status]) {
+      q = query(q, startAfter(lastVisible[status]));
+    }
+    
+    try {
+        const snapshot = await getDocs(q);
+        const newTasks = snapshot.docs.map(toTask);
+        
+        setTaskLists(prev => ({ ...prev, [status]: [...prev[status], ...newTasks]}));
+        setLastVisible(prev => ({ ...prev, [status]: snapshot.docs[snapshot.docs.length - 1] || null }));
+        setHasMore(prev => ({ ...prev, [status]: newTasks.length === PAGE_SIZE }));
+    } catch (error) {
+        console.error("Error fetching tasks:", error);
+    } finally {
+         setLoading(prev => ({...prev, [status]: false}));
+    }
+  }, [user, userProfile]);
 
-    return () => unsubscribe();
-  }, [user, userProfile, authLoading]);
-
-  // Update selected task with fresh data
   useEffect(() => {
-    if (selectedTask) {
-        const freshTask = allTasks.find(t => t.id === selectedTask.id);
-        if (freshTask) {
-            setSelectedTask(freshTask);
-        } else {
-            // Task might have been deleted or status changed, so deselect it
-            setSelectedTask(null);
-        }
+    if (authLoading || !user) return;
+    // Initial fetch for all relevant statuses
+    if(userProfile?.accountType === 'client') {
+      fetchTasks('open');
+      fetchTasks('assigned');
+      fetchTasks('pending-completion');
+      fetchTasks('completed');
+    } else {
+      fetchTasks('assigned');
+      fetchTasks('completed');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTasks])
-
-  // Memoized lists for rendering
-  const {
-    openPostedTasks,
-    assignedPostedTasks,
-    pendingCompletionPostedTasks,
-    completedPostedTasks,
-  } = useMemo(() => {
-    if (userProfile?.accountType !== 'client') return { openPostedTasks: [], assignedPostedTasks: [], pendingCompletionPostedTasks: [], completedPostedTasks: [] };
-    return {
-      openPostedTasks: allTasks.filter(t => t.status === 'open'),
-      assignedPostedTasks: allTasks.filter(t => t.status === 'assigned'),
-      pendingCompletionPostedTasks: allTasks.filter(t => t.status === 'pending-completion'),
-      completedPostedTasks: allTasks.filter(t => t.status === 'completed'),
-    };
-  }, [allTasks, userProfile]);
-
-  const { assignedToMeTasks, completedByMeTasks } = useMemo(() => {
-    if (userProfile?.accountType !== 'tasker') return { assignedToMeTasks: [], completedByMeTasks: [] };
-    return {
-      assignedToMeTasks: allTasks.filter(t => t.status === 'assigned' || t.status === 'pending-completion'),
-      completedByMeTasks: allTasks.filter(t => t.status === 'completed'),
-    };
-  }, [allTasks, userProfile]);
+  }, [authLoading, user, userProfile]);
 
   const handleTaskSelect = (task: Task) => {
     setSelectedTask(task);
@@ -150,16 +174,13 @@ export default function MyTasksPage() {
   };
 
   const handleTaskUpdate = () => {
-      // The snapshot listener will automatically update the task list.
-      // We don't need to manually refetch.
-      console.log("Task updated, listener will refresh data.");
+      // This function could trigger a re-fetch of the specific list if needed,
+      // but for now, we can rely on user navigation to refresh data.
   };
 
   const handleGoToChat = async (taskId: string) => {
-    const q = query(
-        collection(db, 'conversations'),
-        where('taskId', '==', taskId)
-    );
+    if(!user) return;
+    const q = query(collection(db, 'conversations'), where('taskId', '==', taskId), where('participants', 'array-contains', user.uid));
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
         router.push(`/messages/${snapshot.docs[0].id}`);
@@ -173,27 +194,16 @@ export default function MyTasksPage() {
   };
 
 
-  const renderSkeletons = () => (
-    <div className="flex flex-col min-h-screen bg-background">
-      <AppHeader />
-      <div className="container mx-auto py-12 px-4 md:px-6">
-        <Skeleton className="h-8 w-48 mb-4" />
-        <Skeleton className="h-6 w-64 mb-8" />
-        <div className="flex gap-4 mb-6">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-24" />
-        </div>
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-64 w-full" />
+  if (authLoading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <AppHeader />
+        <div className="container mx-auto py-12 px-4 md:px-6">
+          <Skeleton className="h-8 w-48 mb-4" />
+          <Skeleton className="h-6 w-64 mb-8" />
         </div>
       </div>
-    </div>
-  );
-
-  if (authLoading || loading) {
-    return renderSkeletons();
+    );
   }
 
   if (!user) {
@@ -221,112 +231,37 @@ export default function MyTasksPage() {
         <TabsTrigger value="completed">Completed</TabsTrigger>
       </TabsList>
       <TabsContent value="open" className="mt-6">
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-          {openPostedTasks.length > 0 ? (
-            openPostedTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onSelect={() => handleTaskSelect(task)}
-                onChat={handleGoToChat}
-              />
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-10">You have no open tasks.</p>
-          )}
-        </div>
+        <TaskList tasks={taskLists.open} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('open')} hasMore={hasMore.open} loading={loading.open} emptyMessage="You have no open tasks."/>
       </TabsContent>
-      <TabsContent value="assigned" className="mt-6">
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-          {assignedPostedTasks.length > 0 ? (
-            assignedPostedTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onSelect={() => handleTaskSelect(task)}
-                onChat={handleGoToChat}
-              />
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-10">You have no assigned tasks.</p>
-          )}
-        </div>
+       <TabsContent value="assigned" className="mt-6">
+        <TaskList tasks={taskLists.assigned} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('assigned')} hasMore={hasMore.assigned} loading={loading.assigned} emptyMessage="You have no assigned tasks."/>
       </TabsContent>
       <TabsContent value="pending" className="mt-6">
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-          {pendingCompletionPostedTasks.length > 0 ? (
-            pendingCompletionPostedTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onSelect={() => handleTaskSelect(task)}
-                onChat={handleGoToChat}
-              />
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-10">You have no tasks pending completion.</p>
-          )}
-        </div>
+        <TaskList tasks={taskLists['pending-completion']} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('pending-completion')} hasMore={hasMore['pending-completion']} loading={loading['pending-completion']} emptyMessage="You have no tasks pending completion."/>
       </TabsContent>
       <TabsContent value="completed" className="mt-6">
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-          {completedPostedTasks.length > 0 ? (
-            completedPostedTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onSelect={() => handleTaskSelect(task)}
-                onChat={handleGoToChat}
-              />
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-10">You have no completed tasks.</p>
-          )}
-        </div>
+        <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed')} hasMore={hasMore.completed} loading={loading.completed} emptyMessage="You have no completed tasks."/>
       </TabsContent>
     </Tabs>
   );
 
-  const renderTaskerDashboard = () => (
-    <Tabs defaultValue="assigned" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 max-w-sm">
-        <TabsTrigger value="assigned">My Work</TabsTrigger>
-        <TabsTrigger value="completed">Completed</TabsTrigger>
-      </TabsList>
-       <TabsContent value="assigned" className="mt-6">
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-          {assignedToMeTasks.length > 0 ? (
-            assignedToMeTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onSelect={() => handleTaskSelect(task)}
-                onChat={handleGoToChat}
-              />
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-10">You have no assigned tasks.</p>
-          )}
-        </div>
-      </TabsContent>
-      <TabsContent value="completed" className="mt-6">
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-          {completedByMeTasks.length > 0 ? (
-            completedByMeTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onSelect={() => handleTaskSelect(task)}
-                onChat={handleGoToChat}
-              />
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-10">You have no completed tasks.</p>
-          )}
-        </div>
-      </TabsContent>
-    </Tabs>
-  );
+  const renderTaskerDashboard = () => {
+     const assignedTasks = [...taskLists.assigned, ...taskLists['pending-completion']];
+     return (
+        <Tabs defaultValue="assigned" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-sm">
+            <TabsTrigger value="assigned">My Work</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+          </TabsList>
+           <TabsContent value="assigned" className="mt-6">
+             <TaskList tasks={assignedTasks} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => { fetchTasks('assigned'); fetchTasks('pending-completion');}} hasMore={hasMore.assigned || hasMore['pending-completion']} loading={loading.assigned || loading['pending-completion']} emptyMessage="You have no assigned tasks."/>
+          </TabsContent>
+          <TabsContent value="completed" className="mt-6">
+            <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed')} hasMore={hasMore.completed} loading={loading.completed} emptyMessage="You have no completed tasks."/>
+          </TabsContent>
+        </Tabs>
+     )
+  };
   
     const mainContent = (
         <div className="p-4 md:p-6">

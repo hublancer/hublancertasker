@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, where, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, Timestamp, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import AppHeader from '@/components/AppHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,6 +34,7 @@ interface PendingRequest {
     method?: string; // For withdrawals
 }
 
+const PAGE_SIZE = 15;
 
 export default function WalletPage() {
     const { user, userProfile, settings, loading: authLoading, revalidateProfile } = useAuth();
@@ -41,9 +42,45 @@ export default function WalletPage() {
     const [pendingDeposits, setPendingDeposits] = useState<PendingRequest[]>([]);
     const [pendingWithdrawals, setPendingWithdrawals] = useState<PendingRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+    const [hasMore, setHasMore] = useState(true);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
     const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+    const fetchTransactions = useCallback(async (loadMore = false) => {
+      if (!user) return;
+      if (loadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        let q = query(
+          collection(db, 'users', user.uid, 'transactions'),
+          orderBy('timestamp', 'desc'),
+          limit(PAGE_SIZE)
+        );
+
+        if (loadMore && lastVisible) {
+          q = query(q, startAfter(lastVisible));
+        }
+
+        const snapshot = await getDocs(q);
+        const newTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+
+        setTransactions(prev => loadMore ? [...prev, ...newTransactions] : newTransactions);
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null);
+        setHasMore(newTransactions.length === PAGE_SIZE);
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }, [user, lastVisible]);
 
     useEffect(() => {
         if (!user) {
@@ -51,48 +88,24 @@ export default function WalletPage() {
             return;
         }
 
+        fetchTransactions();
+
         let unsubscribers: (() => void)[] = [];
-
-        setLoading(true);
-
-        // Listener for completed transactions
-        const transactionsQuery = query(
-            collection(db, 'users', user.uid, 'transactions'),
-            orderBy('timestamp', 'desc')
-        );
-        const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
-            const trans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-            setTransactions(trans);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching transactions:", error);
-            setLoading(false)
-        });
-        unsubscribers.push(unsubscribeTransactions);
         
-        // Listener for pending deposits
         const depositsQuery = query(collection(db, 'deposits'), where('userId', '==', user.uid), where('status', '==', 'pending'));
-        const unsubscribeDeposits = onSnapshot(depositsQuery, (snapshot) => {
+        unsubscribers.push(onSnapshot(depositsQuery, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
             setPendingDeposits(reqs);
-        }, (error) => {
-            console.error("Error fetching pending deposits:", error);
-        });
-        unsubscribers.push(unsubscribeDeposits);
+        }));
         
-        // Listener for pending withdrawals
         const withdrawalsQuery = query(collection(db, 'withdrawals'), where('userId', '==', user.uid), where('status', '==', 'pending'));
-        const unsubscribeWithdrawals = onSnapshot(withdrawalsQuery, (snapshot) => {
+        unsubscribers.push(onSnapshot(withdrawalsQuery, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
             setPendingWithdrawals(reqs);
-        }, (error) => {
-            console.error("Error fetching pending withdrawals:", error);
-        });
-        unsubscribers.push(unsubscribeWithdrawals);
-
+        }));
 
         return () => unsubscribers.forEach(unsub => unsub());
-    }, [user]);
+    }, [user, fetchTransactions]);
     
     if (authLoading || loading) {
         return (
@@ -135,12 +148,12 @@ export default function WalletPage() {
         }
     };
     
-    const handleDepositSuccess = () => {
+    const handleActionSuccess = () => {
         revalidateProfile();
-    }
-
-    const handleWithdrawalSuccess = () => {
-        revalidateProfile();
+        // Reset and refetch transactions after a deposit or withdrawal request
+        setLastVisible(null);
+        setTransactions([]);
+        fetchTransactions();
     }
 
     const hasPendingRequests = pendingDeposits.length > 0 || pendingWithdrawals.length > 0;
@@ -272,12 +285,19 @@ export default function WalletPage() {
                                 <p className="text-center text-muted-foreground py-10">No transactions yet.</p>
                             )}
                         </div>
+                        {hasMore && (
+                            <div className="mt-4 text-center">
+                                <Button onClick={() => fetchTransactions(true)} disabled={loadingMore}>
+                                    {loadingMore ? 'Loading...' : 'Load More'}
+                                </Button>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </main>
         </div>
-        <DepositModal open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen} onSuccess={handleDepositSuccess} />
-        <WithdrawModal open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen} onSuccess={handleWithdrawalSuccess} />
+        <DepositModal open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen} onSuccess={handleActionSuccess} />
+        <WithdrawModal open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen} onSuccess={handleActionSuccess} />
 
         </>
     );

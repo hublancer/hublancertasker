@@ -70,7 +70,12 @@ export function WithdrawModal({ open, onOpenChange, onSuccess }: WithdrawModalPr
     };
     
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={(isOpen) => {
+            if (!isOpen) {
+                form.reset();
+            }
+            onOpenChange(isOpen);
+        }}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Request Withdrawal</DialogTitle>

@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, deleteDoc, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -22,29 +22,55 @@ interface Report {
     createdAt: any;
 }
 
+const PAGE_SIZE = 15;
+
 export default function AdminSupportPage() {
     const { toast } = useToast();
     const [reports, setReports] = useState<Report[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+    const [hasMore, setHasMore] = useState(true);
+
+     const fetchReports = useCallback(async (loadMore = false) => {
+        if (!loadMore) {
+            setLoading(true);
+            setReports([]);
+            setLastVisible(null);
+            setHasMore(true);
+        } else {
+            setLoadingMore(true);
+        }
+
+        try {
+            let q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(PAGE_SIZE));
+            if (loadMore && lastVisible) {
+                q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(PAGE_SIZE));
+            }
+            const querySnapshot = await getDocs(q);
+            const reportsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
+            setReports(prev => loadMore ? [...prev, ...reportsData] : reportsData);
+            setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+            setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+        } catch (error) {
+            console.error("Error fetching reports:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch reports.' });
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    }, [toast]);
 
     useEffect(() => {
-        const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const reportsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
-            setReports(reportsData);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching reports:", error);
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
+        fetchReports();
+    }, [fetchReports]);
     
     const handleResolve = async (reportId: string) => {
         try {
             const reportRef = doc(db, 'reports', reportId);
             await updateDoc(reportRef, { status: 'resolved', resolvedAt: serverTimestamp() });
             toast({ title: 'Report Resolved' });
+            fetchReports(); // Re-fetch to update the list
         } catch (error: any) {
             console.error("Error resolving report:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to resolve report.' });
@@ -61,6 +87,7 @@ export default function AdminSupportPage() {
             await updateDoc(reportRef, { status: 'resolved', resolvedAt: serverTimestamp(), resolution: 'Task deleted' });
             
             toast({ title: 'Task Deleted', description: 'The reported task has been removed.' });
+            fetchReports(); // Re-fetch to update the list
         } catch (error: any) {
              console.error("Error deleting task:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete task.' });
@@ -142,6 +169,13 @@ export default function AdminSupportPage() {
                         )}
                     </TableBody>
                 </Table>
+                {hasMore && (
+                    <div className="mt-4 text-center">
+                        <Button onClick={() => fetchReports(true)} disabled={loadingMore}>
+                            {loadingMore ? 'Loading...' : 'Load More'}
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

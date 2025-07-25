@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, getDocs, limit, orderBy, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,18 +18,47 @@ const WhatsAppIcon = () => (
     </svg>
 )
 
+const PAGE_SIZE = 20;
+
 export default function AdminUsersPage() {
   const { settings } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+
+  const fetchUsers = useCallback(async (loadMore = false) => {
+    if (loadMore) {
+        setLoadingMore(true);
+    } else {
+        setLoading(true);
+    }
+
+    try {
+        let q = query(collection(db, 'users'), orderBy('name'), limit(PAGE_SIZE));
+        if(loadMore && lastVisible) {
+            q = query(collection(db, 'users'), orderBy('name'), startAfter(lastVisible), limit(PAGE_SIZE));
+        }
+        
+        const documentSnapshots = await getDocs(q);
+        const usersData = documentSnapshots.docs.map(doc => doc.data() as UserProfile);
+
+        setUsers(prev => loadMore ? [...prev, ...usersData] : usersData);
+        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+        setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
+
+    } catch (error) {
+        console.error("Error fetching users: ", error);
+    } finally {
+        setLoading(false);
+        setLoadingMore(false);
+    }
+  }, [lastVisible]);
+
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
-        setUsers(usersData);
-        setLoading(false);
-    });
-    return () => unsub();
+    fetchUsers();
   }, []);
 
   if (loading) {
@@ -98,6 +127,13 @@ export default function AdminUsersPage() {
             ))}
           </TableBody>
         </Table>
+         {hasMore && (
+            <div className="mt-4 text-center">
+                <Button onClick={() => fetchUsers(true)} disabled={loadingMore}>
+                    {loadingMore ? 'Loading...' : 'Load More'}
+                </Button>
+            </div>
+        )}
       </CardContent>
     </Card>
   );

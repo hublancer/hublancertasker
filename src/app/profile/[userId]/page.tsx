@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot, DocumentSnapshot, limit, startAfter } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import AppHeader from '@/components/AppHeader';
@@ -37,6 +37,8 @@ const StarRating = ({ rating }: { rating: number }) => (
     </div>
 );
 
+const PAGE_SIZE = 5;
+
 export default function ProfilePage() {
     const params = useParams();
     const userId = params.userId as string;
@@ -46,6 +48,9 @@ export default function ProfilePage() {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingReviews, setLoadingReviews] = useState(true);
+    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+    const [hasMore, setHasMore] = useState(true);
 
     useEffect(() => {
         if (!userId) return;
@@ -65,23 +70,49 @@ export default function ProfilePage() {
         return () => unsubscribe();
     }, [userId]);
 
-    useEffect(() => {
-        if (profile?.accountType === 'tasker') {
-            const reviewsQuery = query(
+    const fetchReviews = useCallback(async (loadMore = false) => {
+        if (!userId || profile?.accountType !== 'tasker') {
+            setLoadingReviews(false);
+            setReviews([]);
+            return;
+        }
+        if (!loadMore) {
+            setLoadingReviews(true);
+        }
+
+        try {
+            let q = query(
                 collection(db, 'reviews'),
                 where('taskerId', '==', userId),
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(PAGE_SIZE)
             );
-            const unsubscribeReviews = onSnapshot(reviewsQuery, (querySnapshot) => {
-                const reviewsData = querySnapshot.docs.map(docSnap => ({
-                    id: docSnap.id,
-                    ...docSnap.data()
-                } as Review));
-                setReviews(reviewsData);
-            });
-            return () => unsubscribeReviews();
+            if(loadMore && lastVisible) {
+                q = query(q, startAfter(lastVisible));
+            }
+            const querySnapshot = await getDocs(q);
+            const reviewsData = querySnapshot.docs.map(docSnap => ({
+                id: docSnap.id,
+                ...docSnap.data()
+            } as Review));
+
+            setReviews(prev => loadMore ? [...prev, ...reviewsData] : reviewsData);
+            setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+            setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+
+        } catch (error) {
+            console.error("Error fetching reviews:", error);
+        } finally {
+            setLoadingReviews(false);
         }
-    }, [profile, userId]);
+    }, [userId, profile, lastVisible]);
+
+    useEffect(() => {
+        if (profile) {
+            fetchReviews();
+        }
+    }, [profile, fetchReviews]);
+
 
     if (loading) {
         return (
@@ -192,7 +223,9 @@ export default function ProfilePage() {
                     {profile.accountType === 'tasker' && (
                         <div className="mt-8">
                             <h2 className="text-2xl font-bold font-headline mb-4">Reviews</h2>
-                            {reviews.length > 0 ? (
+                            {loadingReviews ? (
+                                <p>Loading reviews...</p>
+                            ) : reviews.length > 0 ? (
                                 <div className="space-y-6">
                                     {reviews.map(review => (
                                         <Card key={review.id}>
@@ -213,6 +246,13 @@ export default function ProfilePage() {
                                             </CardContent>
                                         </Card>
                                     ))}
+                                    {hasMore && (
+                                        <div className="text-center">
+                                            <Button onClick={() => fetchReviews(true)} disabled={loadingReviews}>
+                                                {loadingReviews ? 'Loading...' : 'Load More Reviews'}
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <Card>

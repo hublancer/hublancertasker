@@ -1,7 +1,8 @@
+
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, serverTimestamp, increment, getDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, serverTimestamp, increment, getDoc, addDoc, limit, startAfter, getDocs, DocumentSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -30,25 +31,54 @@ const WhatsAppIcon = () => (
     </svg>
 )
 
+const PAGE_SIZE = 15;
+
 export default function AdminDisputesPage() {
     const { toast } = useToast();
     const { settings, addNotification } = useAuth();
     const [disputes, setDisputes] = useState<Dispute[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+    const [hasMore, setHasMore] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
-    useEffect(() => {
-        const q = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const disputesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dispute));
-            setDisputes(disputesData);
-            setLoading(false);
-        }, (error) => {
+     const fetchDisputes = useCallback(async (loadMore = false) => {
+        if (!loadMore) {
+            setLoading(true);
+            setDisputes([]);
+            setLastVisible(null);
+            setHasMore(true);
+        } else {
+            setLoadingMore(true);
+        }
+
+        try {
+            let q = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'), limit(PAGE_SIZE));
+
+            if (loadMore && lastVisible) {
+                q = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(PAGE_SIZE));
+            }
+
+            const querySnapshot = await getDocs(q);
+            const disputesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dispute));
+
+            setDisputes(prev => loadMore ? [...prev, ...disputesData] : disputesData);
+            setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+            setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+
+        } catch (error) {
             console.error("Error fetching disputes:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch disputes.' });
+        } finally {
             setLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
+            setLoadingMore(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchDisputes();
+    }, [fetchDisputes]);
     
     const handleResolve = async (dispute: Dispute, favor: 'client' | 'tasker') => {
         if (!dispute || !dispute.id) return;
@@ -114,6 +144,7 @@ export default function AdminDisputesPage() {
 
             await batch.commit();
             toast({ title: 'Dispute Resolved', description: `Funds have been released to the ${favor}.` });
+            fetchDisputes();
         } catch (error: any) {
             console.error("Error resolving dispute:", error);
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to resolve dispute.' });
@@ -223,6 +254,13 @@ export default function AdminDisputesPage() {
                         )}
                     </TableBody>
                 </Table>
+                 {hasMore && (
+                    <div className="mt-4 text-center">
+                        <Button onClick={() => fetchDisputes(true)} disabled={loadingMore}>
+                            {loadingMore ? 'Loading...' : 'Load More'}
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
