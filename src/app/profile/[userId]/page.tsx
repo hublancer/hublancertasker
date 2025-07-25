@@ -15,7 +15,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import UserAvatar from '@/components/UserAvatar';
-import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface Review {
