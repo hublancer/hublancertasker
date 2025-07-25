@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot, DocumentSnapshot, limit, startAfter } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot, DocumentSnapshot, limit, startAfter, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import AppHeader from '@/components/AppHeader';
@@ -15,6 +15,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import UserAvatar from '@/components/UserAvatar';
+import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Review {
     id: string;
@@ -38,6 +40,27 @@ const StarRating = ({ rating }: { rating: number }) => (
 );
 
 const PAGE_SIZE = 5;
+
+const PresenceBadge = ({ isOnline, lastSeen }: { isOnline?: boolean; lastSeen?: Timestamp }) => {
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const recentlyActive = lastSeen && lastSeen.toMillis() > oneHourAgo;
+    const showOnline = isOnline || recentlyActive;
+
+    let text = 'Offline';
+    if (showOnline) {
+        text = 'Online';
+    } else if (lastSeen) {
+        text = `Last seen ${formatDistanceToNow(lastSeen.toDate(), { addSuffix: true })}`;
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+            <div className={cn("h-2.5 w-2.5 rounded-full", showOnline ? 'bg-green-500' : 'bg-gray-400')} />
+            <span className="text-sm text-muted-foreground">{text}</span>
+        </div>
+    )
+}
+
 
 export default function ProfilePage() {
     const params = useParams();
@@ -154,8 +177,6 @@ export default function ProfilePage() {
                              <UserAvatar 
                                 name={profile.name}
                                 imageUrl={profile.photoURL}
-                                isOnline={profile.isOnline}
-                                lastSeen={profile.lastSeen}
                                 className="h-32 w-32 text-4xl"
                              />
                             <div className="text-center md:text-left flex-1">
@@ -187,6 +208,9 @@ export default function ProfilePage() {
 
 
                                 <p className="text-muted-foreground mt-1 capitalize">{profile.accountType}</p>
+                                <div className="flex justify-center md:justify-start mt-2">
+                                  <PresenceBadge isOnline={profile.isOnline} lastSeen={profile.lastSeen} />
+                                </div>
 
                                 {profile.accountType === 'tasker' && (
                                     <div className="flex items-center justify-center md:justify-start gap-2 mt-4">
