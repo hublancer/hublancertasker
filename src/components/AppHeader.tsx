@@ -11,7 +11,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, Briefcase, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare, FileKey } from 'lucide-react';
+import { Menu, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare, FileKey } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -31,6 +31,9 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import UserAvatar from './UserAvatar';
+import Image from 'next/image';
+import { InstallPwaButton } from './InstallPwaButton';
+
 
 interface Notification {
   id: string;
@@ -42,7 +45,7 @@ interface Notification {
 
 
 const AppHeader = () => {
-  const { user, userProfile, settings, loading, playNotificationSound } = useAuth();
+  const { user, userProfile, settings, loading, playNotificationSound, addNotification } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
@@ -200,7 +203,7 @@ const AppHeader = () => {
   const desktopHeader = (
     <div className="mr-4 hidden md:flex">
       <Link href="/" className="mr-6 flex items-center space-x-2">
-        <Briefcase className="h-6 w-6 text-primary" />
+        <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
         <span className="font-bold font-headline text-lg">Hublancer</span>
       </Link>
       <nav className="flex items-center gap-6 text-sm">
@@ -242,7 +245,7 @@ const AppHeader = () => {
               href="/"
               className="flex items-center space-x-2 px-6"
             >
-              <Briefcase className="h-6 w-6 text-primary" />
+              <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
               <span className="font-bold font-headline text-lg">
                 Hublancer
               </span>
@@ -268,7 +271,7 @@ const AppHeader = () => {
           </SheetContent>
         </Sheet>
         <Link href="/" className="flex items-center space-x-2">
-          <Briefcase className="h-6 w-6 text-primary" />
+          <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
           <span className="font-bold font-headline text-lg">Hublancer</span>
         </Link>
         <div className="flex items-center space-x-2">
@@ -287,6 +290,7 @@ const AppHeader = () => {
 
           {/* Right side buttons for Desktop */}
           <div className="hidden flex-1 items-center justify-end space-x-2 md:flex">
+             <InstallPwaButton />
              {user && (
                   <Button variant="outline" asChild>
                     <Link href="/wallet" className="flex items-center gap-2">
