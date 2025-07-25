@@ -35,6 +35,7 @@ import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
 import { Skeleton } from './ui/skeleton';
 import { type Task } from './TaskCard';
+import { cn } from '@/lib/utils';
 
 
 const formSchema = z.object({
@@ -265,20 +266,21 @@ export default function PostTaskForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category for your task" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.name} value={category.name}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                   <FormControl>
+                     <select
+                        {...field}
+                        className={cn(
+                          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        )}
+                      >
+                         <option value="" disabled>Select a category</option>
+                        {categories.map((category) => (
+                          <option key={category.name} value={category.name}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -443,3 +445,5 @@ export default function PostTaskForm() {
     </>
   );
 }
+
+    
