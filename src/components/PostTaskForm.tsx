@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -208,6 +208,11 @@ export default function PostTaskForm() {
     );
   };
   
+  useEffect(() => {
+    handleUseCurrentLocation();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleMarkerDragEnd = (newPosition: [number, number]) => {
     form.setValue('coordinates', { lat: newPosition[0], lng: newPosition[1] });
     form.setValue('location', 'Custom Location');
@@ -375,9 +380,10 @@ export default function PostTaskForm() {
                     <FormItem>
                      <FormControl>
                         <div className="flex flex-col sm:flex-row gap-2">
-                           <Select 
-                                value={field.value || ''}
-                                onValueChange={(value) => {
+                           <select
+                                {...field}
+                                onChange={(e) => {
+                                    const value = e.target.value;
                                     const city = pakistaniCities.find(c => c.name === value);
                                     if (city) {
                                         field.onChange(city.name);
@@ -390,16 +396,15 @@ export default function PostTaskForm() {
                                         form.setValue('coordinates', undefined);
                                     }
                                 }}
+                                className={cn(
+                                "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                )}
                             >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a city..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {pakistaniCities.map(c => (
-                                        <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                <option value="" disabled>Select a city...</option>
+                                {pakistaniCities.map(c => (
+                                    <option key={c.name} value={c.name}>{c.name}</option>
+                                ))}
+                            </select>
                             <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="flex-shrink-0">
                                 <LocateFixed className="mr-2 h-4 w-4" />
                                 Use current location
@@ -445,5 +450,3 @@ export default function PostTaskForm() {
     </>
   );
 }
-
-    
