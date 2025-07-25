@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, deleteDoc, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, serverTimestamp, deleteDoc, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -59,7 +59,7 @@ export default function AdminSupportPage() {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [toast]);
+    }, [toast, lastVisible]);
 
     useEffect(() => {
         fetchReports();
@@ -180,3 +180,5 @@ export default function AdminSupportPage() {
         </Card>
     );
 }
+
+    

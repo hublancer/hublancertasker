@@ -168,13 +168,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true);
 
-      // If user is logging out, update their status
-      if (!currentUser && previousUserId) {
-          const userStatusFirestoreRef = doc(db, 'users', previousUserId);
-          updateDoc(userStatusFirestoreRef, { isOnline: false, lastSeen: serverTimestamp() });
-          previousUserId = null;
-      }
-
       if (currentUser) {
         setUser(currentUser);
         previousUserId = currentUser.uid; // Store current user ID
@@ -196,8 +189,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             onDisconnect(userStatusDatabaseRef).set({ isOnline: false, lastSeen: rtdbServerTimestamp() }).then(() => {
                 set(userStatusDatabaseRef, { isOnline: true, lastSeen: rtdbServerTimestamp() });
-                // Also update firestore on connect
-                updateDoc(doc(db, 'users', currentUser.uid), { isOnline: true, lastSeen: serverTimestamp() });
             });
         });
         
@@ -261,3 +252,5 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+
+    

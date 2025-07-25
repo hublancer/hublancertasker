@@ -2,7 +2,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, serverTimestamp, increment, getDoc, addDoc, limit, startAfter, getDocs, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, writeBatch, serverTimestamp, increment, getDoc, addDoc, limit, startAfter, getDocs, DocumentSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -74,7 +74,7 @@ export default function AdminDisputesPage() {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [toast]);
+    }, [toast, lastVisible]);
 
     useEffect(() => {
         fetchDisputes();
@@ -265,3 +265,5 @@ export default function AdminDisputesPage() {
         </Card>
     );
 }
+
+    

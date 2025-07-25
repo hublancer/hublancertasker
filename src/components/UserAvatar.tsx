@@ -21,3 +21,5 @@ export default function UserAvatar({ name, imageUrl, className }: UserAvatarProp
     </div>
   );
 }
+
+    
