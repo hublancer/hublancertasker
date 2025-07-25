@@ -613,4 +613,3 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     </div>
   );
 }
-

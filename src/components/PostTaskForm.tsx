@@ -5,7 +5,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { generateTaskDescription } from '@/ai/flows/generate-task-description';
 import dynamic from 'next/dynamic';
 
 import { Button } from '@/components/ui/button';
@@ -21,15 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Sparkles, LocateFixed } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { LocateFixed } from 'lucide-react';
 import { SignUpForm, SignUpFormValues } from './SignUpForm';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
@@ -44,7 +35,6 @@ import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
 import { Skeleton } from './ui/skeleton';
 import { type Task } from './TaskCard';
-import { Combobox } from './ui/combobox';
 
 
 const formSchema = z.object({
@@ -54,7 +44,7 @@ const formSchema = z.object({
     .min(20, 'Description must be at least 20 characters.'),
   budget: z.coerce.number().min(1000, 'Budget must be at least 1000.'),
   taskType: z.enum(['physical', 'online']),
-  preferredDateTime: z.date({ required_error: 'A date is required.' }),
+  preferredDateTime: z.string().refine((val) => val, { message: "A date is required." }),
   category: z.string().min(1, { message: 'Please select a category.'}),
   location: z.string().optional(),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
@@ -72,7 +62,6 @@ const formSchema = z.object({
 type PostTaskFormValues = z.infer<typeof formSchema>;
 
 export default function PostTaskForm() {
-  const [isGenerating, setIsGenerating] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [taskData, setTaskData] = useState<PostTaskFormValues | null>(null);
   const [loading, setLoading] = useState(false);
@@ -107,22 +96,6 @@ export default function PostTaskForm() {
 
   const taskType = form.watch('taskType');
 
-  async function handleGenerateDescription() {
-    setIsGenerating(true);
-    const { title, taskType, budget, preferredDateTime } = form.getValues();
-    if (title && budget && preferredDateTime) {
-      const result = await generateTaskDescription({
-        taskTitle: title,
-        taskType: taskType,
-        budget: budget,
-        preferredDateTime: format(preferredDateTime, 'PPP'),
-        additionalInfo: 'Generate a friendly and encouraging description.',
-      });
-      form.setValue('description', result.taskDescription);
-    }
-    setIsGenerating(false);
-  }
-
   async function submitTask(taskDetails: PostTaskFormValues, userId: string, userName: string) {
     try {
         const { coordinates, ...restOfTaskDetails } = taskDetails;
@@ -132,7 +105,8 @@ export default function PostTaskForm() {
             postedByName: userName,
             createdAt: serverTimestamp(),
             status: 'open',
-            offerCount: 0
+            offerCount: 0,
+            preferredDateTime: new Date(taskDetails.preferredDateTime)
         };
 
         if (taskDetails.taskType === 'physical' && coordinates) {
@@ -272,20 +246,7 @@ export default function PostTaskForm() {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Task Description</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleGenerateDescription}
-                      disabled={isGenerating}
-                      className="shrink-0"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {isGenerating ? 'Generating...' : 'Generate with AI'}
-                    </Button>
-                  </div>
+                  <FormLabel>Task Description</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Describe the task in detail..."
@@ -343,37 +304,9 @@ export default function PostTaskForm() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Preferred Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={'outline'}
-                            className={cn(
-                              'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, 'PPP')
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={date =>
-                            date < new Date(new Date().setHours(0, 0, 0, 0))
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                        <Input type="date" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -422,19 +355,28 @@ export default function PostTaskForm() {
 
             {taskType === 'physical' && (
               <div className="space-y-4">
-                <FormField
+                <FormLabel>Location</FormLabel>
+                <div className="h-64 w-full rounded-md overflow-hidden border z-0">
+                    <Map
+                        tasks={markerPosition ? [{id: 'current', coordinates: markerPosition} as Task] : []}
+                        center={mapCenter}
+                        zoom={mapZoom}
+                        onTaskSelect={() => {}}
+                        isDraggable={true}
+                        onMarkerDragEnd={handleMarkerDragEnd}
+                    />
+                </div>
+                 <FormField
                   control={form.control}
                   name="location"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Location</FormLabel>
                      <FormControl>
                         <div className="flex flex-col sm:flex-row gap-2">
-                           <Combobox
-                                items={pakistaniCities.map(c => ({ value: c.name.toLowerCase(), label: c.name }))}
+                           <Select 
                                 value={field.value || ''}
-                                onChange={(value) => {
-                                    const city = pakistaniCities.find(c => c.name.toLowerCase() === value);
+                                onValueChange={(value) => {
+                                    const city = pakistaniCities.find(c => c.name === value);
                                     if (city) {
                                         field.onChange(city.name);
                                         form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
@@ -446,10 +388,16 @@ export default function PostTaskForm() {
                                         form.setValue('coordinates', undefined);
                                     }
                                 }}
-                                placeholder="Select a city..."
-                                searchPlaceholder="Search city..."
-                                notFoundText="City not found."
-                            />
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a city..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {pakistaniCities.map(c => (
+                                        <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="flex-shrink-0">
                                 <LocateFixed className="mr-2 h-4 w-4" />
                                 Use current location
@@ -461,16 +409,6 @@ export default function PostTaskForm() {
                     </FormItem>
                   )}
                 />
-                 <div className="h-64 w-full rounded-md overflow-hidden border z-0">
-                    <Map
-                        tasks={markerPosition ? [{id: 'current', coordinates: markerPosition} as Task] : []}
-                        center={mapCenter}
-                        zoom={mapZoom}
-                        onTaskSelect={() => {}}
-                        isDraggable={true}
-                        onMarkerDragEnd={handleMarkerDragEnd}
-                    />
-                </div>
               </div>
             )}
           </fieldset>
