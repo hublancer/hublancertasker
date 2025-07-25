@@ -24,8 +24,6 @@ export interface UserProfile {
   wallet?: {
     balance: number;
   };
-  isOnline?: boolean;
-  lastSeen?: any;
 }
 
 export interface PlatformSettings {
