@@ -241,15 +241,19 @@ const AppHeader = () => {
                 Main navigation menu
               </SheetDescription>
             </SheetHeader>
-            <Link
-              href="/"
-              className="flex items-center space-x-2 px-6"
-            >
-              <Image src="https://i.postimg.cc/hGrRDPFS/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
-              <span className="font-bold font-headline text-lg">
-                Hublancer
-              </span>
-            </Link>
+            <div className="flex flex-col items-center gap-2 px-6">
+                <Link
+                  href="/"
+                  className="flex items-center space-x-2"
+                >
+                  <Image src="https://i.postimg.cc/hGrRDPFS/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
+                  <span className="font-bold font-headline text-lg">
+                    Hublancer
+                  </span>
+                </Link>
+                <InstallPwaButton />
+            </div>
+
             <div className="my-4 h-[calc(100vh-8rem)] pb-10 pl-6">
               <div className="flex flex-col gap-4">
                 {navLinks.map(link => (
@@ -266,9 +270,6 @@ const AppHeader = () => {
                      {link.label}
                   </Link>
                 ))}
-                 <div className="pl-1 pt-2">
-                    <InstallPwaButton />
-                 </div>
               </div>
             </div>
           </SheetContent>
