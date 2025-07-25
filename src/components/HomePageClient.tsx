@@ -161,7 +161,7 @@ function HomePageClientContent({ tasks }: HomePageClientProps) {
     if (popoverLocationFilterMode === 'city' && popoverCity) {
       setAppliedCity(popoverCity);
       setCurrentMapCenter(popoverCity.coordinates);
-      setMapZoom(11);
+      setMapZoom(getZoomForDistance(popoverDistance));
     } else if (
       popoverLocationFilterMode === 'current' &&
       appliedCurrentLocation
@@ -238,26 +238,26 @@ function HomePageClientContent({ tasks }: HomePageClientProps) {
       if (appliedTaskType !== 'all') {
         if (task.type !== appliedTaskType) return false;
       }
+      
+      if (appliedTaskType === 'physical') {
+        let filterCenter: [number, number] | null = null;
+        if (appliedLocationFilterMode === 'city' && appliedCity) {
+          filterCenter = appliedCity.coordinates;
+        } else if (appliedLocationFilterMode === 'current' && appliedCurrentLocation) {
+          filterCenter = appliedCurrentLocation;
+        }
 
-      if (
-        appliedTaskType === 'physical' &&
-        appliedLocationFilterMode === 'city' &&
-        appliedCity
-      ) {
-        if (task.location !== appliedCity.name) return false;
+        if (filterCenter) {
+          if (!task.coordinates) return false;
+          const taskLatLng = L.latLng(task.coordinates);
+          const filterLatLng = L.latLng(filterCenter);
+          const distance = filterLatLng.distanceTo(taskLatLng) / 1000; // in km
+          if (distance > appliedDistance) return false;
+        } else {
+            // If physical is selected but no location, show all physical tasks
+        }
       }
 
-      if (
-        appliedTaskType === 'physical' &&
-        appliedLocationFilterMode === 'current' &&
-        appliedCurrentLocation
-      ) {
-        if (!task.coordinates) return false;
-        const taskLatLng = L.latLng(task.coordinates);
-        const currentLatLng = L.latLng(appliedCurrentLocation);
-        const distance = currentLatLng.distanceTo(taskLatLng) / 1000; // in km
-        if (distance > appliedDistance) return false;
-      }
 
       if (appliedPrice !== 'any') {
         const priceValue = task.price;
@@ -378,23 +378,23 @@ function HomePageClientContent({ tasks }: HomePageClientProps) {
                             Use my current location
                           </Button>
                         </div>
-                        {popoverLocationFilterMode === 'current' && (
-                          <div className="grid gap-2">
-                            <Label htmlFor="distance">
-                              Distance: {popoverDistance}km
-                            </Label>
-                            <Slider
-                              id="distance"
-                              min={1}
-                              max={100}
-                              step={1}
-                              value={[popoverDistance]}
-                              onValueChange={value =>
-                                setPopoverDistance(value[0])
-                              }
-                            />
-                          </div>
-                        )}
+                        
+                        <div className="grid gap-2">
+                          <Label htmlFor="distance">
+                            Distance: {popoverDistance}km
+                          </Label>
+                          <Slider
+                            id="distance"
+                            min={1}
+                            max={100}
+                            step={1}
+                            value={[popoverDistance]}
+                            onValueChange={value =>
+                              setPopoverDistance(value[0])
+                            }
+                          />
+                        </div>
+                        
                         <div className="relative my-2">
                           <div className="absolute inset-0 flex items-center">
                             <span className="w-full border-t" />
