@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { ArrowDownToLine } from 'lucide-react';
-import { useMediaQuery } from '@/hooks/use-media-query';
 
 declare global {
   interface WindowEventMap {
@@ -23,9 +22,13 @@ interface BeforeInstallPromptEvent extends Event {
 export const InstallPwaButton = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-  const isMobile = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
+    // Only run this effect on the client
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -57,6 +60,7 @@ export const InstallPwaButton = () => {
     const { outcome } = await deferredPrompt.userChoice;
     if(outcome === 'accepted') {
         setDeferredPrompt(null);
+        setIsInstalled(true);
     }
   };
 
@@ -64,18 +68,11 @@ export const InstallPwaButton = () => {
     return null;
   }
 
-  if (isMobile) {
-      return (
-        <button onClick={handleInstallClick} className="text-sm font-semibold underline">
-            Install Hublancer for a better experience!
-        </button>
-      )
-  }
-
+  // This component will now be rendered conditionally by its parent (InstallHeader)
+  // so we can simplify the return logic here.
   return (
-    <Button variant="outline" onClick={handleInstallClick}>
-      <ArrowDownToLine className="mr-2 h-4 w-4" />
-      Install App
-    </Button>
+    <button onClick={handleInstallClick} className="text-sm font-semibold underline">
+        Install Hublancer for a better experience!
+    </button>
   );
 };
