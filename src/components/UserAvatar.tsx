@@ -14,11 +14,9 @@ interface UserAvatarProps {
 export default function UserAvatar({ name, imageUrl, className }: UserAvatarProps) {
   
   return (
-    <div className={cn("relative", className)}>
-        <Avatar className="h-full w-full">
-            <AvatarImage src={imageUrl} alt={name} data-ai-hint="person face" />
-            <AvatarFallback>{name?.slice(0, 2).toUpperCase()}</AvatarFallback>
-        </Avatar>
-    </div>
+    <Avatar className={cn("relative", className)}>
+        <AvatarImage src={imageUrl} alt={name} data-ai-hint="person face" />
+        <AvatarFallback>{name?.slice(0, 2).toUpperCase()}</AvatarFallback>
+    </Avatar>
   );
 }
