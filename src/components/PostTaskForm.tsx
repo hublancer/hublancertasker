@@ -20,7 +20,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { LocateFixed } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon, LocateFixed } from 'lucide-react';
 import { SignUpForm, SignUpFormValues } from './SignUpForm';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
@@ -29,12 +35,15 @@ import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, addDoc, GeoPoint } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { categories } from '@/lib/categories';
+import { Combobox } from './ui/combobox';
 import { pakistaniCities } from '@/lib/locations';
 import { LoginDialog } from './LoginDialog';
 import { Skeleton } from './ui/skeleton';
 import { type Task } from './TaskCard';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 
 const formSchema = z.object({
@@ -42,9 +51,9 @@ const formSchema = z.object({
   description: z
     .string()
     .min(20, 'Description must be at least 20 characters.'),
-  budget: z.coerce.number().min(1000, 'Budget must be at least 1000.'),
+  budget: z.coerce.number().min(1, 'Budget must be a positive number.'),
   taskType: z.enum(['physical', 'online']),
-  preferredDateTime: z.string().refine((val) => val, { message: "A date is required." }),
+  preferredDateTime: z.date({ required_error: 'A date is required.' }),
   category: z.string().min(1, { message: 'Please select a category.'}),
   location: z.string().optional(),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
@@ -85,9 +94,9 @@ export default function PostTaskForm() {
     defaultValues: {
       title: '',
       description: '',
-      budget: '' as any, // Initialize as empty string to be a controlled component
+      budget: undefined,
       taskType: 'physical',
-      preferredDateTime: '', // Initialize as empty string
+      preferredDateTime: undefined,
       category: 'General',
       location: '',
       coordinates: undefined,
@@ -106,7 +115,7 @@ export default function PostTaskForm() {
             createdAt: serverTimestamp(),
             status: 'open',
             offerCount: 0,
-            preferredDateTime: new Date(taskDetails.preferredDateTime)
+            preferredDateTime: taskDetails.preferredDateTime
         };
 
         if (taskDetails.taskType === 'physical' && coordinates) {
@@ -265,21 +274,20 @@ export default function PostTaskForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category</FormLabel>
-                   <FormControl>
-                     <select
-                        {...field}
-                        className={cn(
-                          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        )}
-                      >
-                         <option value="" disabled>Select a category</option>
-                        {categories.map((category) => (
-                          <option key={category.name} value={category.name}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                   </FormControl>
+                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category for your task" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.name} value={category.name}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -293,7 +301,7 @@ export default function PostTaskForm() {
                   <FormItem>
                     <FormLabel>Budget ({settings?.currencySymbol ?? 'Rs'})</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="1000" {...field} />
+                      <Input type="number" placeholder="1000" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -305,9 +313,37 @@ export default function PostTaskForm() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Preferred Date</FormLabel>
-                    <FormControl>
-                        <Input type="date" {...field} />
-                    </FormControl>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={'outline'}
+                            className={cn(
+                              'w-full pl-3 text-left font-normal',
+                              !field.value && 'text-muted-foreground'
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, 'PPP')
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={date =>
+                            date < new Date(new Date().setHours(0, 0, 0, 0))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -374,17 +410,11 @@ export default function PostTaskForm() {
                     <FormItem>
                      <FormControl>
                         <div className="flex flex-col sm:flex-row gap-2">
-                           <select
-                                {...field}
+                           <Combobox
+                                items={pakistaniCities.map(c => ({ value: c.name.toLowerCase(), label: c.name }))}
                                 value={field.value || ''}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    if (value === 'Current Location') {
-                                        handleUseCurrentLocation();
-                                        field.onChange('Current Location');
-                                        return;
-                                    }
-                                    const city = pakistaniCities.find(c => c.name === value);
+                                onChange={(value) => {
+                                    const city = pakistaniCities.find(c => c.name.toLowerCase() === value);
                                     if (city) {
                                         field.onChange(city.name);
                                         form.setValue('coordinates', { lat: city.coordinates[0], lng: city.coordinates[1] });
@@ -396,16 +426,10 @@ export default function PostTaskForm() {
                                         form.setValue('coordinates', undefined);
                                     }
                                 }}
-                                className={cn(
-                                "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                )}
-                            >
-                                <option value="" disabled>Select a location</option>
-                                <option value="Current Location">Current Location</option>
-                                {pakistaniCities.map(c => (
-                                    <option key={c.name} value={c.name}>{c.name}</option>
-                                ))}
-                            </select>
+                                placeholder="Select a city..."
+                                searchPlaceholder="Search city..."
+                                notFoundText="City not found."
+                            />
                             <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="flex-shrink-0">
                                 <LocateFixed className="mr-2 h-4 w-4" />
                                 Use current location
