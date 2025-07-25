@@ -50,15 +50,20 @@ function MessagesPageContent() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const fetchPartnerProfiles = useCallback(async (convos: Conversation[]) => {
-    const partnerIds = convos.map(c => c.participants.find(p => p !== user?.uid)).filter(id => !!id) as string[];
+    if (!user) return convos;
+    const partnerIds = convos.map(c => c.participants.find(p => p !== user.uid)).filter(id => !!id) as string[];
     if (partnerIds.length === 0) return convos;
 
     const uniquePartnerIds = [...new Set(partnerIds)];
     const partners: Record<string, UserProfile> = {};
 
-    // Fetch in chunks of 10 to avoid firestore limitations
-    for (let i = 0; i < uniquePartnerIds.length; i += 10) {
-        const chunk = uniquePartnerIds.slice(i, i + 10);
+    // Firestore 'in' query is limited to 30 elements. Fetch in chunks if needed.
+    const chunks = [];
+    for (let i = 0; i < uniquePartnerIds.length; i += 30) {
+        chunks.push(uniquePartnerIds.slice(i, i + 30));
+    }
+    
+    for (const chunk of chunks) {
         const q = query(collection(db, 'users'), where('uid', 'in', chunk));
         const snapshot = await getDocs(q);
         snapshot.forEach(doc => {
@@ -152,20 +157,13 @@ function MessagesPageContent() {
   }
 
   const getConvoPartner = (convo: Conversation) => {
-    if (userProfile?.accountType === 'client') {
-      return {
-        name: convo.taskerName,
-        avatar: convo.taskerAvatar,
-        isOnline: convo.partnerProfile?.isOnline,
-        lastSeen: convo.partnerProfile?.lastSeen,
-      };
-    }
-    return {
-      name: convo.clientName,
-      avatar: convo.clientAvatar,
-      isOnline: convo.partnerProfile?.isOnline,
-      lastSeen: convo.partnerProfile?.lastSeen,
-    };
+      const partnerId = convo.participants.find(p => p !== user?.uid);
+      const partnerProfile = convo.partnerProfile;
+      
+      if (userProfile?.accountType === 'client') {
+        return { name: convo.taskerName, avatar: convo.taskerAvatar, profile: partnerProfile };
+      }
+      return { name: convo.clientName, avatar: convo.clientAvatar, profile: partnerProfile };
   };
 
   return (
