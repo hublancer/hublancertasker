@@ -26,7 +26,7 @@ import TaskDetails from '@/components/TaskDetails';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-type TaskStatus = 'open' | 'assigned' | 'pending-completion' | 'completed';
+type TaskStatus = 'open' | 'assigned' | 'pending-completion' | 'completed' | 'disputed';
 const PAGE_SIZE = 10;
 
 const TaskList = ({
@@ -79,18 +79,21 @@ export default function MyTasksPage() {
     assigned: [],
     'pending-completion': [],
     completed: [],
+    disputed: [],
   });
   const [lastVisible, setLastVisible] = useState<Record<TaskStatus, DocumentSnapshot | null>>({
     open: null,
     assigned: null,
     'pending-completion': null,
     completed: null,
+    disputed: null,
   });
    const [hasMore, setHasMore] = useState<Record<TaskStatus, boolean>>({
     open: true,
     assigned: true,
     'pending-completion': true,
     completed: true,
+    disputed: true,
   });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState<Record<TaskStatus, boolean>>({
@@ -98,6 +101,7 @@ export default function MyTasksPage() {
     assigned: false,
     'pending-completion': false,
     completed: false,
+    disputed: false,
   });
   
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -167,10 +171,12 @@ export default function MyTasksPage() {
             await fetchTasks('assigned');
             await fetchTasks('pending-completion');
             await fetchTasks('completed');
+            await fetchTasks('disputed');
         } else {
             await fetchTasks('assigned');
             await fetchTasks('pending-completion');
             await fetchTasks('completed');
+            await fetchTasks('disputed');
         }
     }
 
@@ -187,29 +193,37 @@ export default function MyTasksPage() {
   };
 
   const handleTaskUpdate = (updatedTask: Task) => {
-      // Find which list the task is in and update it
-      Object.keys(taskLists).forEach(status => {
-          const list = taskLists[status as TaskStatus];
-          const taskIndex = list.findIndex(t => t.id === updatedTask.id);
-          if (taskIndex > -1) {
-              const newList = [...list];
-              // If status changed, remove from old list
-              if (updatedTask.status !== status) {
-                  newList.splice(taskIndex, 1);
-              } else {
-                  newList[taskIndex] = updatedTask;
-              }
-              setTaskLists(prev => ({...prev, [status]: newList}));
-          }
-      });
-      // Add to new list if status changed
-      if (task.status !== updatedTask.status) {
-          setTaskLists(prev => ({...prev, [updatedTask.status]: [updatedTask, ...prev[updatedTask.status]]}))
-      }
-      if(selectedTask?.id === updatedTask.id){
-          setSelectedTask(updatedTask);
-      }
+    const originalStatus = Object.keys(taskLists).find(status => 
+        taskLists[status as TaskStatus].some(t => t.id === updatedTask.id)
+    ) as TaskStatus | undefined;
+
+    if (originalStatus) {
+        // Remove from the old list if status changed
+        if (originalStatus !== updatedTask.status) {
+            setTaskLists(prev => ({
+                ...prev,
+                [originalStatus]: prev[originalStatus].filter(t => t.id !== updatedTask.id),
+            }));
+        }
+    }
+    
+    // Add to the new list (or update in the existing list)
+    setTaskLists(prev => {
+        const newList = prev[updatedTask.status] ? [...prev[updatedTask.status]] : [];
+        const taskIndex = newList.findIndex(t => t.id === updatedTask.id);
+        if (taskIndex > -1) {
+            newList[taskIndex] = updatedTask; // Update existing
+        } else {
+            newList.unshift(updatedTask); // Add to top of new list
+        }
+        return { ...prev, [updatedTask.status]: newList };
+    });
+
+    if (selectedTask?.id === updatedTask.id) {
+        setSelectedTask(updatedTask);
+    }
   };
+
 
   const handleGoToChat = async (taskId: string) => {
     if(!user) return;
@@ -259,15 +273,16 @@ export default function MyTasksPage() {
     );
   }
   
-  const mergedAssignedAndPending = [...taskLists.assigned, ...taskLists['pending-completion']];
+  const mergedAssignedAndPending = [...taskLists.assigned, ...taskLists['pending-completion'], ...taskLists.disputed];
 
   const renderClientDashboard = () => (
     <Tabs defaultValue="open" className="w-full">
-      <TabsList className="grid w-full grid-cols-4 max-w-lg">
+      <TabsList className="grid w-full grid-cols-5 max-w-xl">
         <TabsTrigger value="open">Open</TabsTrigger>
         <TabsTrigger value="assigned">Assigned</TabsTrigger>
         <TabsTrigger value="pending">Pending</TabsTrigger>
         <TabsTrigger value="completed">Completed</TabsTrigger>
+        <TabsTrigger value="disputed">Disputed</TabsTrigger>
       </TabsList>
       <TabsContent value="open" className="mt-6">
         <TaskList tasks={taskLists.open} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('open', true)} hasMore={hasMore.open} loadingMore={loadingMore.open} emptyMessage="You have no open tasks."/>
@@ -280,6 +295,9 @@ export default function MyTasksPage() {
       </TabsContent>
       <TabsContent value="completed" className="mt-6">
         <TaskList tasks={taskLists.completed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('completed', true)} hasMore={hasMore.completed} loadingMore={loadingMore.completed} emptyMessage="You have no completed tasks."/>
+      </TabsContent>
+       <TabsContent value="disputed" className="mt-6">
+        <TaskList tasks={taskLists.disputed} onSelect={handleTaskSelect} onChat={handleGoToChat} onLoadMore={() => fetchTasks('disputed', true)} hasMore={hasMore.disputed} loadingMore={loadingMore.disputed} emptyMessage="You have no disputed tasks."/>
       </TabsContent>
     </Tabs>
   );
@@ -298,9 +316,10 @@ export default function MyTasksPage() {
                 onLoadMore={() => {
                     if (hasMore.assigned) fetchTasks('assigned', true);
                     if (hasMore['pending-completion']) fetchTasks('pending-completion', true);
+                    if (hasMore.disputed) fetchTasks('disputed', true);
                 }} 
-                hasMore={hasMore.assigned || hasMore['pending-completion']} 
-                loadingMore={loadingMore.assigned || loadingMore['pending-completion']} 
+                hasMore={hasMore.assigned || hasMore['pending-completion'] || hasMore.disputed} 
+                loadingMore={loadingMore.assigned || loadingMore['pending-completion'] || loadingMore.disputed} 
                 emptyMessage="You have no assigned tasks."
             />
         </TabsContent>

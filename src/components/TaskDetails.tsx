@@ -27,7 +27,7 @@ interface TaskDetailsProps {
     postedBy: string;
   };
   onBack?: () => void;
-  onTaskUpdate?: () => void;
+  onTaskUpdate?: (updatedTask: Task) => void;
   isPage?: boolean;
 }
 
@@ -318,8 +318,9 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
       await batch.commit();
 
       await addNotification(offer.taskerId, `Your offer for "${task.title}" was accepted!`, `/messages/${conversationRef.id}`);
-
-      onTaskUpdate?.();
+      
+      const updatedTask = { ...task, status: 'assigned', assignedToId: offer.taskerId, assignedToName: offer.taskerName, price: offer.offerPrice };
+      if(onTaskUpdate) onTaskUpdate(updatedTask as Task);
 
       toast({ title: `Task assigned to ${offer.taskerName}!` });
       router.push(`/messages/${conversationRef.id}`);
@@ -354,7 +355,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     try {
         // The cloud function will handle decrementing the offer count
         await deleteDoc(doc(db, 'tasks', task.id, 'offers', offerId));
-        onTaskUpdate?.();
+        if(onTaskUpdate) onTaskUpdate(task as Task);
         toast({ title: 'Offer cancelled.' });
     } catch (error) {
         console.error("Error cancelling offer: ", error);
@@ -367,7 +368,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
         try {
             await deleteDoc(doc(db, 'tasks', task.id));
             toast({title: 'Task Cancelled', description: 'Your task has been successfully removed.'});
-            onTaskUpdate?.();
+            if(onTaskUpdate) onTaskUpdate({...task, status: 'completed'} as Task);
             if(onBack) onBack();
             else router.push('/my-tasks');
         } catch (error) {
@@ -400,7 +401,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
           await addNotification(task.postedById, `${task.assignedToName} marked "${task.title}" as done.`, `/task/${task.id}`);
           toast({ title: 'Task Marked as Done', description: 'The client has been notified to review your work.' });
-          onTaskUpdate?.();
+          if(onTaskUpdate) onTaskUpdate({...task, status: 'pending-completion'} as Task);
         } catch (error: any) {
           console.error("Error marking task as done: ", error);
           toast({ variant: 'destructive', title: 'Could not mark task as done.', description: error.message });
@@ -490,7 +491,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
             toast({ title: 'Task Completed!', description: 'This task has been marked as completed.' });
             await addNotification(task.assignedToId, `The task "${task.title}" has been marked as complete!`, `/my-tasks`);
-            onTaskUpdate?.();
+            if(onTaskUpdate) onTaskUpdate({...task, status: 'completed'} as Task);
         } catch (error: any) {
             toast({
                 variant: 'destructive',
@@ -642,7 +643,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             
             toast({ title: 'Dispute Raised', description: 'An admin will review your case shortly.' });
             setDisputeReason('');
-            onTaskUpdate?.();
+            if(onTaskUpdate) onTaskUpdate({...task, status: 'disputed'} as Task);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Failed to raise dispute.', description: error.message });
         } finally {
@@ -704,7 +705,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
     
     const isParticipant = task.postedById === user.uid || task.assignedToId === user.uid;
 
-    if (task.status === 'assigned' || task.status === 'pending-completion') {
+    if (task.status === 'assigned' || task.status === 'pending-completion' || task.status === 'disputed') {
         if (isParticipant) {
              return (
                 <div className="space-y-2 mt-4">
@@ -723,33 +724,37 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                             {isProcessing ? 'Processing...' : 'Accept & Release Payment'}
                         </Button>
                      )}
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" className="w-full">
-                                <ShieldAlert className="mr-2 h-4 w-4" /> Raise a Dispute
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Raise a Dispute</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Please explain why you are raising a dispute. An admin will review the case. This action cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                             <Textarea
-                                placeholder="Explain the issue..."
-                                value={disputeReason}
-                                onChange={(e) => setDisputeReason(e.target.value)}
-                                className="my-4"
-                            />
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleRaiseDispute} disabled={isDisputing || !disputeReason}>
-                                    {isDisputing ? 'Submitting...' : 'Submit Dispute'}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    
+                    {task.status !== 'disputed' && (
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" className="w-full">
+                                    <ShieldAlert className="mr-2 h-4 w-4" /> Raise a Dispute
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Raise a Dispute</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Please explain why you are raising a dispute. An admin will review the case. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <Textarea
+                                    placeholder="Explain the issue..."
+                                    value={disputeReason}
+                                    onChange={(e) => setDisputeReason(e.target.value)}
+                                    className="my-4"
+                                />
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleRaiseDispute} disabled={isDisputing || !disputeReason}>
+                                        {isDisputing ? 'Submitting...' : 'Submit Dispute'}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                   
                 </div>
             );
         }

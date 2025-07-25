@@ -107,8 +107,9 @@ function ConversationPageContent() {
       orderBy('createdAt', 'desc'),
       limit(initialLimit)
     );
-
-    const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
+    
+    // Fetch initial messages
+    getDocs(messagesQuery).then(snapshot => {
       const msgs = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Message))
         .reverse(); // Reverse to show latest at the bottom
@@ -117,6 +118,26 @@ function ConversationPageContent() {
       setHasMore(snapshot.docs.length === initialLimit);
       setLoading(false);
     });
+
+    // Listen for new messages only
+     const newMessagesQuery = query(
+      collection(db, 'conversations', conversationId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+
+    const unsubscribeMessages = onSnapshot(newMessagesQuery, snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const newMessage = { id: change.doc.id, ...change.doc.data()} as Message;
+            // Avoid adding duplicates on initial load
+            if (!messages.find(m => m.id === newMessage.id)) {
+                 setMessages(prev => [...prev, newMessage]);
+            }
+          }
+        });
+    });
+
 
     return () => {
       unsubscribeConvo();
@@ -232,6 +253,8 @@ function ConversationPageContent() {
               name={partner.name}
               imageUrl={partner.avatar}
               className="h-8 w-8"
+              isOnline={partnerProfile?.isOnline}
+              lastSeen={partnerProfile?.lastSeen}
             />
             <div>
               <p className="font-semibold">{partner.name}</p>
@@ -279,6 +302,8 @@ function ConversationPageContent() {
                       name={partner.name}
                       imageUrl={partner.avatar}
                       className="h-8 w-8"
+                      isOnline={partnerProfile?.isOnline}
+                      lastSeen={partnerProfile?.lastSeen}
                     />
                   )}
                   <div

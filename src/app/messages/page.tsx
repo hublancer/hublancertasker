@@ -157,7 +157,6 @@ function MessagesPageContent() {
   }
 
   const getConvoPartner = (convo: Conversation) => {
-      const partnerId = convo.participants.find(p => p !== user?.uid);
       const partnerProfile = convo.partnerProfile;
       
       if (userProfile?.accountType === 'client') {
@@ -199,6 +198,8 @@ function MessagesPageContent() {
                     name={partner.name}
                     imageUrl={partner.avatar}
                     className="h-10 w-10"
+                    isOnline={partner.profile?.isOnline}
+                    lastSeen={partner.profile?.lastSeen}
                   />
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>
