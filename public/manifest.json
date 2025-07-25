@@ -1,11 +1,11 @@
 {
   "name": "Hublancer",
   "short_name": "Hublancer",
+  "description": "Your hub for finding and completing tasks.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFFFF",
+  "background_color": "#ffffff",
   "theme_color": "#4DB6AC",
-  "description": "Your hub for finding and completing tasks.",
   "icons": [
     {
       "src": "/icon-192x192.png",
