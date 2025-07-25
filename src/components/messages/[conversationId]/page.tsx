@@ -77,9 +77,10 @@ function ConversationPageContent() {
         const partnerId = convoData.participants.find(p => p !== user.uid);
         if (partnerId) {
             const partnerRef = doc(db, 'users', partnerId);
-            partnerUnsub = onSnapshot(partnerRef, (snap) => {
-                setPartnerProfile(snap.data() as UserProfile);
-            });
+            const snap = await getDoc(partnerRef);
+            if(snap.exists()) {
+                 setPartnerProfile(snap.data() as UserProfile);
+            }
         }
 
       } else {
@@ -173,7 +174,6 @@ function ConversationPageContent() {
                 <UserAvatar 
                     name={partner.name}
                     imageUrl={partner.avatar}
-                    isOnline={partnerProfile?.isOnline}
                 />
                 <div>
                     <p className="font-semibold">{partner.name}</p>
@@ -206,7 +206,6 @@ function ConversationPageContent() {
                         <UserAvatar 
                             name={partner.name}
                             imageUrl={partner.avatar}
-                            isOnline={partnerProfile?.isOnline}
                             className="h-8 w-8"
                         />
                     )}

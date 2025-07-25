@@ -12,6 +12,7 @@ import {
   updateDoc,
   serverTimestamp,
   getDocs,
+  getDoc,
 } from 'firebase/firestore';
 import { useEffect, useState, Suspense } from 'react';
 import AppHeader from '@/components/AppHeader';
@@ -37,8 +38,6 @@ export interface Conversation {
   lastMessageAt: any;
   clientAvatar?: string;
   taskerAvatar?: string;
-  clientIsOnline?: boolean;
-  taskerIsOnline?: boolean;
 }
 
 function MessagesPageContent() {
@@ -68,15 +67,8 @@ function MessagesPageContent() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         const convosPromises = snapshot.docs.map(async (docSnap) => {
-            const convoData = { id: docSnap.id, ...docSnap.data() } as Omit<Conversation, 'id'>;
-            const clientDoc = await getDoc(doc(db, 'users', convoData.participants.find(p => p !== user.uid)!));
-            const taskerDoc = await getDoc(doc(db, 'users', user.uid));
-            return {
-                ...convoData,
-                id: docSnap.id,
-                clientIsOnline: clientDoc.data()?.isOnline,
-                taskerIsOnline: taskerDoc.data()?.isOnline,
-            } as Conversation;
+            const convoData = { id: docSnap.id, ...docSnap.data() } as Conversation;
+            return convoData;
         });
 
       const convos = await Promise.all(convosPromises);
@@ -137,13 +129,11 @@ function MessagesPageContent() {
       return {
         name: convo.taskerName,
         avatar: convo.taskerAvatar,
-        isOnline: convo.taskerIsOnline,
       };
     }
     return {
       name: convo.clientName,
       avatar: convo.clientAvatar,
-      isOnline: convo.clientIsOnline,
     };
   };
 
@@ -175,7 +165,6 @@ function MessagesPageContent() {
                   <UserAvatar 
                     name={partner.name}
                     imageUrl={partner.avatar}
-                    isOnline={partner.isOnline}
                   />
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>

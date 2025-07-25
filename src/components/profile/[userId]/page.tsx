@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { UserProfile, useAuth } from '@/hooks/use-auth';
 import AppHeader from '@/components/AppHeader';
@@ -22,7 +22,6 @@ interface Review {
     comment: string;
     clientName: string;
     clientAvatar: string;
-    clientIsOnline: boolean;
     createdAt: any;
 }
 
@@ -52,15 +51,15 @@ export default function ProfilePage() {
         if (!userId) return;
 
         const fetchProfile = async () => {
-            const unsub = onSnapshot(doc(db, "users", userId), (doc) => {
-                 if (doc.exists()) {
-                    setProfile(doc.data() as UserProfile);
-                } else {
-                    console.log('No such document!');
-                }
-                setLoading(false);
-            });
-            return () => unsub();
+            const docRef = doc(db, "users", userId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                setProfile(docSnap.data() as UserProfile);
+            } else {
+                console.log('No such document!');
+            }
+            setLoading(false);
         };
 
         fetchProfile();
@@ -87,7 +86,6 @@ export default function ProfilePage() {
                     return { 
                         id: docSnap.id, 
                         ...reviewData,
-                        clientIsOnline: clientProfile?.isOnline || false,
                     } as Review;
                 });
                 
@@ -138,7 +136,6 @@ export default function ProfilePage() {
                              <UserAvatar 
                                 name={profile.name}
                                 imageUrl={profile.photoURL}
-                                isOnline={profile.isOnline}
                                 className="h-32 w-32 text-4xl"
                              />
                             <div className="text-center md:text-left flex-1">
@@ -216,7 +213,6 @@ export default function ProfilePage() {
                                                     <UserAvatar 
                                                         name={review.clientName} 
                                                         imageUrl={review.clientAvatar} 
-                                                        isOnline={review.clientIsOnline}
                                                     />
                                                     <div className="flex-1">
                                                         <div className="flex justify-between items-center">

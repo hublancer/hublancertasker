@@ -906,7 +906,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                     <Calendar className="h-5 w-5 mr-3 mt-0.5 text-muted-foreground flex-shrink-0" />
                     <div>
                     <p className="font-semibold uppercase text-xs text-muted-foreground">TO BE DONE ON</p>
-                    <p>{task.date instanceof Timestamp ? task.date.toDate().toLocaleDateString() : task.date}</p>
+                    <p>{task.date && task.date.toDateString ? task.date.toDateString() : task.date}</p>
                     </div>
                 </div>
             </div>

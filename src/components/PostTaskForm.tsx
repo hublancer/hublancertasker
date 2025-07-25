@@ -224,6 +224,8 @@ export default function PostTaskForm() {
     setMapCenter(newPosition);
   };
 
+  const mapTasks: (Task & { coordinates: [number, number] | null })[] = markerPosition ? [{ id: 'current', coordinates: markerPosition } as Task] : [];
+
 
   const isAuthenticated = !!user;
 
@@ -394,8 +396,8 @@ export default function PostTaskForm() {
               <div className="space-y-4">
                 <FormLabel>Location</FormLabel>
                 <div className="h-64 w-full rounded-md overflow-hidden border z-0">
-                    <Map
-                        tasks={markerPosition ? [{id: 'current', coordinates: markerPosition} as Task] : []}
+                   <Map
+                        tasks={mapTasks}
                         center={mapCenter}
                         zoom={mapZoom}
                         onTaskSelect={() => {}}
