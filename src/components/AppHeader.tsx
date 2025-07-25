@@ -11,7 +11,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Menu, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare, FileKey } from 'lucide-react';
+import { Menu, User, LogOut, Wallet, Bell, Shield, Settings, MessageSquare, FileKey, Briefcase } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -203,7 +203,7 @@ const AppHeader = () => {
   const desktopHeader = (
     <div className="mr-4 hidden md:flex">
       <Link href="/" className="mr-6 flex items-center space-x-2">
-        <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
+        <Briefcase className="h-6 w-6 text-primary" />
         <span className="font-bold font-headline text-lg">Hublancer</span>
       </Link>
       <nav className="flex items-center gap-6 text-sm">
@@ -245,7 +245,7 @@ const AppHeader = () => {
               href="/"
               className="flex items-center space-x-2 px-6"
             >
-              <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
+              <Briefcase className="h-6 w-6 text-primary" />
               <span className="font-bold font-headline text-lg">
                 Hublancer
               </span>
@@ -271,7 +271,7 @@ const AppHeader = () => {
           </SheetContent>
         </Sheet>
         <Link href="/" className="flex items-center space-x-2">
-          <Image src="https://i.ibb.co/Y7KxFDRT/Untitled-design-11-png.png" alt="Hublancer Logo" width={24} height={24} />
+          <Briefcase className="h-6 w-6 text-primary" />
           <span className="font-bold font-headline text-lg">Hublancer</span>
         </Link>
         <div className="flex items-center space-x-2">
