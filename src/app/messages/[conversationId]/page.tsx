@@ -109,13 +109,14 @@ function ConversationPageContent() {
         limit(initialLimit)
       );
 
-      const snapshot = await getDocs(messagesQuery);
-      const msgs = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Message))
-        .reverse();
-      setMessages(msgs);
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === initialLimit);
+      const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+        const msgs = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+            .reverse();
+        setMessages(msgs);
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMore(snapshot.docs.length === initialLimit);
+      });
 
     } catch (error) {
       console.error("Error fetching conversation data:", error);
@@ -269,7 +270,7 @@ function ConversationPageContent() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-4 md:p-6" viewportRef={scrollRef}>
+        <ScrollArea className="flex-1 p-4 md:p-6" ref={scrollRef}>
           {hasMore && (
             <div className="text-center mb-4">
               <Button

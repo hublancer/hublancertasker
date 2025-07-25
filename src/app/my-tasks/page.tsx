@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation';
 import TaskDetails from '@/components/TaskDetails';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 
 type TaskStatus = 'open' | 'assigned' | 'pending-completion' | 'completed' | 'disputed';
 const PAGE_SIZE = 10;
@@ -73,6 +74,7 @@ const TaskList = ({
 export default function MyTasksPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [taskLists, setTaskLists] = useState<Record<TaskStatus, Task[]>>({
     open: [],
