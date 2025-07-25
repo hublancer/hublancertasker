@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import AppHeader from '@/components/AppHeader';
 import { type Task } from '@/components/TaskCard';
 import TaskListItem from '@/components/TaskListItem';
@@ -36,7 +36,7 @@ import { Switch } from './ui/switch';
 import { CategoryFilter } from './CategoryFilter';
 import { pakistaniCities } from '@/lib/locations';
 import { Input } from './ui/input';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
 // Dynamically import L from leaflet only on the client side
@@ -55,9 +55,10 @@ type TaskTypeFilter = 'all' | 'physical' | 'online';
 type SortByType = 'newest' | 'price-asc' | 'price-desc';
 type LocationFilterMode = 'city' | 'current';
 
-export default function HomePageClient({ tasks }: HomePageClientProps) {
+function HomePageClientContent({ tasks }: HomePageClientProps) {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [currentMapCenter, setCurrentMapCenter] = useState<
@@ -612,4 +613,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
       </main>
     </div>
   );
+}
+
+export default function HomePageClient(props: HomePageClientProps) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePageClientContent {...props} />
+    </Suspense>
+  )
 }
