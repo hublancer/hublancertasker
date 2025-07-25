@@ -51,10 +51,11 @@ export default function WalletPage() {
 
     const fetchTransactions = useCallback(async (loadMore = false) => {
       if (!user) return;
+      
       if (loadMore) {
         setLoadingMore(true);
       } else {
-        setLoading(true);
+        setLoading(true); // Only set loading for the initial fetch
       }
 
       try {
@@ -77,37 +78,49 @@ export default function WalletPage() {
       } catch (error) {
         console.error("Error fetching transactions:", error);
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (loadMore) {
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+        }
       }
     }, [user, lastVisible]);
-
+    
+    // Effect for initial load and handling auth changes
     useEffect(() => {
-        if (authLoading) return; // Wait until authentication state is determined
-
+        if (authLoading) {
+            setLoading(true);
+            return;
+        }
         if (!user) {
             setLoading(false);
             return;
         }
-
         fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authLoading, user]);
 
-        let unsubscribers: (() => void)[] = [];
-        
+    // Effect for real-time pending requests
+    useEffect(() => {
+        if (!user) return;
+
         const depositsQuery = query(collection(db, 'deposits'), where('userId', '==', user.uid), where('status', '==', 'pending'));
-        unsubscribers.push(onSnapshot(depositsQuery, (snapshot) => {
+        const depositsUnsubscribe = onSnapshot(depositsQuery, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
             setPendingDeposits(reqs);
-        }));
+        });
         
         const withdrawalsQuery = query(collection(db, 'withdrawals'), where('userId', '==', user.uid), where('status', '==', 'pending'));
-        unsubscribers.push(onSnapshot(withdrawalsQuery, (snapshot) => {
+        const withdrawalsUnsubscribe = onSnapshot(withdrawalsQuery, (snapshot) => {
             const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PendingRequest));
             setPendingWithdrawals(reqs);
-        }));
+        });
 
-        return () => unsubscribers.forEach(unsub => unsub());
-    }, [user, fetchTransactions, authLoading]);
+        return () => {
+            depositsUnsubscribe();
+            withdrawalsUnsubscribe();
+        }
+    }, [user]);
     
     if (authLoading || loading) {
         return (
