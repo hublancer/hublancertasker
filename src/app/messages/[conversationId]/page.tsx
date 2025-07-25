@@ -61,16 +61,17 @@ function ConversationPageContent() {
 
   const initialLimit = 20;
 
-  useEffect(() => {
+  const fetchInitialData = useCallback(async () => {
     if (!conversationId || !user) {
       if (!user) router.push('/messages');
       return;
     }
-
     setLoading(true);
 
-    const convoRef = doc(db, 'conversations', conversationId);
-    const unsubscribeConvo = onSnapshot(convoRef, async docSnap => {
+    try {
+      const convoRef = doc(db, 'conversations', conversationId);
+      const docSnap = await getDoc(convoRef);
+
       if (docSnap.exists()) {
         const convoData = {
           id: docSnap.id,
@@ -92,58 +93,41 @@ function ConversationPageContent() {
         const partnerId = convoData.participants.find(p => p !== user.uid);
         if (partnerId) {
           const partnerRef = doc(db, 'users', partnerId);
-          onSnapshot(partnerRef, snap => {
+          const snap = await getDoc(partnerRef);
+          if (snap.exists()) {
             setPartnerProfile(snap.data() as UserProfile);
-          });
+          }
         }
-        
       } else {
         router.push('/messages');
+        return;
       }
-    });
 
-    const messagesQuery = query(
-      collection(db, 'conversations', conversationId, 'messages'),
-      orderBy('createdAt', 'desc'),
-      limit(initialLimit)
-    );
-    
-    // Fetch initial messages
-    getDocs(messagesQuery).then(snapshot => {
+      const messagesQuery = query(
+        collection(db, 'conversations', conversationId, 'messages'),
+        orderBy('createdAt', 'desc'),
+        limit(initialLimit)
+      );
+
+      const snapshot = await getDocs(messagesQuery);
       const msgs = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Message))
-        .reverse(); // Reverse to show latest at the bottom
+        .reverse();
       setMessages(msgs);
       setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       setHasMore(snapshot.docs.length === initialLimit);
+
+    } catch (error) {
+      console.error("Error fetching conversation data:", error);
+    } finally {
       setLoading(false);
-    });
-
-    // Listen for new messages only
-     const newMessagesQuery = query(
-      collection(db, 'conversations', conversationId, 'messages'),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
-
-    const unsubscribeMessages = onSnapshot(newMessagesQuery, snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === 'added') {
-            const newMessage = { id: change.doc.id, ...change.doc.data()} as Message;
-            // Avoid adding duplicates on initial load
-            if (!messages.find(m => m.id === newMessage.id)) {
-                 setMessages(prev => [...prev, newMessage]);
-            }
-          }
-        });
-    });
-
-
-    return () => {
-      unsubscribeConvo();
-      unsubscribeMessages();
-    };
+    }
   }, [conversationId, user, router]);
+
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
 
   useEffect(() => {
@@ -185,6 +169,16 @@ function ConversationPageContent() {
 
     const messageText = newMessage;
     setNewMessage('');
+    
+    const tempMessageId = `temp-${Date.now()}`;
+    const messageToSend: Message = {
+        id: tempMessageId,
+        senderId: user.uid,
+        text: messageText,
+        createdAt: new Date(),
+    }
+    setMessages(prev => [...prev, messageToSend]);
+
 
     try {
       const conversationRef = doc(db, 'conversations', conversation.id);
@@ -203,9 +197,13 @@ function ConversationPageContent() {
       if(partnerId) {
         await addNotification(partnerId, `New message from ${userProfile.name} in "${conversation.taskTitle}"`, `/messages/${conversation.id}`);
       }
+      
+      // I'll leave the optimistic update for now. A full refresh would be another option.
 
     } catch (error) {
       console.error('Error sending message: ', error);
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== tempMessageId));
     }
   };
 
@@ -253,8 +251,6 @@ function ConversationPageContent() {
               name={partner.name}
               imageUrl={partner.avatar}
               className="h-8 w-8"
-              isOnline={partnerProfile?.isOnline}
-              lastSeen={partnerProfile?.lastSeen}
             />
             <div>
               <p className="font-semibold">{partner.name}</p>
@@ -302,8 +298,6 @@ function ConversationPageContent() {
                       name={partner.name}
                       imageUrl={partner.avatar}
                       className="h-8 w-8"
-                      isOnline={partnerProfile?.isOnline}
-                      lastSeen={partnerProfile?.lastSeen}
                     />
                   )}
                   <div

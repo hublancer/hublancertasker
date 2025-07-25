@@ -7,10 +7,6 @@ import {
   query,
   where,
   orderBy,
-  onSnapshot,
-  doc,
-  updateDoc,
-  serverTimestamp,
   getDocs,
 } from 'firebase/firestore';
 import { useEffect, useState, Suspense, useCallback } from 'react';
@@ -49,76 +45,58 @@ function MessagesPageContent() {
   const [loading, setLoading] = useState(true);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
-  const fetchPartnerProfiles = useCallback(async (convos: Conversation[]) => {
-    if (!user) return convos;
-    const partnerIds = convos.map(c => c.participants.find(p => p !== user.uid)).filter(id => !!id) as string[];
-    if (partnerIds.length === 0) return convos;
-
-    const uniquePartnerIds = [...new Set(partnerIds)];
-    const partners: Record<string, UserProfile> = {};
-
-    // Firestore 'in' query is limited to 30 elements. Fetch in chunks if needed.
-    const chunks = [];
-    for (let i = 0; i < uniquePartnerIds.length; i += 30) {
-        chunks.push(uniquePartnerIds.slice(i, i + 30));
-    }
-    
-    for (const chunk of chunks) {
-        const q = query(collection(db, 'users'), where('uid', 'in', chunk));
-        const snapshot = await getDocs(q);
-        snapshot.forEach(doc => {
-            partners[doc.id] = doc.data() as UserProfile;
-        });
-    }
-
-    return convos.map(convo => {
-        const partnerId = convo.participants.find(p => p !== user?.uid);
-        if (partnerId && partners[partnerId]) {
-            convo.partnerProfile = partners[partnerId];
-        }
-        return convo;
-    });
-
-  }, [user]);
-
-
-  useEffect(() => {
-    if (authLoading) return;
+  const fetchConversations = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
     }
+    setLoading(true);
 
-    const userRef = doc(db, 'users', user.uid);
-    updateDoc(userRef, { lastMessageReadTimestamp: serverTimestamp() });
+    try {
+        const q = query(
+          collection(db, 'conversations'),
+          where('participants', 'array-contains', user.uid),
+          where('taskStatus', 'in', ['assigned', 'pending-completion', 'disputed']),
+          orderBy('lastMessageAt', 'desc')
+        );
 
-    const q = query(
-      collection(db, 'conversations'),
-      where('participants', 'array-contains', user.uid),
-      where('taskStatus', 'in', ['assigned', 'pending-completion', 'disputed']),
-      orderBy('lastMessageAt', 'desc')
-    );
+        const snapshot = await getDocs(q);
+        const convosData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Conversation));
+        
+        // This can be further optimized by fetching all partners in one go if needed
+        const convosWithProfiles = await Promise.all(convosData.map(async convo => {
+            const partnerId = convo.participants.find(p => p !== user.uid);
+            if (partnerId) {
+                const partnerDoc = await getDoc(collection(db, 'users', partnerId));
+                if (partnerDoc.exists()) {
+                    convo.partnerProfile = partnerDoc.data() as UserProfile;
+                }
+            }
+            return convo;
+        }));
 
-    const unsubscribe = onSnapshot(q, async snapshot => {
-      const convosData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Conversation));
-      
-      const convosWithProfiles = await fetchPartnerProfiles(convosData);
+        setConversations(convosWithProfiles);
 
-      setConversations(convosWithProfiles);
-      setLoading(false);
-
-      // Handle redirect for admin disputes
-      const taskId = searchParams.get('taskId');
-      if (userProfile?.role === 'admin' && taskId) {
-        const convoForTask = convosWithProfiles.find(c => c.taskId === taskId);
-        if (convoForTask) {
-          router.replace(`/messages/${convoForTask.id}`);
+        const taskId = searchParams.get('taskId');
+        if (userProfile?.role === 'admin' && taskId) {
+          const convoForTask = convosWithProfiles.find(c => c.taskId === taskId);
+          if (convoForTask) {
+            router.replace(`/messages/${convoForTask.id}`);
+          }
         }
-      }
-    });
+    } catch(error) {
+        console.error("Error fetching conversations:", error);
+    } finally {
+        setLoading(false);
+    }
+  }, [user, searchParams, userProfile, router]);
 
-    return () => unsubscribe();
-  }, [user, authLoading, router, searchParams, userProfile, fetchPartnerProfiles]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchConversations();
+    }
+  }, [user, authLoading, fetchConversations]);
 
   if (authLoading || loading) {
     return (
@@ -157,12 +135,10 @@ function MessagesPageContent() {
   }
 
   const getConvoPartner = (convo: Conversation) => {
-      const partnerProfile = convo.partnerProfile;
-      
       if (userProfile?.accountType === 'client') {
-        return { name: convo.taskerName, avatar: convo.taskerAvatar, profile: partnerProfile };
+        return { name: convo.taskerName, avatar: convo.taskerAvatar };
       }
-      return { name: convo.clientName, avatar: convo.clientAvatar, profile: partnerProfile };
+      return { name: convo.clientName, avatar: convo.clientAvatar };
   };
 
   return (
@@ -198,8 +174,6 @@ function MessagesPageContent() {
                     name={partner.name}
                     imageUrl={partner.avatar}
                     className="h-10 w-10"
-                    isOnline={partner.profile?.isOnline}
-                    lastSeen={partner.profile?.lastSeen}
                   />
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>

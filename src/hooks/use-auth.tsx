@@ -95,59 +95,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const setupAdminListeners = useCallback((adminId: string) => {
-    const unsubscribes: (()=>void)[] = [];
-    const notifyAdmin = (message: string, link: string) => {
-        addNotification(adminId, message, link);
-        playNotificationSound();
-    }
-
-    const lastCheckTimestamp = new Date(); // To avoid notifying for old docs
-
-    const depositsQuery = query(collection(db, 'deposits'), where('createdAt', '>', lastCheckTimestamp));
-    unsubscribes.push(onSnapshot(depositsQuery, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const data = change.doc.data();
-                notifyAdmin(`New deposit of ${settings?.currencySymbol}${data.amount} from ${data.userName}`, '/admin/deposits');
-            }
-        });
-    }));
-
-    const withdrawalsQuery = query(collection(db, 'withdrawals'), where('createdAt', '>', lastCheckTimestamp));
-    unsubscribes.push(onSnapshot(withdrawalsQuery, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const data = change.doc.data();
-                notifyAdmin(`New withdrawal of ${settings?.currencySymbol}${data.amount} from ${data.userName}`, '/admin/withdrawals');
-            }
-        });
-    }));
-    
-    const kycQuery = query(collection(db, 'kycSubmissions'), where('submittedAt', '>', lastCheckTimestamp));
-    unsubscribes.push(onSnapshot(kycQuery, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                 const data = change.doc.data();
-                notifyAdmin(`New KYC submission from ${data.userName}`, '/admin/kyc');
-            }
-        });
-    }));
-    
-    const disputesQuery = query(collection(db, 'disputes'), where('createdAt', '>', lastCheckTimestamp));
-    unsubscribes.push(onSnapshot(disputesQuery, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                 const data = change.doc.data();
-                notifyAdmin(`New dispute from ${data.raisedBy.name}`, '/admin/disputes');
-            }
-        });
-    }));
-
-    return () => unsubscribes.forEach(unsub => unsub());
-
-  }, [addNotification, settings?.currencySymbol, playNotificationSound]);
-
   useEffect(() => {
     const settingsDocRef = doc(db, 'settings', 'platform');
     const settingsUnsubscribe = onSnapshot(settingsDocRef, (doc) => {
@@ -158,35 +105,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     });
 
-    let adminUnsubscribe = () => {};
-    let previousUserId: string | null = null;
-
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true);
 
       if (currentUser) {
         setUser(currentUser);
-        previousUserId = currentUser.uid; // Store current user ID
 
         // Load from cache first
         const cachedProfile = sessionStorage.getItem(`userProfile-${currentUser.uid}`);
         if (cachedProfile) {
             setUserProfile(JSON.parse(cachedProfile));
         }
-
-        // Setup Realtime DB presence
-        const rtdb = getDatabase();
-        const userStatusDatabaseRef = ref(rtdb, '/status/' + currentUser.uid);
-
-        onValue(ref(rtdb, '.info/connected'), (snapshot) => {
-            if (snapshot.val() === false) {
-                return; 
-            };
-
-            onDisconnect(userStatusDatabaseRef).set({ isOnline: false, lastSeen: rtdbServerTimestamp() }).then(() => {
-                set(userStatusDatabaseRef, { isOnline: true, lastSeen: rtdbServerTimestamp() });
-            });
-        });
         
         // Firestore listener for profile
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -195,11 +124,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const profileData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
                 setUserProfile(profileData);
                 sessionStorage.setItem(`userProfile-${currentUser.uid}`, JSON.stringify(profileData));
-
-                if (profileData.role === 'admin') {
-                   adminUnsubscribe = setupAdminListeners(currentUser.uid);
-                }
-
             } else {
                  console.log("User doc doesn't exist yet for UID:", currentUser.uid);
             }
@@ -209,21 +133,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             userUnsubscribe();
             settingsUnsubscribe();
-            adminUnsubscribe();
         }
 
       } else {
         setUser(null);
         setUserProfile(null);
         setLoading(false);
-        adminUnsubscribe(); // Clean up admin listeners on logout
       }
     });
 
     return () => {
       authUnsubscribe();
       settingsUnsubscribe();
-      adminUnsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
