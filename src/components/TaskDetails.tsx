@@ -41,7 +41,7 @@ interface Offer {
     createdAt: any;
     taskerRating?: number;
     taskerReviewCount?: number;
-    isOnline?: boolean;
+    taskerProfile?: UserProfile;
 }
 
 interface Question {
@@ -52,7 +52,7 @@ interface Question {
     question: string;
     answer?: string;
     createdAt: any;
-    isOnline?: boolean;
+    userProfile?: UserProfile;
 }
 
 const StarRating = ({ rating, setRating, readOnly = false }: { rating: number; setRating?: (rating: number) => void, readOnly?: boolean }) => {
@@ -139,7 +139,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                 ...offerData,
                 taskerRating: taskerProfile?.averageRating || 0,
                 taskerReviewCount: taskerProfile?.reviewCount || 0,
-                isOnline: taskerProfile?.isOnline || false,
+                taskerProfile: taskerProfile
             } as Offer;
         });
         const offersData = await Promise.all(offersDataPromises);
@@ -160,7 +160,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
              return {
                  id: docSnap.id,
                  ...questionData,
-                 isOnline: userProfile?.isOnline || false,
+                 userProfile: userProfile
              } as Question
         });
         const questionsData = await Promise.all(questionsDataPromises);
@@ -909,7 +909,12 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
             
             <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 gap-4 text-sm text-foreground mb-6">
                 <div className="flex items-start p-3 rounded-lg bg-muted/50">
-                    <UserAvatar name={task.postedBy} imageUrl={taskOwnerProfile?.photoURL} isOnline={taskOwnerProfile?.isOnline} className="h-10 w-10 mr-3" />
+                    <UserAvatar 
+                      name={task.postedBy} 
+                      imageUrl={taskOwnerProfile?.photoURL} 
+                      isOnline={taskOwnerProfile?.isOnline}
+                      lastSeen={taskOwnerProfile?.lastSeen}
+                      className="h-10 w-10 mr-3" />
                     <div>
                     <p className="font-semibold uppercase text-xs text-muted-foreground">POSTED BY</p>
                     <p className="truncate">{task.postedBy}</p>
@@ -1002,7 +1007,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                               <UserAvatar 
                                 name={offer.taskerName} 
                                 imageUrl={offer.taskerAvatar} 
-                                isOnline={offer.isOnline}
+                                isOnline={offer.taskerProfile?.isOnline}
+                                lastSeen={offer.taskerProfile?.lastSeen}
                                 className="h-12 w-12 cursor-pointer"
                               />
                             </Link>
@@ -1072,7 +1078,12 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
                     <Card key={q.id}>
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center gap-2">
-                          <UserAvatar name={q.userName} imageUrl={q.userAvatar} isOnline={q.isOnline} className="h-8 w-8" />
+                          <UserAvatar 
+                            name={q.userName} 
+                            imageUrl={q.userAvatar} 
+                            isOnline={q.userProfile?.isOnline}
+                            lastSeen={q.userProfile?.lastSeen}
+                            className="h-8 w-8" />
                           <p className="font-semibold text-sm">{q.userName}</p>
                         </div>
                         <p className="text-sm pl-10">{q.question}</p>

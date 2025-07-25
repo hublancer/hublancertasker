@@ -92,6 +92,7 @@ export default function AdminUsersPage() {
                         name={user.name} 
                         imageUrl={user.photoURL} 
                         isOnline={user.isOnline}
+                        lastSeen={user.lastSeen}
                         className="h-9 w-9"
                     />
                     <div className="grid gap-0.5">

@@ -3,15 +3,22 @@
 
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Timestamp } from 'firebase/firestore';
 
 interface UserAvatarProps {
   name?: string;
   imageUrl?: string;
   isOnline?: boolean;
+  lastSeen?: Timestamp;
   className?: string;
 }
 
-export default function UserAvatar({ name, imageUrl, isOnline, className }: UserAvatarProps) {
+export default function UserAvatar({ name, imageUrl, isOnline, lastSeen, className }: UserAvatarProps) {
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  // User is considered online if isOnline is true OR if they were last seen within the hour.
+  const recentlyActive = lastSeen && lastSeen.toMillis() > oneHourAgo;
+  const showOnline = isOnline || recentlyActive;
+  
   return (
     <div className={cn("relative", className)}>
       <Avatar className="h-full w-full">
@@ -21,7 +28,7 @@ export default function UserAvatar({ name, imageUrl, isOnline, className }: User
       <div
         className={cn(
           'absolute bottom-0 right-0 rounded-full h-3 w-3 border-2 border-background',
-          isOnline ? 'bg-green-500' : 'bg-gray-400'
+          showOnline ? 'bg-green-500' : 'bg-gray-400'
         )}
       />
     </div>

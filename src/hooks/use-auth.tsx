@@ -180,7 +180,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         onValue(ref(rtdb, '.info/connected'), (snapshot) => {
             if (snapshot.val() === false) {
-                return; // Not connected
+                // Not connected, but onDisconnect will handle setting offline status in Firestore.
+                return; 
             };
 
             onDisconnect(userStatusDatabaseRef).set({ isOnline: false, lastSeen: rtdbServerTimestamp() }).then(() => {
@@ -190,17 +191,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
         });
         
-        // Listen for RTDB changes and update Firestore
-        onValue(userStatusDatabaseRef, (snapshot) => {
-             const status = snapshot.val();
-             if (status) {
-                updateDoc(doc(db, 'users', currentUser.uid), {
-                    isOnline: status.isOnline,
-                    lastSeen: serverTimestamp(),
-                });
-             }
-        });
-
         // Firestore listener for profile
         const userDocRef = doc(db, 'users', currentUser.uid);
         const userUnsubscribe = onSnapshot(userDocRef, (docSnap) => {

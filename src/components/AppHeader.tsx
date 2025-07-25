@@ -136,6 +136,7 @@ const AppHeader = () => {
                 name={userProfile.name} 
                 imageUrl={userProfile.photoURL}
                 isOnline={userProfile.isOnline}
+                lastSeen={userProfile.lastSeen}
                 className="h-8 w-8"
               />
             </Button>

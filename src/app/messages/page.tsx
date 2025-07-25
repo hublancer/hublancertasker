@@ -35,8 +35,7 @@ export interface Conversation {
   lastMessageAt: any;
   clientAvatar?: string;
   taskerAvatar?: string;
-  clientIsOnline?: boolean;
-  taskerIsOnline?: boolean;
+  partnerProfile?: UserProfile;
   taskStatus: 'open' | 'assigned' | 'completed' | 'pending-completion' | 'disputed';
 }
 
@@ -62,18 +61,25 @@ function MessagesPageContent() {
     const q = query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', user.uid),
-      where('taskStatus', 'in', ['assigned', 'pending-completion']),
+      where('taskStatus', 'in', ['assigned', 'pending-completion', 'disputed']),
       orderBy('lastMessageAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, async snapshot => {
-      const convos = snapshot.docs.map(
-        doc =>
-          ({
-            id: doc.id,
-            ...doc.data(),
-          } as Conversation)
-      );
+      const convosPromises = snapshot.docs.map(async (docSnap) => {
+        const convoData = { id: docSnap.id, ...docSnap.data() } as Conversation;
+        const partnerId = convoData.participants.find(p => p !== user.uid);
+
+        if (partnerId) {
+            const partnerDoc = await docSnap.ref.collection('participants').doc(partnerId).get();
+            if (partnerDoc.exists()) {
+                convoData.partnerProfile = partnerDoc.data() as UserProfile;
+            }
+        }
+        return convoData;
+      });
+
+      const convos = await Promise.all(convosPromises);
       setConversations(convos);
       setLoading(false);
 
@@ -131,13 +137,15 @@ function MessagesPageContent() {
       return {
         name: convo.taskerName,
         avatar: convo.taskerAvatar,
-        isOnline: convo.taskerIsOnline,
+        isOnline: convo.partnerProfile?.isOnline,
+        lastSeen: convo.partnerProfile?.lastSeen,
       };
     }
     return {
       name: convo.clientName,
       avatar: convo.clientAvatar,
-      isOnline: convo.clientIsOnline,
+      isOnline: convo.partnerProfile?.isOnline,
+      lastSeen: convo.partnerProfile?.lastSeen,
     };
   };
 
@@ -174,6 +182,7 @@ function MessagesPageContent() {
                     name={partner.name}
                     imageUrl={partner.avatar}
                     isOnline={partner.isOnline}
+                    lastSeen={partner.lastSeen}
                   />
                   <div className="flex-1 truncate">
                     <p className="font-semibold">{partner.name}</p>

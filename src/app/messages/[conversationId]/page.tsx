@@ -15,8 +15,9 @@ import {
   limit,
   startAfter,
   QueryDocumentSnapshot,
+  getDocs,
 } from 'firebase/firestore';
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,11 +42,11 @@ interface Message {
 function ConversationPageContent() {
   const { user, userProfile } = useAuth();
   const params = useParams();
-  const router = useRouter();
   const conversationId = params.conversationId as string;
+  const router = useRouter();
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [partnerIsOnline, setPartnerIsOnline] = useState<boolean>(false);
+  const [partnerProfile, setPartnerProfile] = useState<UserProfile | null>(null);
   const [task, setTask] = useState<Task | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -58,6 +59,26 @@ function ConversationPageContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const initialLimit = 20;
+
+  const fetchInitialMessages = useCallback(async () => {
+    if (!conversationId) return;
+    setLoading(true);
+     const messagesQuery = query(
+      collection(db, 'conversations', conversationId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(initialLimit)
+    );
+
+    const snapshot = await getDocs(messagesQuery);
+    const msgs = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Message))
+        .reverse();
+    setMessages(msgs);
+    setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+    setHasMore(snapshot.docs.length === initialLimit);
+    setLoading(false);
+  }, [conversationId]);
+
 
   useEffect(() => {
     if (!conversationId || !user) {
@@ -90,44 +111,48 @@ function ConversationPageContent() {
         const partnerId = convoData.participants.find(p => p !== user.uid);
         if (partnerId) {
           const partnerRef = doc(db, 'users', partnerId);
-          // Only listen to the online status of the partner
           partnerUnsub = onSnapshot(partnerRef, snap => {
-            setPartnerIsOnline(snap.data()?.isOnline || false);
+            setPartnerProfile(snap.data() as UserProfile);
           });
         }
       } else {
         router.push('/messages');
       }
-      setLoading(false);
     });
 
-    const messagesQuery = query(
+    fetchInitialMessages();
+
+    // Setup listener for new messages only
+    const newMessagesQuery = query(
       collection(db, 'conversations', conversationId, 'messages'),
       orderBy('createdAt', 'desc'),
-      limit(initialLimit)
+      limit(1)
     );
-
-    const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
-      const msgs = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Message))
-        .reverse();
-      setMessages(msgs);
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === initialLimit);
+    const unsubscribeNewMessages = onSnapshot(newMessagesQuery, snapshot => {
+       snapshot.docChanges().forEach(change => {
+           if(change.type === 'added') {
+               const newMessageData = {id: change.doc.id, ...change.doc.data()} as Message;
+               // Avoid adding duplicates on initial load
+               if(!messages.find(m => m.id === newMessageData.id)) {
+                   setMessages(prev => [...prev, newMessageData]);
+               }
+           }
+       })
     });
+
 
     return () => {
       unsubscribeConvo();
-      unsubscribeMessages();
+      unsubscribeNewMessages();
       if (partnerUnsub) {
         partnerUnsub();
       }
     };
-  }, [conversationId, user, router]);
+  }, [conversationId, user, router, fetchInitialMessages, messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages]);
+  }, [messages.length]);
 
   const loadMoreMessages = async () => {
     if (!hasMore || loadingMore || !lastVisible) return;
@@ -222,7 +247,8 @@ function ConversationPageContent() {
             <UserAvatar
               name={partner.name}
               imageUrl={partner.avatar}
-              isOnline={partnerIsOnline}
+              isOnline={partnerProfile?.isOnline}
+              lastSeen={partnerProfile?.lastSeen}
             />
             <div>
               <p className="font-semibold">{partner.name}</p>
@@ -269,7 +295,8 @@ function ConversationPageContent() {
                     <UserAvatar
                       name={partner.name}
                       imageUrl={partner.avatar}
-                      isOnline={partnerIsOnline}
+                      isOnline={partnerProfile?.isOnline}
+                      lastSeen={partnerProfile?.lastSeen}
                       className="h-8 w-8"
                     />
                   )}

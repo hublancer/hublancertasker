@@ -155,6 +155,7 @@ export default function ProfilePage() {
                                 name={profile.name}
                                 imageUrl={profile.photoURL}
                                 isOnline={profile.isOnline}
+                                lastSeen={profile.lastSeen}
                                 className="h-32 w-32 text-4xl"
                              />
                             <div className="text-center md:text-left flex-1">
