@@ -39,7 +39,8 @@ export default function TaskListItem({
             <h3 className="font-bold text-lg">{task.title}</h3>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2">
               <div className="flex items-center">
-                 <Badge variant="outline" className="capitalize">{task.status}</Badge>
+                 <MapPin className="mr-1.5 h-4 w-4" />
+                 <span>{task.location}</span>
               </div>
               <div className="flex items-center">
                 <Calendar className="mr-1.5 h-4 w-4" />

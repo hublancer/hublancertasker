@@ -402,15 +402,12 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
                               const city = pakistaniCities.find(
                                 c => c.name === value
                               );
-                              setPopoverCity(
-                                city
-                                  ? {
-                                      name: city.name,
-                                      coordinates: city.coordinates,
-                                    }
-                                  : null
-                              );
-                              setPopoverLocationFilterMode('city');
+                              if (city) {
+                                setPopoverCity({name: city.name, coordinates: city.coordinates });
+                                setPopoverLocationFilterMode('city');
+                                setCurrentMapCenter(city.coordinates);
+                                setMapZoom(11);
+                              }
                             }}
                           >
                             <SelectTrigger>
@@ -598,8 +595,7 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
         {/* Map */}
         <div
           className={cn(
-            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-10',
-            'border rounded-lg', 
+            'relative h-[calc(100vh-200px)] md:h-[calc(100vh-129px)] z-0',
             isMobile && mobileView !== 'map' && 'hidden',
             'md:block'
           )}
@@ -617,3 +613,4 @@ export default function HomePageClient({ tasks }: HomePageClientProps) {
     </div>
   );
 }
+
