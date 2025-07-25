@@ -163,11 +163,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     let adminUnsubscribe = () => {};
+    let previousUserId: string | null = null;
 
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true);
+
+      // If user is logging out, update their status
+      if (!currentUser && previousUserId) {
+          const userStatusFirestoreRef = doc(db, 'users', previousUserId);
+          updateDoc(userStatusFirestoreRef, { isOnline: false, lastSeen: serverTimestamp() });
+          previousUserId = null;
+      }
+
       if (currentUser) {
         setUser(currentUser);
+        previousUserId = currentUser.uid; // Store current user ID
+
         // Load from cache first
         const cachedProfile = sessionStorage.getItem(`userProfile-${currentUser.uid}`);
         if (cachedProfile) {
@@ -180,13 +191,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         onValue(ref(rtdb, '.info/connected'), (snapshot) => {
             if (snapshot.val() === false) {
-                // Not connected, but onDisconnect will handle setting offline status in Firestore.
                 return; 
             };
 
             onDisconnect(userStatusDatabaseRef).set({ isOnline: false, lastSeen: rtdbServerTimestamp() }).then(() => {
                 set(userStatusDatabaseRef, { isOnline: true, lastSeen: rtdbServerTimestamp() });
-                // Also update firestore
+                // Also update firestore on connect
                 updateDoc(doc(db, 'users', currentUser.uid), { isOnline: true, lastSeen: serverTimestamp() });
             });
         });
@@ -216,10 +226,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
       } else {
-        if(user) {
-             const userStatusFirestoreRef = doc(db, 'users', user.uid);
-             updateDoc(userStatusFirestoreRef, { isOnline: false, lastSeen: serverTimestamp() });
-        }
         setUser(null);
         setUserProfile(null);
         setLoading(false);
@@ -233,7 +239,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       adminUnsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, []);
 
   const value = {
       user,
