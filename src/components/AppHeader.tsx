@@ -32,6 +32,7 @@ import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, Timestam
 import { useMediaQuery } from '@/hooks/use-media-query';
 import UserAvatar from './UserAvatar';
 import Image from 'next/image';
+import { InstallPwaButton } from './InstallPwaButton';
 
 
 interface Notification {
@@ -265,6 +266,9 @@ const AppHeader = () => {
                      {link.label}
                   </Link>
                 ))}
+                 <div className="pl-1 pt-2">
+                    <InstallPwaButton />
+                 </div>
               </div>
             </div>
           </SheetContent>
@@ -307,6 +311,7 @@ const AppHeader = () => {
                 <Link href="/post-task">Post a Task</Link>
               </Button>
             )}
+            <InstallPwaButton />
             {renderProfileButton()}
           </div>
         </div>
