@@ -55,6 +55,16 @@ type TaskTypeFilter = 'all' | 'physical' | 'online';
 type SortByType = 'newest' | 'price-asc' | 'price-desc';
 type LocationFilterMode = 'city' | 'current';
 
+const getZoomForDistance = (distance: number) => {
+    if (distance <= 1) return 15;
+    if (distance <= 5) return 14;
+    if (distance <= 10) return 13;
+    if (distance <= 25) return 12;
+    if (distance <= 50) return 11;
+    if (distance <= 100) return 10;
+    return 9;
+}
+
 function HomePageClientContent({ tasks }: HomePageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -119,13 +129,13 @@ function HomePageClientContent({ tasks }: HomePageClientProps) {
         setPopoverLocationFilterMode('current');
         setAppliedCurrentLocation([latitude, longitude]);
         setCurrentMapCenter([latitude, longitude]);
-        setMapZoom(13);
+        setMapZoom(getZoomForDistance(appliedDistance));
       },
       () => {
         alert('Could not get your location.');
       }
     );
-  }, []);
+  }, [appliedDistance]);
 
   useEffect(() => {
     handleUseCurrentLocation();
@@ -158,7 +168,7 @@ function HomePageClientContent({ tasks }: HomePageClientProps) {
     ) {
       setAppliedCity(null);
       setCurrentMapCenter(appliedCurrentLocation);
-      setMapZoom(13);
+      setMapZoom(getZoomForDistance(popoverDistance));
     } else {
       setAppliedCity(null);
       setCurrentMapCenter(pakistaniCities[0].coordinates);
