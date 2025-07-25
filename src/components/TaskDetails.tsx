@@ -22,10 +22,7 @@ import Link from 'next/link';
 import UserAvatar from './UserAvatar';
 
 interface TaskDetailsProps {
-  task: Task & {
-    description: string;
-    postedBy: string;
-  };
+  task: Task;
   onBack?: () => void;
   onTaskUpdate?: (updatedTask: Task) => void;
   isPage?: boolean;
@@ -290,8 +287,8 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
 
       await addNotification(offer.taskerId, `Your offer for "${task.title}" was accepted!`, `/messages/${conversationRef.id}`);
       
-      const updatedTask = { ...task, status: 'assigned', assignedToId: offer.taskerId, assignedToName: offer.taskerName, price: offer.offerPrice };
-      if(onTaskUpdate) onTaskUpdate(updatedTask as Task);
+      const updatedTask = { ...task, status: 'assigned' as const, assignedToId: offer.taskerId, assignedToName: offer.taskerName, price: offer.offerPrice };
+      if(onTaskUpdate) onTaskUpdate(updatedTask);
 
       toast({ title: `Task assigned to ${offer.taskerName}!` });
       router.push(`/messages/${conversationRef.id}`);
@@ -875,9 +872,7 @@ export default function TaskDetails({ task, onBack, onTaskUpdate, isPage = false
           </div>
         )}
 
-        <div className="space-y-2">
-          <h1 className="text-2xl md:text-3xl font-bold font-headline">{task.title}</h1>
-        </div>
+        <h1 className="text-2xl md:text-3xl font-bold font-headline">{task.title}</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">

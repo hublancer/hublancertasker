@@ -12,18 +12,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
-type FullTask = Task & {
-  coordinates: [number, number] | null;
-  description: string;
-  postedBy: string;
-};
-
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
   const taskId = params.taskId as string;
 
-  const [task, setTask] = useState<FullTask | null>(null);
+  const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   
   const fetchTask = async () => {
@@ -73,10 +67,6 @@ export default function TaskPage() {
     fetchTask();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
-
-  const handleTaskUpdate = () => {
-    fetchTask(); // Re-fetch the task data after an update
-  };
 
   if (loading) {
     return (
@@ -130,7 +120,7 @@ export default function TaskPage() {
           </Button>
         <TaskDetails 
             task={task} 
-            onTaskUpdate={handleTaskUpdate}
+            onTaskUpdate={fetchTask}
             isPage={true}
         />
       </main>

@@ -1,10 +1,10 @@
+
 'use client';
 
 import { useState }from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { generateTaskDescription } from '@/ai/flows/generate-task-description';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Sparkles, LocateFixed } from 'lucide-react';
+import { CalendarIcon, LocateFixed } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { SignUpForm, SignUpFormValues } from './SignUpForm';
@@ -57,7 +57,6 @@ const formSchema = z.object({
 type PostTaskFormValues = z.infer<typeof formSchema>;
 
 export default function PostTaskForm() {
-  const [isGenerating, setIsGenerating] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [taskData, setTaskData] = useState<PostTaskFormValues | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,22 +80,6 @@ export default function PostTaskForm() {
   });
 
   const taskType = form.watch('taskType');
-
-  async function handleGenerateDescription() {
-    setIsGenerating(true);
-    const { title, taskType, budget, preferredDateTime } = form.getValues();
-    if (title && budget && preferredDateTime) {
-      const result = await generateTaskDescription({
-        taskTitle: title,
-        taskType: taskType,
-        budget: budget,
-        preferredDateTime: format(preferredDateTime, 'PPP'),
-        additionalInfo: 'Generate a friendly and encouraging description.',
-      });
-      form.setValue('description', result.taskDescription);
-    }
-    setIsGenerating(false);
-  }
 
   async function submitTask(taskDetails: PostTaskFormValues, userId: string, userName: string) {
     try {
@@ -236,17 +219,6 @@ export default function PostTaskForm() {
                 <FormItem>
                   <div className="flex items-center justify-between">
                     <FormLabel>Task Description</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleGenerateDescription}
-                      disabled={isGenerating}
-                      className="shrink-0"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {isGenerating ? 'Generating...' : 'Generate with AI'}
-                    </Button>
                   </div>
                   <FormControl>
                     <Textarea
@@ -446,5 +418,3 @@ export default function PostTaskForm() {
     </>
   );
 }
-
-    
