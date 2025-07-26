@@ -42,10 +42,8 @@ export const InstallPwaButton = () => {
       return;
     }
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-    }
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
   };
 
   if (!deferredPrompt) {
@@ -55,11 +53,11 @@ export const InstallPwaButton = () => {
   return (
     <Button
       variant="ghost"
+      size="icon"
       onClick={handleInstallClick}
-      className="flex items-center gap-2"
     >
-      <ArrowDownToLine className="h-4 w-4" />
-      <span className="hidden sm:inline">Install App</span>
+      <ArrowDownToLine className="h-5 w-5" />
+      <span className="sr-only">Install App</span>
     </Button>
   );
 };
